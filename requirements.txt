@@ -1,0 +1,5 @@
+Flask
+flask-restful
+pymongo
+flask-pymongo
+connexion
