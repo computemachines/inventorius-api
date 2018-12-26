@@ -59,4 +59,4 @@ db = client.inventorydb
 print(db.bins.find_one())
 
 if __name__=='__main__':
-    app.run(port=8080, debug=True)
+    app.run(port=8081, debug=True)
