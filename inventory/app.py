@@ -8,14 +8,30 @@ from bson.json_util import dumps
 app = Flask(__name__)
 
 
+def if_numeric_then_prepend(string, prefix):
+    if string.isnumeric():
+        return prefix+string
+
 @app.route('/api/things', methods=['POST'])
 def things_post():
-    print(request)
-    print(request.form.to_dict())
-    data = request.form.to_dict()
-    label = data["label"]
-    db.things.insert_one(data)
-    ret = db.things.find_one({"label": label})
+    form_data = request.form.to_dict()
+
+    thing_label = form_data['thing_label'].upper()
+    bin_label = form_data['bin_label'].upper()
+
+    thing_label = if_numeric_then_prepend(thing_label, 'UNIQ')
+    bin_label = if_numeric_then_prepend(bin_label, 'BIN')
+
+    db_entry = {
+        'label': thing_label,
+        'bin': bin_label,
+        'name': form_data['thing_name']
+    }
+    
+    db.things.insert_one(db_entry)
+
+    ret = db.things.find_one({'label': thing_label})
+
     return dumps(ret), 201
 
 @app.route('/api/things', methods=['GET'])
@@ -25,8 +41,10 @@ def things_get():
 
 @app.route('/api/thing/<label>', methods=['GET'])
 def thing(label):
-    thing = db.things.find_one({"label": label})
-    print(label)
+    label = label.upper()
+    label = if_numeric_then_prepend(label, 'UNIQ')
+    
+    thing = db.things.find_one({'label': label})
     return dumps(thing), 200
 
 @app.route('/api/bins', methods=['PUT'])
