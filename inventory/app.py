@@ -11,6 +11,8 @@ app = Flask(__name__)
 def if_numeric_then_prepend(string, prefix):
     if string.isnumeric():
         return prefix+string
+    else:
+        return string
 
 @app.route('/api/things', methods=['POST'])
 def things_post():
