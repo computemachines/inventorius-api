@@ -1,8 +1,10 @@
 from flask import Flask
-from flask import request
+from flask import request, redirect
 from flask.json import jsonify
 import json
 from bson.json_util import dumps
+
+from urllib import urlencode
 
 
 app = Flask(__name__)
@@ -14,8 +16,14 @@ def if_numeric_then_prepend(string, prefix):
     else:
         return string
 
-@app.route('/api/things', methods=['POST'])
-def things_post():
+@app.route('/api/things', methods=['POST', 'PUT'])
+def things_post_put():
+    if request.method == 'POST' and request.form['_method'].upper() == 'PUT':
+        return things_put()
+    elif request.method == 'PUT':
+        return things_put()
+
+def things_put():
     form_data = request.form.to_dict()
 
     thing_label = form_data['thing_label'].upper()
@@ -34,7 +42,12 @@ def things_post():
 
     ret = db.things.find_one({'label': thing_label})
 
-    return dumps(ret), 201
+    # refresh the page with note
+    ret = redirect('/new/thing?' + urlencode({
+        'last_inserted': thing_label
+    }))
+    print(ret)
+    return ret
 
 @app.route('/api/things', methods=['GET'])
 def things_get():
