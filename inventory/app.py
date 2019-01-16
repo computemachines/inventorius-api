@@ -4,7 +4,7 @@ from flask.json import jsonify
 import json
 from bson.json_util import dumps
 
-from urllib import urlencode
+from urllib.parse import urlencode
 
 
 app = Flask(__name__)
