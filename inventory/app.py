@@ -62,6 +62,13 @@ def thing(label):
     thing = db.things.find_one({'label': label})
     return dumps(thing), 200
 
+@app.route('/api/search', methods=['GET'])
+def search_get():
+    print('/api/search : {}'.format(request.args))
+    query = request.args.get('query')
+    results = db.things.find({'$text': {'$search': query}})
+    return dumps(results)
+
 @app.route('/api/bins', methods=['PUT'])
 def bins_put():
     data = request.json
@@ -75,7 +82,7 @@ def bin(label):
     return dumps(ret), 200
 
 
-from pymongo import MongoClient
+from pymongo import MongoClient, IndexModel, TEXT
 from pymongo.errors import ConnectionFailure
 
 DEBUG = __name__=='__main__'
@@ -89,7 +96,8 @@ print(db_host)
 client = MongoClient(db_host, 27017)
 print("Connected to MongoDB")
 db = client.inventorydb
-print(db.bins.find_one())
+print(db.things.find_one())
+db.things.create_index([('name', TEXT)])
 
 if __name__=='__main__':
     app.run(port=8081, debug=True)
