@@ -1,0 +1,476 @@
+openapi: 3.0.0
+# Added by API Auto Mocking Plugin
+servers:
+  - url: https://computemachines.com/api
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/computemachines/Inventory/1.0.0
+info:
+  description: "A not quite RESTful API that provides operations to manage and track inventory items and corresponding financial information for managerial accounting. \n Note to self: The HTTP method is overridden in application/x-www-form-urlencoded by the value of the '_method' parameter."
+  version: "1.0.0"
+  title: Inventory API
+  contact:
+    email: tparker@computemachines.com
+tags:
+  - name: Bins
+    description: CRUD operations on Bins
+  - name: Units
+    description: CRUD operations on SKUs, Batchs, and individual Units
+  - name: Inventory
+    description: Common inventory management operations
+paths:
+  /bins:
+    get:
+      tags: [Bins]
+      description: List summary information about bins in inventory system.
+      parameters:
+        - name: limit
+          in: query
+          description: The max number of bins to return per request
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 1000
+            default: 20
+        - name: startingFrom
+          in: query
+          description: The number of bins to skip. Useful for pagination.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 20
+      responses:
+        200:
+          description: Successful pull of bin info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BinSummary'
+        400:
+          description: Malformed Request. Possible pagination query parameter constraint violation.
+    post:
+      tags: [Bins]
+      description: Create a new empty bin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  $ref: '#/components/schemas/BinId'
+                props:
+                  $ref: '#/components/schemas/BinProperties'
+      responses:
+        201:
+          description: Successfully created a new bin
+          headers:
+            Location:
+              description: Location of the created resource
+              schema:
+                type: string
+                format: uri
+                example: "https://computemachines.com/api/bin/BIN000012"
+        409:
+          description: Bin already exists
+          headers:
+            Location:
+              description: Location of the existing resource
+              schema:
+                type: string
+                format: uri
+                example: "https://computemachines.com/api/bin/BIN000012"
+  /bin/{id}:
+    get:
+      operationId: getBinById
+      tags: [Bins]
+      description: Get extended information about a specific bin including its contents.
+      parameters:
+        - $ref: '#/components/parameters/binId'
+      responses:
+        200:
+          description: Information about specified bin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bin'
+        404:
+          description: The bin does not exist
+    delete:
+      tags: [Bins]
+      description: Delete a bin
+      parameters:
+        - $ref: '#/components/parameters/binId'
+        - in: query
+          name: force
+          description: Delete any contents
+          schema:
+            type: boolean
+            default: false
+      responses:
+        200:
+          description: Bin was deleted along with all contents, if any.
+        403:
+          description: The bin is not empty and force was not set to true.
+        404:
+          description: The bin does not exist so can not be deleted.
+  /units:
+    get:
+      tags: [Units]
+      description: List units in inventory system
+      parameters:
+        - name: limit
+          in: query
+          description: The max number of units to return per request
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 1000
+            default: 20
+        - name: startingFrom
+          in: query
+          description: The number of units to skip. Useful for pagination.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 20
+        - name: showAll
+          in: query
+          description: Show units that have been totally consumed but not deleted.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        200:
+          description: Successful pull of unit information.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Unit'
+        400:
+          description: Malformed Request. Possible pagination query parameter constraint violation.
+    post:
+      tags: [Units]
+      description: Create a new, fully-formed unit
+      requestBody:
+        description: Unit to post to units collection.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Unit'
+      responses:
+        201:
+          description: Successfully created a new unit
+          headers:
+            Location:
+              description: Location of the created unit
+              schema:
+                type: string
+                format: uri
+                example: "https://computemachines.com/api/bin/UNIQ00012"
+        409:
+          description: Unit already exists
+          headers:
+            Location:
+              description: Location of the existing unit
+              schema:
+                type: string
+                format: uri
+                example: "https://computemachines.com/api/bin/UNIQ00012"
+            
+  /unit/{id}:
+    get:
+      tags: [Units]
+      description: Get information about a specific unit.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A unit, batch, uniq, sku id or sku owned code.
+          schema:
+            type: string
+            example: SKU000081
+      responses:
+        200:
+          description: Successful pull of sku info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+        302:
+          description: Found an sku with this id as an owned code.
+          headers:
+            Location:
+              description: Location of the sku that owns this id.
+              schema:
+                type: string
+                format: uri
+                example: https://computemachines.com/api/unit/SKU000081
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+        404:
+          description: The unit can not be found
+    delete:
+      description: Delete the unit
+      tags: [Units]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A unit, batch, uniq, sku id.
+          schema:
+            type: string
+            example: SKU000081
+      responses:
+        200:
+          description: Unit was deleted.
+        403:
+          description: Do not attempt to delete a unit referenced only by an owned code.
+        404:
+          description: The unit does not exist so can not be deleted.
+  /unit/{unitId}/bin:
+    post:
+      tags: [Inventory]
+      description: Move with unit to a different bin.
+      parameters:
+        - name: unitId
+          in: path
+          required: true
+          description: A unit, batch, uniq, sku id or sku owned code.
+          schema:
+            type: string
+            example: SKU000081
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                new_bin:
+                  $ref: '#/components/schemas/BinId'
+      responses:
+        200:
+          description: Successfully moved unit
+          headers:
+            Location:
+              description: The URI of the unit
+              schema:
+                type: string
+                format: uri
+                example: https://computemachines.com/api/unit/SKU000081
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+        404:
+          description: Either the unit or the bin does not exist.
+components:
+  parameters:
+    binId:
+      in: path
+      name: id
+      required: true
+      description: The id of the bin
+      schema:
+        type: string
+  schemas:
+    BinId:
+      description: "An incrementing serial number prefixed by 'BIN' physically attach to each bin"
+      type: string
+      example: BIN000012
+      pattern: '^BIN\d*$'
+    BinProperties:
+      description: "Additional properties"
+      additionalProperties: true
+      example:
+        bin dimensions: ['100mm', '200mm', '60mm']
+        process: Receive
+    Bin:
+      description: Complete information about a Bin 
+      properties:
+        id:
+          $ref: '#/components/schemas/BinId'
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Unit'
+        props:
+          $ref: '#/components/schemas/BinProperties'
+        
+    BinSummary:
+      description: Summary information about a Bin
+      properties:
+        id:
+          $ref: '#/components/schemas/BinId'
+        unit count:
+          type: integer
+        sku count:
+          type: integer
+        props:
+          $ref: '#/components/schemas/BinProperties'
+      required:
+        - id
+    SKU-Id:
+      type: string
+      pattern: '^SKU\d*$'
+      example: SKU000081
+      description: "An incrementing serial number prefixed by 'SKU'"
+    UnitProperties:
+      description: 'Additional Properties'
+      additionalProperties: true
+      example:
+        dc gain: 100db
+    SKU:
+      description: Represents a set of functionally identical units. Can be subdivided into batches.
+      properties:
+        unit type:
+          type: string
+          enum: [SKU]
+        id:
+          $ref: '#/components/schemas/SKU-Id'
+        owned codes:
+          type: array
+          items:
+            type: string
+            description: Any code that maps to only this SKU. Can be a product number, ASIN, GTIN, IAN etc, as long as they do not reference any other SKUs.
+          example: ["SKU000081", "12345678"]
+        bins:
+          type: array
+          items:
+            $ref: '#/components/schemas/BinSummary'
+        name:
+          type: string
+          description: A useful, human-readable name for this item. 
+          example: "Op-Amp (Through-Hole) - LM358"
+        average unit original cost:
+          type: string
+          format: currency
+          description: Asset cost per unit averaged over all units with this SKU at the time of each unit's production or purchase.
+        average unit asset value:
+          type: string
+          format: currency
+          description: Asset value averaged over all units of this SKU. Used for computing Assets and Cost Of Goods Sold in accounting.
+        props:
+          $ref: '#/components/schemas/UnitProperties'
+      required:
+        - id
+        - owned codes
+        - name
+    BatchId:
+      type: string
+      pattern: '^BAT\d*$'
+      example: BATCH0008
+      description: "An incrementing serial number prefixed by 'BAT'"
+    Batch:
+      description: A set of units in an SKU that for some reason need to be distinguised from other units with the same SKU. A unit can be in at most one batch. All units in a batch must not be in the same bin as any units of the same SKU that are not in the batch. Batches can be split, formed and dissolved.
+      properties:
+        unit type:
+          type: string
+          enum: [Batch]
+        id:
+          $ref: '#/components/schemas/BatchId'
+        bin:
+          $ref: '#/components/schemas/BinSummary'
+        sku:
+          $ref: '#/components/schemas/SKU'
+        original cost:
+          type: string
+          format: currency
+          description: Total asset cost at the time of production, purchase or assembly. Should be equal to the the sum of 'value consumed' in assembly.
+        original cost per unit:
+          type: string
+          format: currency
+          description: original cost divided by the unit count.
+        asset value:
+          type: string
+          format: currency
+          description: 'Total asset value of this batch. Used for computing Assets and Cost Of Goods Sold for accounting. Must include effects of consumption and depreciation.'
+        asset value per unit:
+          type: string
+          format: currency
+          description: 'Asset value divided by unit count'
+        unit count:
+          type: integer
+        assembly:
+          description: "A set of units that contributed to the production of this batch. Assembled units must reduce their 'asset value' by the 'value consumed' of this unit"
+          type: array
+          items:
+            type: object
+            properties:
+              unit:
+                $ref: '#/components/schemas/Unit'
+              value consumed:
+                type: string
+                format: currency
+        assembly date:
+          type: string
+          format: date
+        expiration date:
+          type: string
+          format: date
+        props:
+          $ref: '#/components/schemas/UnitProperties'
+      required:
+        - sku
+        - id
+    UNIQ-Id:
+      type: string
+      pattern: '^UNIQ\d*$'
+      example: UNIQ000012
+      description: "An incrementing serial number prefixed by 'UNIQ'"
+    UNIQ:
+      description: "A single unit labeled with a globally uniq serial number prefixed by 'UNIQ'. Can optionally inherit properties from an SKU. A UNIQ label should be persistent across the lifetime of the part. Must not be in a batch."
+      properties:
+        unit type:
+          type: string
+          enum: [UNIQ]
+        id:
+          $ref: '#/components/schemas/UNIQ-Id'
+        bin:
+          $ref: '#/components/schemas/BinSummary'
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          description: A useful, human-readable name for this item. 
+          example: "Op-Amp (Through-Hole) - LM358"
+        original cost:
+          type: string
+          format: currency
+          description: Asset price at the time of production or purchase.
+        asset value:
+          type: string
+          format: currency
+          description: 'Used for computing Assets and Cost Of Goods Sold for accounting. Must include effects of consumption and depreciation.'
+        assembly:
+          description: "A set of units that contributed to the production of this unit. Assembled units must in total reduce their 'asset value' by the 'value consumed'"
+          type: array
+          items:
+            type: object
+            properties:
+              unit:
+                $ref: '#/components/schemas/Unit'
+              value consumed:
+                type: string
+                format: currency
+        props:
+          $ref: '#/components/schemas/UnitProperties'
+          
+    Unit:
+      description: Representation of an actual individual unit. Can be modeled as an SKU, Batch or Uniq
+      oneOf:
+        - $ref: '#/components/schemas/SKU'
+        - $ref: '#/components/schemas/Batch'
+        - $ref: '#/components/schemas/UNIQ'
+      discriminator:
+        propertyName: unit type

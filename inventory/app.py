@@ -7,7 +7,7 @@ from bson.json_util import dumps
 from urllib.parse import urlencode
 
 
-app = Flask(__name__)
+app = Flask(__name__.split('.')[0])
 
 
 def if_numeric_then_prepend(string, prefix):
@@ -54,6 +54,10 @@ def things_get():
     all_things = db.things.find()
     return dumps(all_things), 200
 
+@app.route('/api/thing', methods=['POST'])
+def thing_post():
+    pass
+
 @app.route('/api/thing/<label>', methods=['GET'])
 def thing(label):
     label = label.upper()
@@ -68,6 +72,16 @@ def search_get():
     query = request.args.get('query')
     results = db.things.find({'$text': {'$search': query}})
     return dumps(results)
+
+@app.route('/api/bins', methods=['GET'])
+def bins_get():
+    args = request.args
+    limit = int(args.get('limit', 20))
+    skip = int(args.get('startingFrom', 0))
+    cursor = db.bins.find()
+    cursor.limit(limit)
+    cursor.skip(skip)
+    return dumps(cursor)
 
 @app.route('/api/bins', methods=['PUT'])
 def bins_put():
