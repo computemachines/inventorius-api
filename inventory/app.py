@@ -1,4 +1,6 @@
-from flask import Flask
+#! /usr/bin/python3
+
+from flask import Flask, g
 from flask import request, redirect
 from flask.json import jsonify
 import json
@@ -7,7 +9,27 @@ from bson.json_util import dumps
 from urllib.parse import urlencode
 
 
-app = Flask(__name__.split('.')[0])
+print(__name__)
+app = Flask('inventory')
+DEBUG = __name__=='__main__'
+
+from pymongo import MongoClient, IndexModel, TEXT
+from pymongo.errors import ConnectionFailure
+from werkzeug.local import LocalProxy
+
+def get_db():
+    if 'db' not in g:
+        print("Creating new mongodb connection")
+        if DEBUG:
+            db_host = "localhost"
+        else:
+            db_host = "mongo"
+            import time
+            time.sleep(5)
+        client = MongoClient(db_host, 27017)
+        g.db = client.inventorydb
+    return g.db
+db = LocalProxy(get_db)
 
 
 def if_numeric_then_prepend(string, prefix):
@@ -16,6 +38,7 @@ def if_numeric_then_prepend(string, prefix):
     else:
         return string
 
+# api v0.1.0
 @app.route('/api/things', methods=['POST', 'PUT'])
 def things_post_put():
     if request.method == 'POST' and request.form['_method'].upper() == 'PUT':
@@ -49,15 +72,18 @@ def things_put():
     print(ret)
     return ret
 
+# api v0.1.0
 @app.route('/api/things', methods=['GET'])
 def things_get():
     all_things = db.things.find()
     return dumps(all_things), 200
 
+# api v0.1.0
 @app.route('/api/thing', methods=['POST'])
 def thing_post():
     pass
 
+# api v0.1.0
 @app.route('/api/thing/<label>', methods=['GET'])
 def thing(label):
     label = label.upper()
@@ -66,6 +92,7 @@ def thing(label):
     thing = db.things.find_one({'label': label})
     return dumps(thing), 200
 
+# api v0.1.0
 @app.route('/api/search', methods=['GET'])
 def search_get():
     print('/api/search : {}'.format(request.args))
@@ -73,6 +100,7 @@ def search_get():
     results = db.things.find({'$text': {'$search': query}})
     return dumps(results)
 
+# api v1.0.0
 @app.route('/api/bins', methods=['GET'])
 def bins_get():
     args = request.args
@@ -83,12 +111,24 @@ def bins_get():
     cursor.skip(skip)
     return dumps(cursor)
 
+# api v1.0.0
+@app.route('/api/bins', methods=['POST'])
+def bins_post():
+    bin = Bin(request.json)
+    existing = db.bins.find_one({'id': bin._id})
+    if existing is not None:
+        return existing
+    else:
+        return bin
+
+# api v0.1.0
 @app.route('/api/bins', methods=['PUT'])
 def bins_put():
     data = request.json
     db.bins.insert_one(data)
     return dumps(db.bins.find_one({'label': data['label']})), 201
 
+# api v0.1.0
 @app.route('/api/bin/<label>', methods=['GET'])
 def bin(label):
     ret = db.bins.find_one({"label": label})
@@ -96,22 +136,13 @@ def bin(label):
     return dumps(ret), 200
 
 
-from pymongo import MongoClient, IndexModel, TEXT
-from pymongo.errors import ConnectionFailure
 
-DEBUG = __name__=='__main__'
-if DEBUG:
-    db_host = "localhost"
-else:
-    db_host = "mongo"
-    import time
-    time.sleep(5)
-print(db_host)
-client = MongoClient(db_host, 27017)
-print("Connected to MongoDB")
-db = client.inventorydb
-print(db.things.find_one())
-db.things.create_index([('name', TEXT)])
+# @app.teardown_appcontext
+# def teardown_db():
+#     db = g.pop('db', None)
 
+#     if db is not None:
+#         db.close()
+        
 if __name__=='__main__':
     app.run(port=8081, debug=True)
