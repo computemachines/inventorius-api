@@ -1,33 +1,33 @@
 #! /usr/bin/python3
 
-from flask import Flask, g
+from flask import Flask, g, appcontext_pushed
 from flask import request, redirect
 from flask.json import jsonify
 import json
 from bson.json_util import dumps
-
 from urllib.parse import urlencode
-
-
-print(__name__)
-app = Flask('inventory')
-DEBUG = __name__=='__main__'
 
 from pymongo import MongoClient, IndexModel, TEXT
 from pymongo.errors import ConnectionFailure
 from werkzeug.local import LocalProxy
 
+app = Flask('inventory')
+app.config['LOCAL_MONGO'] = app.debug or app.testing
+
+if app.config.get('LOCAL_MONGO', False):
+    print("Local mongodb server")
+    db_host = "localhost"
+else:
+    print("Docker mongodb server")
+    db_host = "mongo"
+    # import time
+    # time.sleep(20)
+mongo_client = MongoClient(db_host, 27017)
+print("db.things.find_one(): {}".format((mongo_client.inventorydb.things.find_one())))
+
 def get_db():
     if 'db' not in g:
-        print("Creating new mongodb connection")
-        if DEBUG:
-            db_host = "localhost"
-        else:
-            db_host = "mongo"
-            import time
-            time.sleep(5)
-        client = MongoClient(db_host, 27017)
-        g.db = client.inventorydb
+        g.db = mongo_client.inventorydb
     return g.db
 db = LocalProxy(get_db)
 
@@ -106,10 +106,14 @@ def bins_get():
     args = request.args
     limit = int(args.get('limit', 20))
     skip = int(args.get('startingFrom', 0))
+
+    print(limit, skip)
     cursor = db.bins.find()
     cursor.limit(limit)
     cursor.skip(skip)
-    return dumps(cursor)
+    dump = dumps(cursor)
+    print(dump)
+    return dump
 
 # api v1.0.0
 @app.route('/api/bins', methods=['POST'])
@@ -143,6 +147,6 @@ def bin(label):
 
 #     if db is not None:
 #         db.close()
-        
+
 if __name__=='__main__':
     app.run(port=8081, debug=True)
