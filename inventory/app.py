@@ -11,6 +11,8 @@ from pymongo import MongoClient, IndexModel, TEXT
 from pymongo.errors import ConnectionFailure
 from werkzeug.local import LocalProxy
 
+from .helpers import Bin, MyEncoder
+
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
 
@@ -18,14 +20,10 @@ app.config['LOCAL_MONGO'] = app.debug or app.testing
 _mongo_client = None
 def get_mongo_client():
     global _mongo_client
-    print("app config: {}".format(app.config))
-    print("_mongo_client: {}".format(_mongo_client))
     if _mongo_client is None:
         if app.config.get('LOCAL_MONGO', False):
-            print("Local mongodb server")
             db_host = "localhost"
         else:
-            print("Docker mongodb server")
             db_host = "mongo"
             # import time
             # time.sleep(20)
@@ -113,23 +111,20 @@ def bins_get():
     limit = int(args.get('limit', 20))
     skip = int(args.get('startingFrom', 0))
 
-    print(limit, skip)
     cursor = db.bins.find()
     cursor.limit(limit)
     cursor.skip(skip)
-    dump = dumps(cursor)
-    print(dump)
-    return dump
+
+    bins = [Bin(bsonBin) for bsonBin in cursor]
+    
+    return json.dumps(bins, cls=MyEncoder)
 
 # api v1.0.0
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
     bin = Bin(request.json)
-    existing = db.bins.find_one({'id': bin._id})
-    if existing is not None:
-        return existing
-    else:
-        return bin
+    db.bins.insert_one(request.json)
+    return bin._id, 201
 
 # api v0.1.0
 @app.route('/api/bins', methods=['PUT'])

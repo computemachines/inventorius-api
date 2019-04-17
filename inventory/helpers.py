@@ -8,9 +8,15 @@ class Bin:
     def __str__(self):
         return "Bin(id={}, props={})".format(self._id, self.props)
 
+    def __eq__(self, other):
+        return self._id == other._id and self.props == other.props
+
     def toJson(self):
-        return '{{"id": "{}", "props": {}}}'.format(self._id, self.props)
+        return json.dumps(self, cls=MyEncoder)
+
+    def toDict(self):
+        return {'id': self._id, 'props': self.props}
 
 class MyEncoder(json.JSONEncoder):
     def default(self, o):
-        return {'id': o._id, 'props': o.props}
+        return o.toDict()
