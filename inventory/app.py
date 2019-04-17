@@ -14,23 +14,29 @@ from werkzeug.local import LocalProxy
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
 
-if app.config.get('LOCAL_MONGO', False):
-    print("Local mongodb server")
-    db_host = "localhost"
-else:
-    print("Docker mongodb server")
-    db_host = "mongo"
-    # import time
-    # time.sleep(20)
-mongo_client = MongoClient(db_host, 27017)
-print("db.things.find_one(): {}".format((mongo_client.inventorydb.things.find_one())))
+# memoize mongo_client
+_mongo_client = None
+def get_mongo_client():
+    global _mongo_client
+    print("app config: {}".format(app.config))
+    print("_mongo_client: {}".format(_mongo_client))
+    if _mongo_client is None:
+        if app.config.get('LOCAL_MONGO', False):
+            print("Local mongodb server")
+            db_host = "localhost"
+        else:
+            print("Docker mongodb server")
+            db_host = "mongo"
+            # import time
+            # time.sleep(20)
+        _mongo_client = MongoClient(db_host, 27017)
+    return _mongo_client
 
 def get_db():
     if 'db' not in g:
-        g.db = mongo_client.inventorydb
+        g.db = get_mongo_client().inventorydb
     return g.db
 db = LocalProxy(get_db)
-
 
 def if_numeric_then_prepend(string, prefix):
     if string.isnumeric():
