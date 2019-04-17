@@ -109,8 +109,13 @@ def search_get():
 @app.route('/api/bins', methods=['GET'])
 def bins_get():
     args = request.args
-    limit = int(args.get('limit', 20))
-    skip = int(args.get('startingFrom', 0))
+    limit = None
+    skip = None
+    try:
+        limit = int(args.get('limit', 20))
+        skip = int(args.get('startingFrom', 0))
+    except:
+        return "Malformed Request. Possible pagination query parameter constraint violation.", 400
 
     cursor = db.bins.find()
     cursor.limit(limit)
@@ -124,25 +129,25 @@ def bins_get():
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
     bin = Bin(request.json)
-    db.bins.insert_one(request.json)
+    existing = db.bins.find_one({'id': bin._id})
     resp = Response()
+    if existing is None:
+        db.bins.insert_one(request.json)
+        resp.status_code = 201
+    else:
+        resp.status_code = 409
     resp.headers['Location'] = url_for('bin', label=bin._id)
-    resp.status_code = 201
     return resp
 
-# api v0.1.0
-@app.route('/api/bins', methods=['PUT'])
-def bins_put():
-    data = request.json
-    db.bins.insert_one(data)
-    return dumps(db.bins.find_one({'label': data['label']})), 201
-
-# api v0.1.0
+# api v1.0.0
 @app.route('/api/bin/<label>', methods=['GET'])
 def bin(label):
-    ret = db.bins.find_one({"label": label})
-    print(ret)
-    return dumps(ret), 200
+    existing = db.bins.find_one({"id": label})
+    if existing is None:
+        return "The bin does not exist", 404
+    else:
+        bin = Bin(existing)
+        return bin.toJson(), 200
 
 
 

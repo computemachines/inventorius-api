@@ -3,7 +3,7 @@ import json
 class Bin:
     def __init__(self, json=None):
         self._id = json['id']
-        self.props = json['props']
+        self.props = json.get('props', {})
         
     def __str__(self):
         return "Bin(id={}, props={})".format(self._id, self.props)
