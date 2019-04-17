@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from flask import Flask, g, appcontext_pushed
+from flask import Flask, g, appcontext_pushed, Response, url_for
 from flask import request, redirect
 from flask.json import jsonify
 import json
@@ -15,6 +15,7 @@ from .helpers import Bin, MyEncoder
 
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
+app.config['SERVER_ROOT'] = 'https://computemachines.com'
 
 # memoize mongo_client
 _mongo_client = None
@@ -124,7 +125,10 @@ def bins_get():
 def bins_post():
     bin = Bin(request.json)
     db.bins.insert_one(request.json)
-    return bin._id, 201
+    resp = Response()
+    resp.headers['Location'] = url_for('bin', label=bin._id)
+    resp.status_code = 201
+    return resp
 
 # api v0.1.0
 @app.route('/api/bins', methods=['PUT'])

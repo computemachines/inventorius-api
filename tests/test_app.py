@@ -29,7 +29,7 @@ def test_empty_db(client):
     assert b"[]" == resp.data
     # assert False
 
-def test_post_bins_one(client):
+def test_post_bins_new(client):
     bin = Bin({
         "id": "BIN000012",
         "props": {
@@ -41,7 +41,11 @@ def test_post_bins_one(client):
             "process": "Receive"
         }})
     
-    client.post("/api/bins", json=bin.toDict())
+    postResp = client.post("/api/bins", json=bin.toDict())
+    assert postResp.status_code == 201
+    assert postResp.headers.get('Location', None) is not None
+    print(postResp.headers)
+    
     resp = client.get("/api/bins")
     respBins = [Bin(data) for data in json.loads(resp.data)]
     assert respBins[0].toJson() == bin.toJson()
