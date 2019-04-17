@@ -8,12 +8,13 @@ print(sys.path)
 
 from inventory.app import app as inventory_flask_app
 # inventory_flask_app  = inventory.app.app
-from inventory.app import mongo_client, db
+from inventory.app import get_mongo_client, db
 
 from contextlib import contextmanager
 from flask import appcontext_pushed, g, request_started
 
 def subscriber(sender):
+    g.db = get_mongo_client().testing
     print("localproxy db: {}".format(db))
     
 request_started.connect(subscriber, inventory_flask_app)
@@ -29,5 +30,6 @@ def test_empty_db(client):
     # assert False
     resp = client.get("/api/bins")
     print(resp.data)
+    assert b"[]" == resp.data
     print("DONE")
     # assert False
