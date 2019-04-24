@@ -11,7 +11,7 @@ from pymongo import MongoClient, IndexModel, TEXT
 from pymongo.errors import ConnectionFailure
 from werkzeug.local import LocalProxy
 
-from .helpers import Bin, MyEncoder
+from .data_models import Bin, MyEncoder
 
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
@@ -146,7 +146,8 @@ def bin(label):
     if existing is None:
         return "The bin does not exist", 404
     else:
-        bin = Bin(existing)
+        bin = BinExtended(existing)
+        bin.contents = []
         return bin.toJson(), 200
 
 
