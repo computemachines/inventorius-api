@@ -1,23 +1,40 @@
 import pytest
 
 from hypothesis import given, example
-import hypothesis.strategies as hs
+import hypothesis.strategies as strat
+
+import sys
+print(sys.path)
 
 from inventory.data_models import Bin, MyEncoder
-import tests.data_models_strategies as st
+import tests.data_models_strategies as my_strat
 import json
 
-@hs.composite
-def bin_and_id(draw,
-               ids=hs.integers().map(lambda i: f"BIN{i:08d}")):
+@strat.composite
+def bin_and_id_props_contents(
+        draw,
+        ids=strat.integers().map(lambda i: f"BIN{i:08d}")):
     id = draw(ids)
-    bin = Bin(id=id, props=draw(st.json))
-    return (bin, id)
+    props = draw(my_strat.json)
+    contents = draw(strat.just([]) | strat.none())
+    bin = Bin(id=id, props=props, contents=contents)
+    return (bin, id, props, contents)
 
-@given(bin_and_id())
-def test_bin_id(bin_id):
-    bin, id = bin_id
+@given(bin_and_id_props_contents())
+def test_bin(bin_id_props_contents):
+    bin, id, props, contents = bin_id_props_contents
     assert bin.id == id
+    assert bin.props == props
+    assert bin.contents == contents
+
+    assert json.loads(bin.to_json())['id'] == id
+    assert json.loads(bin.to_json()).get('props') == props
+    assert json.loads(bin.to_json()).get('contents') == contents
+
+    assert bin.to_mongodb_doc()['_id'] == id
+    assert bin.to_mongodb_doc().get('props') == props
+    assert bin.to_mongodb_doc().get('contents') == None
+
 
 # def test_bin():
 #     bin = Bin({'id': 'BIN000012', 'props': {}})

@@ -8,8 +8,6 @@ from contextlib import contextmanager
 from flask import appcontext_pushed, g, request_started
 import json
 
-from .generators import *
-
 def subscriber(sender):
     g.db = get_mongo_client().testing
 request_started.connect(subscriber, inventory_flask_app)

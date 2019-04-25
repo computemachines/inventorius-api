@@ -4,7 +4,7 @@ from hypothesis.strategies import *
 from string import printable
 
 printableText = text(printable)
-simpleTypes = one_of(none(), integers(), floats(), text(printable))
+simpleTypes = one_of(none(), integers(), floats(allow_nan=False), text(printable))
 
 json = recursive(simpleTypes,
                  lambda children: one_of(

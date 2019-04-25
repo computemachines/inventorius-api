@@ -33,14 +33,22 @@ class DataModel():
             else:
                 setattr(self, field, kwargs[field])
     
-    def toJson(self):
+    def to_json(self):
         return json.dumps(self, cls=MyEncoder)
 
     @classmethod
     def from_mongodb_doc(cls, mongo_dict):
-        assert issubclass(cls, DataModel)
-        # data_model_dict = {k, v for }
-        return cls(**jsonDict)
+        model_keys = get_fields(cls)
+        def find_model_key_from_db_key(db_key):
+            for attr in [getattr(cls, model_key) for model_key in model_keys]:
+                if attr.db_key == db_key:
+                    return model_key
+        if mongo_dict is None:
+            return None
+        data_model_dict = {
+            find_model_key_from_db_key(db_key): v for db_key, v in mongo_dict.items()
+        }
+        return cls.__new__(**data_model_dict)
 
     def to_mongodb_doc(self):
         model_keys = get_fields(type(self))
@@ -64,12 +72,6 @@ class Bin(DataModel):
     contents = DataField()
     unit_count = DataField()
     sku_count = DataField()
-
-    def __init__(self, id, **kwargs):
-        super(id=id, **kwargs) # watch video to understand super
-        if id == 'BIN00000000':
-            self.id = None
-        # todo try to fail test by somtimes changing self.id
     
 class Sku(DataModel):
     id = DataField("_id", required=True)

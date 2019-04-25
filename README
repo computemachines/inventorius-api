@@ -1,0 +1,7 @@
+Run dev server with:
+
+$ FLASK_ENV=development PYTHONPATH=. ./inventory/app.py
+
+Run tests with
+
+$ pytest
