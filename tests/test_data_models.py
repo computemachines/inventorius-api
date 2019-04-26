@@ -31,7 +31,7 @@ def test_bin(bin_id_props_contents):
     assert json.loads(bin.to_json()).get('props') == props
     assert json.loads(bin.to_json()).get('contents') == contents
 
-    assert bin.to_mongodb_doc()['_id'] == id
+    assert bin.to_mongodb_doc()['id'] == id
     assert bin.to_mongodb_doc().get('props') == props
     assert bin.to_mongodb_doc().get('contents') == None
 

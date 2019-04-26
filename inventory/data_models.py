@@ -11,8 +11,8 @@ def get_class_variables(cls):
     return class_variables
 
 def get_fields(cls):
-    return filter(lambda attr: issubclass(getattr(cls, attr).__class__, DataField), 
-           get_class_variables(cls))
+    return list(filter(lambda attr: issubclass(getattr(cls, attr).__class__, DataField), 
+                       get_class_variables(cls)))
 
 # -------- Utility classes
 
@@ -37,18 +37,27 @@ class DataModel():
         return json.dumps(self, cls=MyEncoder)
 
     @classmethod
+    def from_json(cls, json_str):
+        if type(json_str) == str:
+            return cls(**json.loads(json_str))
+        else:
+            return cls(**json_str)
+
+    @classmethod
     def from_mongodb_doc(cls, mongo_dict):
         model_keys = get_fields(cls)
         def find_model_key_from_db_key(db_key):
-            for attr in [getattr(cls, model_key) for model_key in model_keys]:
-                if attr.db_key == db_key:
+            for model_key in model_keys:
+                if getattr(cls, model_key).db_key == db_key:
                     return model_key
         if mongo_dict is None:
             return None
-        data_model_dict = {
-            find_model_key_from_db_key(db_key): v for db_key, v in mongo_dict.items()
-        }
-        return cls.__new__(**data_model_dict)
+        data_model_dict = {}
+        for db_key, v in mongo_dict.items():
+            model_key = find_model_key_from_db_key(db_key)
+            if model_key in model_keys:
+                data_model_dict[model_key] = v
+        return cls(**data_model_dict)
 
     def to_mongodb_doc(self):
         model_keys = get_fields(type(self))
@@ -67,7 +76,7 @@ class DataModel():
 # -------- Data models for db
                            
 class Bin(DataModel):
-    id = DataField("_id", required=True)
+    id = DataField("id", required=True)
     props = DataField("props")
     contents = DataField()
     unit_count = DataField()

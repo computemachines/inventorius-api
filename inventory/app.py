@@ -33,7 +33,6 @@ def get_mongo_client():
             # import time
             # time.sleep(20)
         _mongo_client = MongoClient(db_host, 27017)
-    print(_mongo_client)
     return _mongo_client
 
 def get_db():
@@ -65,7 +64,7 @@ def bins_get():
 # api v1.0.0
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
-    bin = Bin(request.json)
+    bin = Bin.from_json(request.json)
     existing = db.bins.find_one({'id': bin.id})
     resp = Response()
     if existing is None:
@@ -73,7 +72,7 @@ def bins_post():
         resp.status_code = 201
     else:
         resp.status_code = 409
-    resp.headers['Location'] = url_for('bin', label=bin.id)
+    resp.headers['Location'] = url_for('bin_get', id=bin.id)
     return resp
 
 # api v1.0.0

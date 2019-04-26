@@ -1,4 +1,7 @@
 import pytest
+from hypothesis import given, example
+import hypothesis.strategies as strat
+import tests.data_models_strategies as my_strat
 
 from inventory.app import app as inventory_flask_app
 from inventory.app import get_mongo_client, db
@@ -12,22 +15,53 @@ def subscriber(sender):
     g.db = get_mongo_client().testing
 request_started.connect(subscriber, inventory_flask_app)
 
-def init_db(db):
-    db.bins.drop()
-
+def init_db():
+    get_mongo_client().testing.bins.drop()
     
 @pytest.fixture
 def client():
     inventory_flask_app.testing = True
     inventory_flask_app.config['LOCAL_MONGO'] = True
-    init_db(get_mongo_client().testing)
+    init_db()
     yield inventory_flask_app.test_client()
     #close app
 
-def test_empty_db(client):
-    resp = client.get("/api/bins")
-    assert b"[]" == resp.data
 
+def test_empty_db(client):
+    with client:
+        resp = client.get("/api/bins")
+        assert g.db.bins.count() == 0
+
+        assert b"[]" == resp.data
+
+@strat.composite
+def strat_bins(draw):
+    id = f"BIN{draw(strat.integers()):08d}"
+    props = draw(my_strat.json)
+    contents = draw(strat.just([]) | strat.none())
+    return Bin(id=id, props=props, contents=contents)
+
+@given(bin=strat_bins())
+def test_post_bin(client, bin):
+    init_db()
+    with client:
+        resp = client.post("/api/bins", json=bin.to_json())
+        
+    assert resp.status_code == 201
+
+@pytest.mark.skip()
+@given(bins=strat.lists(strat_bins()))
+def test_post_bins(client, bins):
+    for bin in bins:
+        resp = client.post("/api/bins", json=bin.to_json())
+        if bin.id in [b.id for b in bins]:
+            assert resp.status_code == 409
+        else:
+            assert resp.status_code == 201
+    resp = client.get("/api/bins")
+
+    
+    
 # def test_post_bins_new(client):
 #     bin = generate_bin('BIN000012')
     
