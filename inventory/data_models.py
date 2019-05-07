@@ -83,7 +83,7 @@ class Bin(DataModel):
     sku_count = DataField()
     
 class Sku(DataModel):
-    id = DataField("_id", required=True)
+    id = DataField("id", required=True)
     owned_codes = DataField("owned_codes", required=True)
     name = DataField("name", required=True)
     bins = DataField()
@@ -92,8 +92,8 @@ class Sku(DataModel):
     props = DataField("props")
 
 class Batch(DataModel):
-    id = DataField("_id", required=True)
-    sku = DataField("sku_id", required=True)
+    id = DataField("id", required=True)
+    sku_id = DataField("sku_id", required=True)
     original_cost = DataField()
     original_cost_per_unit = DataField()
     asset_value = DataField()
@@ -105,8 +105,8 @@ class Batch(DataModel):
     props = DataField("props")
 
 class Uniq(DataModel):
-    id = DataField("_id", required=True)
-    bin = DataField("bin_id", required=True)
+    id = DataField("id", required=True)
+    bin_id = DataField("bin_id", required=True)
     sku_parent = DataField("sku_id")
     name = DataField("name")
     original_cost = DataField("original_cost")

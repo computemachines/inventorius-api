@@ -5,7 +5,7 @@ from string import printable, ascii_lowercase
 
 fieldNames = text(ascii_lowercase+'_')
 simpleTypes = one_of(none(),
-                     integers(),
+                     integers().filter(lambda x: x.bit_length() < 64),
                      floats(allow_nan=False), text(printable))
 
 json = recursive(simpleTypes,

@@ -5,7 +5,7 @@ import tests.data_models_strategies as my_strat
 
 from inventory.app import app as inventory_flask_app
 from inventory.app import get_mongo_client, db
-from inventory.data_models import Bin, MyEncoder
+from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
 from contextlib import contextmanager
 from flask import appcontext_pushed, g, request_started
@@ -17,6 +17,10 @@ request_started.connect(subscriber, inventory_flask_app)
 
 def init_db():
     get_mongo_client().testing.bins.drop()
+    get_mongo_client().testing.uniq.drop()
+    get_mongo_client().testing.sku.drop()
+    get_mongo_client().testing.batch.drop()
+
     
 @pytest.fixture
 def client():
@@ -30,28 +34,82 @@ def client():
 def test_empty_db(client):
     with client:
         resp = client.get("/api/bins")
-        assert g.db.bins.count() == 0
-
         assert b"[]" == resp.data
 
+        assert b"[]" == client.get("/api/units").data
+
+        assert g.db.bins.count_documents({}) == 0
+        assert g.db.uniq.count_documents({}) == 0
+        assert g.db.sku.count_documents({}) == 0
+        assert g.db.batch.count_documents({}) == 0
+
 @strat.composite
-def strat_bins(draw):
-    id = f"BIN{draw(strat.integers()):08d}"
+def strat_bins(draw, id=None):
+    id = id or f"BIN{draw(strat.integers(0)):08d}"
     props = draw(my_strat.json)
     contents = draw(strat.just([]) | strat.none())
     return Bin(id=id, props=props, contents=contents)
 
+@strat.composite
+def strat_uniqs(draw, id=None, bin_id=None):
+    id = id or f"UNIQ{draw(strat.integers(0)):07d}"
+    bin_id = bin_id or f"BIN{draw(strat.integers(0)):08d}"
+    return Uniq(id=id, bin_id=bin_id)
+
+@strat.composite
+def strat_skus(draw, id=None, owned_codes=None, name=None):
+    id = id or f"SKU{draw(strat.integers(0)):08d}"
+    owned_codes = owned_codes or draw(strat.lists(strat.text()))
+    name = draw(strat.text())
+    return Sku(id=id, owned_codes=owned_codes, name=name)
+
+@strat.composite
+def strat_batchs(draw, id=None, sku_id=None):
+    id = id or f"BAT{draw(strat.integers(0)):08d}"
+    sku_id = sku_id or f"SKU{draw(strat.integers(0)):08d}"
+    return Batch(id=id, sku_id=sku_id)
+
+@given(units=strat.lists(strat_uniqs()))
+def test_post_uniq(client, units):
+    init_db()
+    submitted_units = []
+    for unit in units:
+        resp = client.post("/api/units/uniqs", json=unit.to_json())
+        if unit.id not in submitted_units:
+            assert resp.status_code == 201
+            submitted_units.append(unit.id)
+        else:
+            assert resp.status_code == 409
+
+@pytest.mark.skip()
+@given(units=strat.lists(strat_skus()))
+def test_post_sku(client, units):
+    init_db()
+    with client:
+        resp = client.post("/api/units/skus", json=unit.to_json())
+    assert resp.status_code == 201
+
+@pytest.mark.skip()
+@given(units=strat.lists(strat_batchs()))
+def test_post_batch(client, units):
+    init_db()
+    with client:
+        resp = client.post("/api/units/batchs", json=unit.to_json())
+    assert resp.status_code == 201
+
+@pytest.mark.skip() # delete soon
 @given(bin=strat_bins())
 def test_post_bin(client, bin):
     init_db()
-    with client:
-        resp = client.post("/api/bins", json=bin.to_json())
-        
+    resp = client.post("/api/bins", json=bin.to_json())
     assert resp.status_code == 201
+
 
 @pytest.mark.skip()
 @given(bins=strat.lists(strat_bins()))
 def test_post_bins(client, bins):
+    init_db()
+    print(len(bins))
     for bin in bins:
         resp = client.post("/api/bins", json=bin.to_json())
         if bin.id in [b.id for b in bins]:

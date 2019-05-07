@@ -15,7 +15,7 @@ from pymongo import MongoClient, IndexModel, TEXT
 from pymongo.errors import ConnectionFailure
 from werkzeug.local import LocalProxy
 
-from inventory.data_models import Bin, MyEncoder
+from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
@@ -84,5 +84,60 @@ def bin_get(id):
     else:
         return bin.to_json(), 200
 
+@app.route('/api/units', methods=['GET'])
+def units_get():
+    return json.dumps([], cls=MyEncoder)
+
+@app.route('/api/unit/<id>', methods=['GET'])
+def unit_get(id):
+    existing = None
+    if id.startswith('UNIQ'):
+        existing = uniq_get(id)
+    elif id.startswith('SKU'):
+        existing = sku_get(id)
+    elif id.startswith('BAT'):
+        existing = batch_get(id)
+    else:
+        sku = owned_code_get(id)
+        resp = Response()
+        resp.status_code = 302
+        resp.headers['Location'] = url_for('unit_get', id=sku.id)
+        return resp
+
+    if existing is None:
+        resp = Response()
+        resp.status_code = 404
+        return resp
+
+    return existing.to_json(), 200
+
+def uniq_get(id):
+    existing = Uniq.from_mongodb_doc(db.uniq.find_one({'id': id}))
+    return existing
+def sku_get(id):
+    existing = Sku.from_mongodb_doc(db.sku.find_one({'id': id}))
+    return existing
+def batch_get(id):
+    existing = Batch.from_mongodb_doc(db.batch.find_one({'id': id}))
+    return existing
+def owned_code_get(id):
+    existing = Sku.from_mongodb_doc(
+        db.sku.find_one({'owned_codes': id}))
+    return existing
+
+# api v2.0.0
+@app.route('/api/units/uniqs', methods=['POST'])
+def uniq_post():
+    uniq = Uniq.from_json(request.json)
+    existing = db.uniq.find_one({'id': uniq.id})
+    resp = Response()
+    if existing is None:
+        db.uniq.insert_one(uniq.to_mongodb_doc())
+        resp.status_code = 201
+    else:
+        resp.status_code = 409
+        resp.headers['Location'] = url_for('unit_get', id=uniq.id)
+    return resp
+    
 if __name__=='__main__':
     app.run(port=8081, debug=True)
