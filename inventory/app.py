@@ -53,7 +53,7 @@ def bins_get():
     except:
         return "Malformed Request. Possible pagination query parameter constraint violation.", 400
 
-    cursor = db.bins.find()
+    cursor = db.bin.find()
     cursor.limit(limit)
     cursor.skip(skip)
 
@@ -65,10 +65,10 @@ def bins_get():
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
     bin = Bin.from_json(request.json)
-    existing = db.bins.find_one({'id': bin.id})
+    existing = db.bin.find_one({'id': bin.id})
     resp = Response()
     if existing is None:
-        db.bins.insert_one(bin.to_mongodb_doc())
+        db.bin.insert_one(bin.to_mongodb_doc())
         resp.status_code = 201
     else:
         resp.status_code = 409
@@ -78,15 +78,20 @@ def bins_post():
 # api v1.0.0
 @app.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
-    existing = Bin.from_mongodb_doc(db.bins.find_one({"id": id}))
+    existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
     if existing is None:
         return "The bin does not exist", 404
     else:
-        return bin.to_json(), 200
+        return existing.to_json(), 200
 
 @app.route('/api/units', methods=['GET'])
 def units_get():
-    return json.dumps([], cls=MyEncoder)
+    uniqs = list(db.uniq.find({}))
+    skus = list(db.sku.find({}))
+    batches = list(db.batch.find({}))
+
+    units = uniqs + skus + batches
+    return json.dumps(units, cls=MyEncoder)
 
 @app.route('/api/unit/<id>', methods=['GET'])
 def unit_get(id):
@@ -131,13 +136,45 @@ def uniq_post():
     uniq = Uniq.from_json(request.json)
     existing = db.uniq.find_one({'id': uniq.id})
     resp = Response()
-    if existing is None:
+    if existing is not None:
+        resp.status_code = 409
+        resp.headers['Location'] = url_for('unit_get', id=uniq.id)
+        return resp
+    elif db.bin.find_one({'id': uniq.bin_id}) is None:
+        # import pdb; pdb.set_trace()
+        resp.status_code = 404
+        resp.headers['Location'] = url_for('bin_get', id=uniq.bin_id)
+        return resp
+    else:
         db.uniq.insert_one(uniq.to_mongodb_doc())
+        resp.status_code = 201
+        return resp
+
+@app.route('/api/units/skus', methods=['POST'])
+def sku_post():
+    sku = Sku.from_json(request.json)
+    existing = db.sku.find_one({'id': sku.id})
+    resp = Response()
+    if existing is None:
+        db.sku.insert_one(sku.to_mongodb_doc())
         resp.status_code = 201
     else:
         resp.status_code = 409
-        resp.headers['Location'] = url_for('unit_get', id=uniq.id)
+        resp.headers['Location'] = url_for('unit_get', id=sku.id)
     return resp
+
+@app.route('/api/units/batches', methods=['POST'])
+def batch_post():
+    batch = Batch.from_json(request.json)
+    existing = db.batch.find_one({'id': batch.id})
+    resp = Response()
+    if existing is None:
+        db.batch.insert_one(batch.to_mongodb_doc())
+        resp.status_code = 201
+    else:
+        resp.status_code = 409
+        resp.headers['Location'] = url_for('unit_get', id=batch.id)
+    return resp    
     
 if __name__=='__main__':
     app.run(port=8081, debug=True)

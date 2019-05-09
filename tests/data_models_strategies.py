@@ -11,4 +11,5 @@ simpleTypes = one_of(none(),
 json = recursive(simpleTypes,
                  lambda children: one_of(
                      dictionaries(fieldNames, children),
-                     lists(children)))
+                     lists(children)),
+                 max_leaves=2)

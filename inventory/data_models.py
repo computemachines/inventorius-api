@@ -36,6 +36,9 @@ class DataModel():
     def to_json(self):
         return json.dumps(self, cls=MyEncoder)
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.to_json()})'
+    
     @classmethod
     def from_json(cls, json_str):
         if type(json_str) == str:

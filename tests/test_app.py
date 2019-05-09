@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given, example
+from hypothesis import given, example, settings, Verbosity, reproduce_failure, assume
 import hypothesis.strategies as strat
 import tests.data_models_strategies as my_strat
 
@@ -16,7 +16,7 @@ def subscriber(sender):
 request_started.connect(subscriber, inventory_flask_app)
 
 def init_db():
-    get_mongo_client().testing.bins.drop()
+    get_mongo_client().testing.bin.drop()
     get_mongo_client().testing.uniq.drop()
     get_mongo_client().testing.sku.drop()
     get_mongo_client().testing.batch.drop()
@@ -38,139 +38,106 @@ def test_empty_db(client):
 
         assert b"[]" == client.get("/api/units").data
 
-        assert g.db.bins.count_documents({}) == 0
+        assert g.db.bin.count_documents({}) == 0
         assert g.db.uniq.count_documents({}) == 0
         assert g.db.sku.count_documents({}) == 0
         assert g.db.batch.count_documents({}) == 0
 
 @strat.composite
-def strat_bins(draw, id=None):
-    id = id or f"BIN{draw(strat.integers(0)):08d}"
-    props = draw(my_strat.json)
-    contents = draw(strat.just([]) | strat.none())
+def strat_bins(draw, id=None, props=None, contents=None):
+    id = id or f"BIN{draw(strat.integers(0, 10)):08d}"
+    props = props or draw(my_strat.json)
+    contents = contents or draw(strat.just([]) | strat.none())
     return Bin(id=id, props=props, contents=contents)
+
 
 @strat.composite
 def strat_uniqs(draw, id=None, bin_id=None):
-    id = id or f"UNIQ{draw(strat.integers(0)):07d}"
-    bin_id = bin_id or f"BIN{draw(strat.integers(0)):08d}"
+    id = id or f"UNIQ{draw(strat.integers(0, 10)):07d}"
+    bin_id = bin_id or f"BIN{draw(strat.integers(0, 10)):08d}"
     return Uniq(id=id, bin_id=bin_id)
 
 @strat.composite
 def strat_skus(draw, id=None, owned_codes=None, name=None):
-    id = id or f"SKU{draw(strat.integers(0)):08d}"
-    owned_codes = owned_codes or draw(strat.lists(strat.text()))
-    name = draw(strat.text())
+    id = id or f"SKU{draw(strat.integers(0, 10)):08d}"
+    owned_codes = owned_codes or draw(strat.lists(strat.text("abc")))
+    name = draw(strat.text("ABC"))
     return Sku(id=id, owned_codes=owned_codes, name=name)
 
 @strat.composite
-def strat_batchs(draw, id=None, sku_id=None):
-    id = id or f"BAT{draw(strat.integers(0)):08d}"
-    sku_id = sku_id or f"SKU{draw(strat.integers(0)):08d}"
+def strat_batches(draw, id=None, sku_id=None):
+    id = id or f"BAT{draw(strat.integers(0, 10)):08d}"
+    sku_id = sku_id or f"SKU{draw(strat.integers(0, 100)):08d}"
     return Batch(id=id, sku_id=sku_id)
 
-@given(units=strat.lists(strat_uniqs()))
-def test_post_uniq(client, units):
+# import pdb; pdb.set_trace()
+
+@given(bins=strat.lists(strat_bins(), max_size=10))
+def test_post_bins(client, bins):
     init_db()
+    submitted_bins = []
+    for bin in bins:
+        resp = client.post("/api/bins", json=bin.to_json())
+        if bin.id not in submitted_bins:
+            assert resp.status_code == 201
+            submitted_bins.append(bin.id)
+        else:
+            assert resp.status_code == 409        
+
+            
+@example(units=strat.lists(strat_uniqs(), max_size=10, min_size=1).example(),
+         bins=[])
+@given(units=strat.lists(strat_uniqs(), max_size=10, min_size=1),
+       bins=strat.lists(strat_bins(props={}), min_size=10, max_size=20))
+def test_post_uniq(client, units, bins):
+    assume(not bins or not set(unit.bin_id for unit in units)
+                  .isdisjoint(bin.id for bin in bins))
+    init_db()
+
+    for bin in bins:
+        client.post("/api/bins", json=bin.to_json())
+    bin_ids = [bin.id for bin in bins]
+    
     submitted_units = []
     for unit in units:
         resp = client.post("/api/units/uniqs", json=unit.to_json())
+        if unit.id in submitted_units:
+            assert resp.status_code == 409
+        elif unit.bin_id not in bin_ids:
+            assert resp.status_code == 404
+        else:
+            assert resp.status_code == 201
+            submitted_units.append(unit.id)
+
+@given(units=strat.lists(strat_skus()),
+       bins=strat.lists(strat_bins(), max_size=10))
+def test_post_sku(client, units, bins):
+    
+    init_db()
+    
+    for bin in bins:
+        client.post("/api/bins", json=bin.to_json())
+    bin_ids = [bin.id for bin in bins]
+
+    submitted_units = []
+    for unit in units:
+        resp = client.post("/api/units/skus", json=unit.to_json())
+        if unit.id in submitted_units:
+            assert resp.status_code == 409
+        elif set().bin_ids:
+            assert resp.status_code == 404
+        else:
+            assert resp.status_code == 201
+            submitted_units.append(unit.id)
+
+@given(units=strat.lists(strat_batches()))
+def test_post_batch(client, units):
+    init_db()
+    submitted_units = []
+    for unit in units:
+        resp = client.post("/api/units/batches", json=unit.to_json())
         if unit.id not in submitted_units:
             assert resp.status_code == 201
             submitted_units.append(unit.id)
         else:
             assert resp.status_code == 409
-
-@pytest.mark.skip()
-@given(units=strat.lists(strat_skus()))
-def test_post_sku(client, units):
-    init_db()
-    with client:
-        resp = client.post("/api/units/skus", json=unit.to_json())
-    assert resp.status_code == 201
-
-@pytest.mark.skip()
-@given(units=strat.lists(strat_batchs()))
-def test_post_batch(client, units):
-    init_db()
-    with client:
-        resp = client.post("/api/units/batchs", json=unit.to_json())
-    assert resp.status_code == 201
-
-@pytest.mark.skip() # delete soon
-@given(bin=strat_bins())
-def test_post_bin(client, bin):
-    init_db()
-    resp = client.post("/api/bins", json=bin.to_json())
-    assert resp.status_code == 201
-
-
-@pytest.mark.skip()
-@given(bins=strat.lists(strat_bins()))
-def test_post_bins(client, bins):
-    init_db()
-    print(len(bins))
-    for bin in bins:
-        resp = client.post("/api/bins", json=bin.to_json())
-        if bin.id in [b.id for b in bins]:
-            assert resp.status_code == 409
-        else:
-            assert resp.status_code == 201
-    resp = client.get("/api/bins")
-
-    
-    
-# def test_post_bins_new(client):
-#     bin = generate_bin('BIN000012')
-    
-#     postResp = client.post("/api/bins", json=bin.toDict())
-#     assert postResp.status_code == 201
-#     assert postResp.headers.get('Location', None) is not None
-    
-#     resp = client.get("/api/bins")
-#     respBins = [Bin(data) for data in json.loads(resp.data)]
-#     assert respBins[0].toJson() == bin.toJson()
-#     assert respBins == [bin]
-
-# def test_post_bins_multiple_new(client):
-#     bin1 = generate_bin('BIN000012')
-#     bin2 = generate_bin('BIN000013')
-
-#     postResp = client.post("/api/bins", json=bin1.toDict())
-#     assert postResp.status_code == 201
-#     assert postResp.headers.get('Location', None) is not None
-
-#     postResp = client.post("/api/bins", json=bin2.toDict())
-#     assert postResp.status_code == 201
-#     assert postResp.headers.get('Location', None) is not None
-
-#     resp = client.get("/api/bins")
-#     respBins = [Bin(data) for data in json.loads(resp.data)]
-#     assert respBins == [bin1, bin2] or respBins == [bin2, bin1]
-
-# def test_post_bins_repeated(client):
-#     bin = generate_bin('BIN000012')
-
-#     postResp = client.post("/api/bins", json=bin.toDict())
-#     assert postResp.status_code == 201
-#     assert postResp.headers.get('Location', None) is not None
-
-#     postResp = client.post("/api/bins", json=bin.toDict())
-#     assert postResp.status_code == 409 # Bin should already exist
-#     assert postResp.headers.get('Location', None) is not None
-
-#     resp = client.get("/api/bins")
-#     respBins = [Bin(data) for data in json.loads(resp.data)]
-#     assert respBins == [bin]
-
-# def test_get_bin(client):
-#     bin = generate_bin('BIN000012')
-    
-#     postResp = client.post("/api/bins", json=bin.toDict())
-#     assert postResp.status_code == 201
-#     resource = postResp.headers.get('Location', None)
-    
-#     resp = client.get(resource)
-#     respBin = Bin(json.loads(resp.data))
-#     assert respBin == bin
-
