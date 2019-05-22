@@ -21,15 +21,17 @@ class MyEncoder(json.JSONEncoder):
         return {k: v for k, v in o.__dict__.items() if v is not None}
 
 class DataField():
-    def __init__(self, db_key=None, required=False):
+    def __init__(self, db_key=None, required=False, default=None):
         self.db_key = db_key
         self.required = required
+        self.default = default
         
 class DataModel():
     def __init__(self, **kwargs):
         for field in get_fields(type(self)):
-            if field not in kwargs and not getattr(self.__class__, field).required:
-                setattr(self, field, None)
+            instance_field = getattr(self.__class__, field)
+            if field not in kwargs and not instance_field.required:
+                setattr(self, field, instance_field.default)
             else:
                 setattr(self, field, kwargs[field])
     
@@ -81,7 +83,7 @@ class DataModel():
 class Bin(DataModel):
     id = DataField("id", required=True)
     props = DataField("props")
-    contents = DataField()
+    contents = DataField(default=[])
     unit_count = DataField()
     sku_count = DataField()
     
@@ -96,7 +98,7 @@ class Sku(DataModel):
 
 class Batch(DataModel):
     id = DataField("id", required=True)
-    sku_id = DataField("sku_id", required=True)
+    sku_id = DataField("sku_id")
     original_cost = DataField()
     original_cost_per_unit = DataField()
     asset_value = DataField()
