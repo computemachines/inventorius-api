@@ -83,15 +83,16 @@ class DataModel():
 class Bin(DataModel):
     id = DataField("id", required=True)
     props = DataField("props")
-    contents = DataField(default=[])
+    contents = DataField(default=[]) # [{<type>_id: ID, quantity: n}]
     unit_count = DataField()
     sku_count = DataField()
+    def skus(self):
+        return {e['sku_id'], e[quantity] for e in self.contents if 'sku_id' in e}
     
 class Sku(DataModel):
     id = DataField("id", required=True)
     owned_codes = DataField("owned_codes", required=True)
     name = DataField("name", required=True)
-    bins = DataField()
     average_unit_original_cost = DataField()
     average_unit_asset_value = DataField()
     props = DataField("props")
