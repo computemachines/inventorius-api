@@ -69,6 +69,7 @@ def bins_get():
 def bins_post():
     bin = Bin.from_json(request.json)
     existing = db.bin.find_one({'id': bin.id})
+    
     resp = Response()
     if existing is None:
         db.bin.insert_one(bin.to_mongodb_doc())
@@ -114,10 +115,10 @@ def uniqs_post(bin_id):
         return Response(status=409, headers={
             'Location': url_for('uniq_get', id=uniq.id)})
 
-    db.uniq.insert_one(uniq.to_mongo_doc())
+    db.uniq.insert_one(uniq.to_mongodb_doc())
     db.bin.update_one(
         {"id": bin.id},
-        {"$push": {contents: {"uniq_id": uniq.id, "quantity": 1}}})
+        {"$push": {"contents": {"uniq_id": uniq.id, "quantity": 1}}})
     return Response(status=201, headers={
         'Location': url_for('unit_get', id=uniq.id)})
 
@@ -133,14 +134,14 @@ def skus_post():
         return Response(status=409, headers={
             'Location': url_for('sku_get', id=sku.id)})
 
-    db.sku.insert_one(sku.to_mongo_doc())
+    db.sku.insert_one(sku.to_mongodb_doc())
     return Response(status=200, headers={
         'Location': url_for('sku_get', id=sku.id)})
 
 # api v2.0.0
 @app.route('/api/sku/<id>', methods=['GET'])
 def sku_get(id):
-    sku = Sku.from_mongo_doc(db.sku.find_one({"id": id}))
+    sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
     if sku is None:
         return 'Sku does not exist.', 404
     return json.dumps(sku, cls=MyEncoder), 200
@@ -148,7 +149,7 @@ def sku_get(id):
 # api v2.0.0
 @app.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):
-    sku = Sku.from_mongo_doc(db.sku.find_one({"id": id}))
+    sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
 
     if sku is None:
         return 'Sku does not exist.', 404
@@ -202,16 +203,16 @@ def uniq_delete(id):
     return Response(status=200)
 
 # api v2.0.0
-@app.route('/api/move-unit', methods=['POST'])
+@app.route('/api/move-units', methods=['POST'])
 def move_unit_post():
-    oldBin = Bin.from_mongodb_doc(db.bin.find({"id": request.form['old_bin_id']}))
-    newBin = Bin.from_mongodb_doc(db.bin.find({"id": request.form['new_bin_id']}))
+    oldBin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['old_bin_id']}))
+    newBin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['new_bin_id']}))
     quantity = int(request.form.get('quantity', 1))
     unit_id = request.form['unit_id']
 
-    if id.startswith('UNIQ'):
+    if unit_id.startswith('UNIQ'):
         assert quantity == 1
-        unit = Uniq.from_mongodb_doc(db.uniq.find({"id": unit_id}))
+        unit = Uniq.from_mongodb_doc(db.uniq.find_one({"id": unit_id}))
         db.bin.update_one({"id": oldBin.id},
                           {"$pull": {"contents.uniq_id": unit.id}})
         db.bin.update_one({"id": newBin.id},
@@ -219,10 +220,10 @@ def move_unit_post():
                                      {"uniq_id": unit.id,
                                       "quantity": 1}}})
         db.uniq.update_one({"id": unit.id}, {"bin_id": newBin.id})
-    elif id.startswith('SKU'):
+    elif unit_id.startswith('SKU'):
         assert quantity <= oldBin.skus()[unit_id]
-        unit = Sku.from_mongodb_doc(db.sku.find({"id": unit_id}))
-        db.bin.update_one({"id": oldBin.id, "content.sku_id": unit.id},
+        unit = Sku.from_mongodb_doc(db.sku.find_one({"id": unit_id}))
+        db.bin.update_one({"id": oldBin.id, "contents.sku_id": unit.id},
                           {"$inc": {"contents.$.quantity": -quantity}})
 
         # if unit not in bin already, add to bin with quantity 0
@@ -234,22 +235,23 @@ def move_unit_post():
         db.bin.update_many({"$or": [{"id": newBin.id},
                                     {"id": oldBin.id}]},
                            {"$pull": {"contents": {"quantity": {"$lte": 0}}}})
-    elif id.startswith('BAT'):
-        unit = Batch.from_mongodb_doc(db.batch.find({"id": unit_id}))
+    elif unit_id.startswith('BAT'):
+        unit = Batch.from_mongodb_doc(db.batch.find_one({"id": unit_id}))
         # TODO
     else:
         unit = owned_code_get(id)
         # TODO
     if not unit:
         return Response(status=404)
+    return Response(status=200)
 
 # api v2.0.0
 @app.route('/api/receive', methods=['POST'])
 def receive_post():
-    bin = Bin.from_mongodb_doc(db.bin.find({"id": request.form['bin_id']}))
+    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['bin_id']}))
     quantity = int(request.form.get('quantity', 1))
     sku_id = request.form['sku_id']
-    sku = Sku.from_mongodb_doc(db.sku.find({"id": sku_id}))
+    sku = Sku.from_mongodb_doc(db.sku.find_one({"id": sku_id}))
 
     # if unit not in bin already, add to bin with quantity 0
     db.bin.update_one({"id": bin.id, "contents": {"$not": {"$elemMatch": {"sku_id": sku.id}}}},

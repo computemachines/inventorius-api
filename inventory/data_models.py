@@ -68,6 +68,7 @@ class DataModel():
         model_keys = get_fields(type(self))
         def model_key_to_db_key(model_key):
             return getattr(self.__class__, model_key).db_key
+
         transformed_dict = {}
         for model_key in model_keys:
             model_value = getattr(self, model_key)
@@ -75,25 +76,24 @@ class DataModel():
             if db_key is not None and model_value is not None:
                 transformed_dict[db_key] = model_value
         return transformed_dict
-            # for attr in [getattr(self.__class__, model_key) for model_key in model_keys]:
-            #     if attr.db_key == 
-
+    
 # -------- Data models for db
                            
 class Bin(DataModel):
+    # if a datafield does not have a db_key set then it should not be stored in the db
     id = DataField("id", required=True)
     props = DataField("props")
-    contents = DataField(default=[]) # [{<type>_id: ID, quantity: n}]
+    contents = DataField("contents", default=[]) # [{<type>_id: ID, quantity: n}]
     unit_count = DataField()
     sku_count = DataField()
     def skus(self):
-        return {e['sku_id'], e[quantity] for e in self.contents if 'sku_id' in e}
+        return {e['sku_id']: e['quantity'] for e in self.contents if 'sku_id' in e}
     
 class Sku(DataModel):
     id = DataField("id", required=True)
     owned_codes = DataField("owned_codes", required=True)
     name = DataField("name", required=True)
-    average_unit_original_cost = DataField()
+    average_unit_original_cost = DataField("average_unit_original_cost")
     average_unit_asset_value = DataField()
     props = DataField("props")
 
