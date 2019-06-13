@@ -36,6 +36,9 @@ def get_mongo_client():
             # import time
             # time.sleep(20)
         _mongo_client = MongoClient(db_host, 27017)
+        _mongo_client.inventorydb.uniq.create_index('name')
+        _mongo_client.inventorydb.sku.create_index('name')
+
     return _mongo_client
 
 def get_db():
@@ -43,6 +46,13 @@ def get_db():
         g.db = get_mongo_client().inventorydb
     return g.db
 db = LocalProxy(get_db)
+
+def get_body_type():
+    if request.mimetype == 'application/json':
+        return 'json'
+    if request.mimetype in ('application/x-www-form-urlencoded',
+                            'multipart/form-data'):
+        return 'form'
 
 # api v2.0.0
 @app.route('/api/bins', methods=['GET'])
@@ -67,7 +77,14 @@ def bins_get():
 # api v2.0.0
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
-    bin = Bin.from_json(request.json)
+    if get_body_type() == 'json':
+        bin_json = request.json
+    elif get_body_type() == 'form':
+        bin_json = {
+            'id': request.form['bin_id']
+        }
+
+    bin = Bin.from_json(bin_json)
     existing = db.bin.find_one({'id': bin.id})
     
     resp = Response()
@@ -76,7 +93,13 @@ def bins_post():
         resp.status_code = 201
     else:
         resp.status_code = 409
-    resp.headers['Location'] = url_for('bin_get', id=bin.id)
+
+    if get_body_type() == 'form' and resp.status_code == 201:
+        resp.status_code = 302
+        resp.headers['Location'] = f"/bin/{bin.id}"
+
+    if get_body_type() == 'json':
+        resp.data = bin.to_json()
     return resp
 
 # api v2.0.0
@@ -101,13 +124,23 @@ def bin_delete(id):
         return 'The bin is not empty and force was not set to true.', 403
 
 # api v2.0.0
-@app.route('/api/bin/<bin_id>/uniqs', methods=['POST'])
-def uniqs_post(bin_id):
-    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": bin_id}))
-    uniq_json = request.json.copy()
-    uniq_json['bin_id'] = bin_id
+@app.route('/api/uniqs', methods=['POST'])
+def uniqs_post():
+    if get_body_type() == 'json':
+        uniq_json = request.json.copy()
+    elif get_body_type() == 'form':
+        uniq_json = {
+            'id': request.form['uniq_id'],
+            'bin_id': request.form['bin_id'],
+            'owned_codes': request.form['owned_codes'].split(),
+            'sku_parent': request.form.get('sku_id', None),
+            'name': request.form.get('uniq_name', None)
+        }
     uniq = Uniq.from_json(uniq_json)
+    bin_id = uniq_json['bin_id']
+    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": bin_id}))
 
+    
     if bin is None:
         return Response(status=404, headers={
             'Location', url_for('bin_get', id=bin_id)})
@@ -119,9 +152,12 @@ def uniqs_post(bin_id):
     db.bin.update_one(
         {"id": bin.id},
         {"$push": {"contents": {"uniq_id": uniq.id, "quantity": 1}}})
-    return Response(status=201, headers={
-        'Location': url_for('unit_get', id=uniq.id)})
-
+    print(f"/uniq/{uniq.id}")
+    resp = Response(status=201, headers={
+        'Location': f"/uniq/{uniq.id}"})
+    if get_body_type() == 'form' and resp.status_code == 201:
+        resp.status_code = 302
+    return resp
 
 # api v2.0.0
 @app.route('/api/skus', methods=['POST'])
@@ -261,6 +297,21 @@ def receive_post():
 
     return Response(status=200)
 
+# api v2.1.0
+@app.route('/api/search', methods=['GET'])
+def search(): 
+    query = request.args['query']
+    results = []
+
+    for uniq_doc in db.uniq.find({"id": query}):
+        results.append(Uniq.from_mongodb_doc(uniq_doc))
+
+    cursor = db.sku.find({"$or": [{"id": query},
+                                  {"owned_codes": query}]})
+    for sku_doc in cursor:
+        results.append(Sku.from_mongodb_doc(sku_doc))
+
+    return json.dumps(results, cls=MyEncoder)
 
 if __name__ == '__main__':
     app.run(port=8081, debug=True)

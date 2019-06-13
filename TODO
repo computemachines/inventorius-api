@@ -1,3 +1,7 @@
 sanitize inputs:
 mongodb might crash if given integers longer than 64 bit_length
 or if given fieldnames with non-UTF8 or '.' or starts with a '$'
+
+UPPERCASE all code inputs
+
+Standardize code prefixes

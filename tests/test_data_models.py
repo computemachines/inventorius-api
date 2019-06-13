@@ -11,29 +11,28 @@ import tests.data_models_strategies as my_strat
 import json
 
 @strat.composite
-def bin_and_id_props_contents(
+def bin_and_id_props(
         draw,
         ids=strat.integers().map(lambda i: f"BIN{i:08d}")):
     id = draw(ids)
     props = draw(my_strat.json)
-    contents = draw(strat.just([]) | strat.none())
-    bin = Bin(id=id, props=props, contents=contents)
-    return (bin, id, props, contents)
+    bin = Bin(id=id, props=props)
+    return (bin, id, props)
 
-@given(bin_and_id_props_contents())
-def test_bin(bin_id_props_contents):
-    bin, id, props, contents = bin_id_props_contents
+@given(bin_and_id_props())
+def test_bin(bin_id_props):
+    bin, id, props = bin_id_props
     assert bin.id == id
     assert bin.props == props
-    assert bin.contents == contents
+    assert bin.contents == []
 
     assert json.loads(bin.to_json())['id'] == id
     assert json.loads(bin.to_json()).get('props') == props
-    assert json.loads(bin.to_json()).get('contents') == contents
+    assert json.loads(bin.to_json()).get('contents') == []
 
     assert bin.to_mongodb_doc()['id'] == id
     assert bin.to_mongodb_doc().get('props') == props
-    assert bin.to_mongodb_doc().get('contents') == None
+    assert bin.to_mongodb_doc().get('contents') == []
 
 
 # def test_bin():

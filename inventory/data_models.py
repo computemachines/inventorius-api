@@ -29,12 +29,22 @@ class DataField():
 class DataModel():
     def __init__(self, **kwargs):
         for field in get_fields(type(self)):
-            instance_field = getattr(self.__class__, field)
-            if field not in kwargs and not instance_field.required:
-                setattr(self, field, instance_field.default)
-            else:
+            class_field = getattr(self.__class__, field)
+
+            # if field in kwargs: then self.<field> = kwargs[field]
+            # elif field.default: then self.<field> = field.default
+            # elif field.required: raise exception
+            # else: pass # field was not required and left undefined
+            if field in kwargs:
                 setattr(self, field, kwargs[field])
-    
+            elif class_field.default is not None:
+                setattr(self, field, class_field.default)
+            elif class_field.required:
+                raise KeyError("'{}' is a required field in class '{}'".format(field, self.__class__.__name__))
+            else:
+                # field was not required and left undefined
+                pass
+                    
     def to_json(self):
         return json.dumps(self, cls=MyEncoder)
 
@@ -71,9 +81,14 @@ class DataModel():
 
         transformed_dict = {}
         for model_key in model_keys:
+
+            # If a model_key is not defined in the DataModel subclass instance,
+            # then getattr should return the value model_key in the subclass.
             model_value = getattr(self, model_key)
+            assert model_value != None 
+
             db_key = model_key_to_db_key(model_key)
-            if db_key is not None and model_value is not None:
+            if db_key is not None and type(model_value) != DataField:
                 transformed_dict[db_key] = model_value
         return transformed_dict
     
@@ -91,8 +106,8 @@ class Bin(DataModel):
     
 class Sku(DataModel):
     id = DataField("id", required=True)
-    owned_codes = DataField("owned_codes", required=True)
-    name = DataField("name", required=True)
+    owned_codes = DataField("owned_codes")
+    name = DataField("name")
     average_unit_original_cost = DataField("average_unit_original_cost")
     average_unit_asset_value = DataField()
     props = DataField("props")
@@ -113,6 +128,7 @@ class Batch(DataModel):
 class Uniq(DataModel):
     id = DataField("id", required=True)
     bin_id = DataField("bin_id", required=True)
+    owned_codes = DataField("owned_codes")
     sku_parent = DataField("sku_id")
     name = DataField("name")
     original_cost = DataField("original_cost")
