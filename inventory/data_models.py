@@ -124,6 +124,7 @@ class Batch(DataModel):
     assembly_date = DataField()
     expiration_date = DataField()
     props = DataField("props")
+    inherited_props = DataField()
 
 class Uniq(DataModel):
     id = DataField("id", required=True)
@@ -135,6 +136,7 @@ class Uniq(DataModel):
     asset_value = DataField("asset_value")
     assembly = DataField()
     props = DataField("props")
+    inherited_props = DataField()
 
 # class BinExtended:
 #     def __init__(self, json=None):

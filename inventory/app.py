@@ -299,7 +299,7 @@ def receive_post():
 
 # api v2.1.0
 @app.route('/api/search', methods=['GET'])
-def search(): 
+def search():
     query = request.args['query']
     results = []
 
