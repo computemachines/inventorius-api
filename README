@@ -1,6 +1,6 @@
 Run dev server with:
 
-$ FLASK_ENV=development PYTHONPATH=. ./inventory/app.py
+$ python -m inventory.app
 
 Run tests with
 
