@@ -26,31 +26,27 @@ def test_bin(bin_id_props):
     assert bin.props == props
     assert bin.contents == []
 
+    assert bin == bin
+    assert Bin(id="A") != Bin(id="B")
+    assert not(Bin(id="A") == Bin(id="B"))
+
     assert json.loads(bin.to_json())['id'] == id
     assert json.loads(bin.to_json()).get('props') == props
     assert json.loads(bin.to_json()).get('contents') == []
+
+    bin_jsoned = Bin.from_json(bin.to_json())
+    assert bin_jsoned == bin
+    assert bin == bin_jsoned
+
+    print(bin)
 
     assert bin.to_mongodb_doc()['id'] == id
     assert bin.to_mongodb_doc().get('props') == props
     assert bin.to_mongodb_doc().get('contents') == []
 
-
-# def test_bin():
-#     bin = Bin({'id': 'BIN000012', 'props': {}})
-#     binJson = '{"id": "BIN000012", "props": {}}'
-
-#     assert bin.toJson() == binJson
-#     assert json.dumps(bin, cls=MyEncoder) == binJson
-#     assert json.dumps([bin], cls=MyEncoder) == '[{}]'.format(binJson)
-
-#     # using generator functions
-#     bin = generate_bin("BIN000013")
-#     assert bin._id == "BIN000013"
-#     assert json.loads(bin.toJson())['id'] == "BIN000013"
-
 # def test_bin_extended():
 #     pass
-    
+
 # def test_sku():
 #     sku = SKU({'id': 'SKU000081',
 #                'owned codes': ["SKU000081", "12345678"],

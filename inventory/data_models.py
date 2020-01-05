@@ -11,46 +11,74 @@ def get_class_variables(cls):
     return class_variables
 
 def get_fields(cls):
-    return list(filter(lambda attr: issubclass(getattr(cls, attr).__class__, DataField), 
+    return list(filter(lambda attr: issubclass(getattr(cls, attr).__class__, DataField),
                        get_class_variables(cls)))
 
 # -------- Utility classes
 
 class MyEncoder(json.JSONEncoder):
     def default(self, o):
-        return {k: v for k, v in o.__dict__.items() if v is not None}
+        return {k: v for k, v in o.__dict__.items()}
 
 class DataField():
+    """An individual field of the DataModel.
+
+    If db_key=None Then will not be retained when transformed to a mongodb doc.
+    """
     def __init__(self, db_key=None, required=False, default=None):
         self.db_key = db_key
         self.required = required
         self.default = default
-        
-class DataModel():
-    def __init__(self, **kwargs):
-        for field in get_fields(type(self)):
-            class_field = getattr(self.__class__, field)
+    def __repr__(self):
+        return f"DataField(db_key={self.db_key}, required={self.required}, default={self.default})"
 
-            # if field in kwargs: then self.<field> = kwargs[field]
-            # elif field.default: then self.<field> = field.default
+class DataModel():
+    """Abstract base class for managing conversion between app data structures and
+       mongodb json documents.
+
+       Subclasses must have `DataField` class variables.
+    """
+    def __init__(self, **kwargs):
+        for field in get_class_variables(type(self)):
+            class_variable = getattr(self.__class__, field)
+
+            # if field in kwargs:
+            # then called like ChildModel(field=value) so then simulate dataclass
+            #   types by setting self.<field> = kwargs[field] (also masking class variable)
+            #
+            #   sometimes called like ChildModel(field=None). in this case kwargs[field]
+            #   is none. Don't treat this special. Don't use default. If I take the time
+            #   to write field=None, assume I really want None.
+            #
+            # elif class_variable.default is set: then self.<field> = field.default
+            #
             # elif field.required: raise exception
+            #
             # else: pass # field was not required and left undefined
+
             if field in kwargs:
                 setattr(self, field, kwargs[field])
-            elif class_field.default is not None:
-                setattr(self, field, class_field.default)
-            elif class_field.required:
+            elif class_variable.default is not None:
+                setattr(self, field, class_variable.default)
+            elif class_variable.required:
                 raise KeyError("'{}' is a required field in class '{}'".format(field, self.__class__.__name__))
             else:
                 # field was not required and left undefined
                 pass
-                    
+    def __eq__(self, other):
+        if type(self) != type(other):
+            return False
+        for field in get_class_variables(self):
+            if getattr(self, field) != getattr(other, field):
+                return False
+        return True
+
     def to_json(self):
         return json.dumps(self, cls=MyEncoder)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.to_json()})'
-    
+        return f'{self.__class__.__name__}({", ".join("=".join((k, v.__repr__())) for k, v in self.__dict__.items())})'
+
     @classmethod
     def from_json(cls, json_str):
         if type(json_str) == str:
@@ -76,26 +104,32 @@ class DataModel():
 
     def to_mongodb_doc(self):
         model_keys = get_fields(type(self))
+
         def model_key_to_db_key(model_key):
             return getattr(self.__class__, model_key).db_key
 
+        # transform self.__dict__ like {k: v} => {f(k): v}
         transformed_dict = {}
         for model_key in model_keys:
 
-            # If a model_key is not defined in the DataModel subclass instance,
+            # If a model_key is not an instance variable,
             # then getattr should return the value model_key in the subclass.
             model_value = getattr(self, model_key)
-            assert model_value != None 
+
+            # don't break the db schema
+            assert getattr(type(self), model_key) != None
 
             db_key = model_key_to_db_key(model_key)
+
             if db_key is not None and type(model_value) != DataField:
                 transformed_dict[db_key] = model_value
         return transformed_dict
-    
+
 # -------- Data models for db
-                           
+
 class Bin(DataModel):
-    # if a datafield does not have a db_key set then it should not be stored in the db
+    """Models a physical bin in the inventory system."""
+    # if a datafield does not have a db_key set then it should not be stored as a db field
     id = DataField("id", required=True)
     props = DataField("props")
     contents = DataField("contents", default=[]) # [{<type>_id: ID, quantity: n}]
@@ -103,7 +137,7 @@ class Bin(DataModel):
     sku_count = DataField()
     def skus(self):
         return {e['sku_id']: e['quantity'] for e in self.contents if 'sku_id' in e}
-    
+
 class Sku(DataModel):
     id = DataField("id", required=True)
     owned_codes = DataField("owned_codes")
@@ -169,4 +203,3 @@ class Uniq(DataModel):
 
 #     def toJson(self):
 #         return json.dumps(self, cls=MyEncoder)
-    
