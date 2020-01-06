@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given, example, settings, Verbosity, reproduce_failure, assume
+from hypothesis import given, example, settings, Verbosity, reproduce_failure, assume, note, event
 import hypothesis.strategies as st
 import tests.data_models_strategies as my_st
 
@@ -69,46 +69,54 @@ def batches_(draw, id=None, sku_id=None):
     sku_id = sku_id or f"SKU{draw(st.integers(0, 100)):08d}"
     return Batch(id=id, sku_id=sku_id)
 
+import random
+@given(bin=bins_())
+@settings(max_examples=100)
+def test_one_bin(client, bin):
+    init_db()
+    client.post("/api/bins", json=bin.to_json())
+    data = client.get("/api/bins").data
+    assert json.loads(data)==json.loads(json.dumps([bin], cls=MyEncoder))
 
-## api v1.0.0
-# @given(bin1=st.one_of(bins_(id="BIN1")|bins_(id="BIN2")),
-#        bin2=st.one_of(bins_(id="BIN1")|bins_(id="BIN2")))
-# def test_post_two_bins(client, bin1, bin2):
-#     init_db()
-#     submitted_bins = []
-#     for bin in [bin1, bin2]:
-#         resp = client.post("/api/bins", json=bin.to_json())
-#         if bin.id not in submitted_bins:
-#             assert resp.status_code == 201
-#             submitted_bins.append(bin.id)
-#         else:
-#             assert resp.status_code == 409        
+@given(bin1=st.one_of(bins_(id="BIN1")|bins_(id="BIN2")),
+       bin2=st.one_of(bins_(id="BIN1")|bins_(id="BIN2")))
+def test_post_two_bins(client, bin1, bin2):
+    init_db()
+    submitted_bins = []
+    for bin in [bin1, bin2]:
+        resp = client.post("/api/bins", json=bin.to_json())
+        if bin.id not in submitted_bins:
+            assert resp.status_code == 201
+            submitted_bins.append(bin.id)
+        else:
+            assert resp.status_code == 409
 
-            
-## api v1.0.0
-# @given(st.none(), st.none(), st.none())
-# @example(uniq1=Uniq(id="UNIQ1"),
-#          uniq2=Uniq(id="UNIQ2"),
-#          bin=Bin(id="BIN1"))
-# @example(uniq1=Uniq(id="UNIQ1"),
-#          uniq2=Uniq(id="UNIQ1"),
-#          bin=Bin(id="BIN1"))
-# def test_post_two_uniq(client, uniq1, uniq2, bin):
-#     if uniq1 is None: return
-#     init_db()
-#     client.post("/api/bins", json=bin.to_json())
 
-#     assert uniq1.bin_id == bin.id
-#     resp = client.post(f"/api/bin/{bin.id}/uniqs", json=uniq1.to_json())
-#     assert resp.status_code == 201
 
-#     resp = client.post(f"/api/bin/{bin.id}/uniqs", json=uniq2.to_json())
-#     if uniq2.id == uniq1.id:
-#         assert resp.status_code == 409 # uniq already exists
-#     if uniq2.id != uniq1.id and uniq2.bin_id != bin.id:
-#         assert resp.status_code == 404 # bin not found
-#     if uniq2.id != uniq1.id and uniq2.bin_id == bin.id:
-#         assert resp.status_code == 201 # uniq added
+@pytest.mark.skip()
+@given(st.none(), st.none(), st.none())
+@example(uniq1=Uniq(id="UNIQ1", bin_id="BIN1"),
+         uniq2=Uniq(id="UNIQ2", bin_id="BIN1"),
+         bin=Bin(id="BIN1"))
+@example(uniq1=Uniq(id="UNIQ1", bin_id="BIN1"),
+         uniq2=Uniq(id="UNIQ1", bin_id="BIN1"),
+         bin=Bin(id="BIN1"))
+def test_post_two_uniq(client, uniq1, uniq2, bin):
+    if uniq1 is None: return
+    init_db()
+    client.post("/api/bins", json=bin.to_json())
+
+    assert uniq1.bin_id == bin.id
+    resp = client.post(f"/api/bin/{bin.id}/uniqs", json=uniq1.to_json())
+    assert resp.status_code == 201
+
+    resp = client.post(f"/api/bin/{bin.id}/uniqs", json=uniq2.to_json())
+    if uniq2.id == uniq1.id:
+        assert resp.status_code == 409 # uniq already exists
+    if uniq2.id != uniq1.id and uniq2.bin_id != bin.id:
+        assert resp.status_code == 404 # bin not found
+    if uniq2.id != uniq1.id and uniq2.bin_id == bin.id:
+        assert resp.status_code == 201 # uniq added
 
 
 ## avi v1.0.0 test
