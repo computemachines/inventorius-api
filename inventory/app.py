@@ -8,12 +8,10 @@
     https://app.swaggerhub.com/apis-docs/computemachines/Inventory/2.0.0
 """
 
-from flask import Flask, g, appcontext_pushed, Response, url_for
+from flask import Flask, g, Response, url_for
 from flask import request, redirect
-from flask.json import jsonify
 import json
-from bson.json_util import dumps
-from urllib.parse import urlencode
+# from urllib.parse import urlencode
 
 from pymongo import MongoClient
 from werkzeug.local import LocalProxy
@@ -23,9 +21,12 @@ from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 app = Flask('inventory')
 app.config['LOCAL_MONGO'] = app.debug or app.testing
 # app.config['SERVER_ROOT'] = 'https://computemachines.com'
+BAD_REQUEST = ('Bad Request', 400)
 
 # memoize mongo_client
 _mongo_client = None
+
+
 def get_mongo_client():
     global _mongo_client
     if _mongo_client is None:
@@ -41,11 +42,15 @@ def get_mongo_client():
 
     return _mongo_client
 
+
 def get_db():
     if 'db' not in g:
         g.db = get_mongo_client().inventorydb
     return g.db
+
+
 db = LocalProxy(get_db)
+
 
 def get_body_type():
     if request.mimetype == 'application/json':
@@ -63,8 +68,8 @@ def bins_get():
     try:
         limit = int(args.get('limit', 20))
         skip = int(args.get('startingFrom', 0))
-    except:
-        return "Malformed Request. Possible pagination query parameter constraint violation.", 400
+    except (TypeError, ValueError):
+        return BAD_REQUEST
 
     cursor = db.bin.find()
     cursor.limit(limit)
@@ -86,7 +91,7 @@ def bins_post():
 
     bin = Bin.from_json(bin_json)
     existing = db.bin.find_one({'id': bin.id})
-    
+
     resp = Response()
     if existing is None:
         db.bin.insert_one(bin.to_mongodb_doc())
@@ -140,7 +145,7 @@ def uniqs_post():
     bin_id = uniq_json['bin_id']
     bin = Bin.from_mongodb_doc(db.bin.find_one({"id": bin_id}))
 
-    
+
     if bin is None:
         return Response(status=404, headers={
             'Location', url_for('bin_get', id=bin_id)})
