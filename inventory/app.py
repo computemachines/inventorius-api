@@ -79,6 +79,11 @@ def bins_get():
 
     return json.dumps(bins, cls=MyEncoder)
 
+
+def props_from_form(form):
+    pass
+
+
 # api v2.0.0
 @app.route('/api/bins', methods=['POST'])
 def bins_post():
@@ -86,13 +91,19 @@ def bins_post():
         bin_json = request.json
     elif get_body_type() == 'form':
         bin_json = {
-            'id': request.form['bin_id']
+            'id': request.form['bin_id'],
+            'props': props_from_form(request.form)
         }
-
     bin = Bin.from_json(bin_json)
     existing = db.bin.find_one({'id': bin.id})
 
     resp = Response()
+
+    if not bin.id.startswith('BIN'):
+        resp.status_code = 400
+        resp.data = 'id must start with BIN'
+        return resp
+
     if existing is None:
         db.bin.insert_one(bin.to_mongodb_doc())
         resp.status_code = 201

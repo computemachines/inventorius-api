@@ -3,11 +3,13 @@ import pytest
 from hypothesis import given, example
 import hypothesis.strategies as strat
 
-import sys
-print(sys.path)
+#delete this. only for debugging on windows
+import sys, os
+sys.path.append(os.getcwd()+"\\uwsgi-api-server")
+sys.path.append(os.getcwd()+"\\uwsgi-api-server\\tests")
 
 from inventory.data_models import Bin, MyEncoder
-import tests.data_models_strategies as my_strat
+import data_models_strategies as my_strat
 import json
 
 @strat.composite

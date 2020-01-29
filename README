@@ -1,5 +1,7 @@
 Run dev server with:
 
+windows:
+$ $Env:FLASK_ENV = "development"
 $ python -m inventory.app
 
 Run tests with
