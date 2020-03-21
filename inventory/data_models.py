@@ -2,13 +2,15 @@ import json
 
 # -------- Helper functions
 
+
 def get_class_variables(cls):
     class_variables = []
     for attr in dir(cls):
         if (not callable(getattr(cls, attr)) and
-            not attr.startswith('__')):
+                not attr.startswith('__')):
             class_variables.append(attr)
     return class_variables
+
 
 def get_fields(cls):
     return list(filter(lambda attr: issubclass(getattr(cls, attr).__class__, DataField),
@@ -16,21 +18,26 @@ def get_fields(cls):
 
 # -------- Utility classes
 
+
 class MyEncoder(json.JSONEncoder):
     def default(self, o):
         return {k: v for k, v in o.__dict__.items()}
+
 
 class DataField():
     """An individual field of the DataModel.
 
     If db_key=None Then will not be retained when transformed to a mongodb doc.
     """
+
     def __init__(self, db_key=None, required=False, default=None):
         self.db_key = db_key
         self.required = required
         self.default = default
+
     def __repr__(self):
         return f"DataField(db_key={self.db_key}, required={self.required}, default={self.default})"
+
 
 class DataModel():
     """Abstract base class for managing conversion between app data structures and
@@ -38,6 +45,7 @@ class DataModel():
 
        Subclasses must have `DataField` class variables.
     """
+
     def __init__(self, **kwargs):
         for field in get_class_variables(type(self)):
             class_variable = getattr(self.__class__, field)
@@ -61,10 +69,12 @@ class DataModel():
             elif class_variable.default is not None:
                 setattr(self, field, class_variable.default)
             elif class_variable.required:
-                raise KeyError("'{}' is a required field in class '{}'".format(field, self.__class__.__name__))
+                raise KeyError("'{}' is a required field in class '{}'".format(
+                    field, self.__class__.__name__))
             else:
                 # field was not required and left undefined
                 pass
+
     def __eq__(self, other):
         if type(self) != type(other):
             return False
@@ -89,6 +99,7 @@ class DataModel():
     @classmethod
     def from_mongodb_doc(cls, mongo_dict):
         model_keys = get_fields(cls)
+
         def find_model_key_from_db_key(db_key):
             for model_key in model_keys:
                 if getattr(cls, model_key).db_key == db_key:
@@ -127,16 +138,20 @@ class DataModel():
 
 # -------- Data models for db
 
+
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""
     # if a datafield does not have a db_key set then it should not be stored as a db field
     id = DataField("id", required=True)
     props = DataField("props")
-    contents = DataField("contents", default=[]) # [{<type>_id: ID, quantity: n}]
+    # contents = [{unit_type: BIN|BATCH|UNIQ|SKU, label: ID, quantity: n}]
+    contents = DataField("contents", default=[])
     unit_count = DataField()
     sku_count = DataField()
+
     def skus(self):
         return {e['sku_id']: e['quantity'] for e in self.contents if 'sku_id' in e}
+
 
 class Sku(DataModel):
     id = DataField("id", required=True)
@@ -145,6 +160,7 @@ class Sku(DataModel):
     average_unit_original_cost = DataField("average_unit_original_cost")
     average_unit_asset_value = DataField()
     props = DataField("props")
+
 
 class Batch(DataModel):
     id = DataField("id", required=True)
@@ -159,6 +175,7 @@ class Batch(DataModel):
     expiration_date = DataField()
     props = DataField("props")
     inherited_props = DataField()
+
 
 class Uniq(DataModel):
     id = DataField("id", required=True)

@@ -19,8 +19,6 @@ from werkzeug.local import LocalProxy
 from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
 app = Flask('inventory')
-app.config['LOCAL_MONGO'] = app.debug or app.testing
-# app.config['SERVER_ROOT'] = 'https://computemachines.com'
 BAD_REQUEST = ('Bad Request', 400)
 
 # memoize mongo_client
@@ -30,12 +28,7 @@ _mongo_client = None
 def get_mongo_client():
     global _mongo_client
     if _mongo_client is None:
-        if app.config.get('LOCAL_MONGO', False):
-            db_host = "localhost"
-        else:
-            db_host = "mongo"
-            # import time
-            # time.sleep(20)
+        db_host = "localhost"
         _mongo_client = MongoClient(db_host, 27017)
         _mongo_client.inventorydb.uniq.create_index('name')
         _mongo_client.inventorydb.sku.create_index('name')
@@ -156,7 +149,6 @@ def uniqs_post():
     bin_id = uniq_json['bin_id']
     bin = Bin.from_mongodb_doc(db.bin.find_one({"id": bin_id}))
 
-
     if bin is None:
         return Response(status=404, headers={
             'Location', url_for('bin_get', id=bin_id)})
@@ -229,6 +221,7 @@ def unit_get(id):
         else:
             return Response(status=404)
 
+
 def owned_code_get(id):
     existing = Sku.from_mongodb_doc(
         db.sku.find_one({'owned_codes': id}))
@@ -257,8 +250,10 @@ def uniq_delete(id):
 # api v2.0.0
 @app.route('/api/move-units', methods=['POST'])
 def move_unit_post():
-    oldBin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['old_bin_id']}))
-    newBin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['new_bin_id']}))
+    oldBin = Bin.from_mongodb_doc(
+        db.bin.find_one({"id": request.form['old_bin_id']}))
+    newBin = Bin.from_mongodb_doc(
+        db.bin.find_one({"id": request.form['new_bin_id']}))
     quantity = int(request.form.get('quantity', 1))
     unit_id = request.form['unit_id']
 
@@ -328,6 +323,7 @@ def search():
         results.append(Sku.from_mongodb_doc(sku_doc))
 
     return json.dumps(results, cls=MyEncoder)
+
 
 if __name__ == '__main__':
     app.run(port=8081, debug=True)
