@@ -2,3 +2,5 @@
 *.pyc
 .hypothesis
 .vscode/launch.json
+.venv
+.delete_me.py
