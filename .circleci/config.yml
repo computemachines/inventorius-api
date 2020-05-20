@@ -1,21 +1,29 @@
 version: 2.1
 
-orbs:
-  python: circleci/python@0.2.1
-
 jobs:
-  build-and-test:
-    executor: python/default
+  test-db:
+    docker:
+      - image: circleci/python:latest
+      - image: circleci/mongo:latest
     steps:
       - checkout
-      - python/load-cache
-      - python/install-deps
-      - python/save-cache
+      - restore_cache:
+          keys:
+          - pip-{{ checksum "requirements.txt" }}
       - run:
-          command: python -m pytest
+          command: pip install --user -r requirements.txt
+          name: pip install
+      - save_cache:
+          key: pip-{{ checksum "requirements.txt" }}
+          paths:
+          - /home/circleci/.local/lib/
+      - run:
+          command: python -m pytest --junitxml=test-results/pytest/results.xml
           name: Test
+      - store_test_results:
+          path: test-results
 
 workflows:
   main:
     jobs:
-      - build-and-test
+      - test-db
