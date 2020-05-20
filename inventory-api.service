@@ -1,0 +1,8 @@
+[Unit]
+Description="Inventory Api Server"
+After=network.target
+Requires=mongodb.service
+
+[Service]
+Type=simple
+ExecStart=uwsgi --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini
