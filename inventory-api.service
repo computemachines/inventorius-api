@@ -5,4 +5,7 @@ Requires=mongodb.service
 
 [Service]
 Type=simple
-ExecStart=uwsgi --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini
+ExecStart=/usr/bin/uwsgi --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini
+
+[Install]
+WantedBy=default.target
