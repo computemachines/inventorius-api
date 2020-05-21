@@ -5,7 +5,16 @@ Requires=mongodb.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/uwsgi --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini
+ExecStart=/usr/bin/uwsgi \
+        --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini \
+        --socket /var/run/uwsgi-inventory-api.socket
+User=www-uwsgi-inventory-api
+Group=www-data
+Restart=on-failure
+KillSignal=SIGQUIT
+Type=notify
+StandardError=syslog
+NotifyAccess=all
 
 [Install]
 WantedBy=default.target
