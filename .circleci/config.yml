@@ -26,7 +26,8 @@ jobs:
       - store_test_results:
           path: test-results
   deploy:
-    machine: enabled
+    machine: 
+      enabled: true
     steps:
       - run:
           name: Deploy over ssh
