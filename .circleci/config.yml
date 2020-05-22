@@ -1,7 +1,10 @@
 version: 2.1
 
+parameters:
+
+
 jobs:
-  test-db:
+  test:
     docker:
       - image: circleci/python:latest
       - image: circleci/mongo:latest
@@ -22,8 +25,14 @@ jobs:
           name: Test
       - store_test_results:
           path: test-results
-
+  deploy:
+    machine: enabled
+    steps:
+      - run:
+          name: Deploy over ssh
+          command: ssh $SSH_USER@$SSH_HOST "cd inventory-v2/uwsgi-api-server/; git fetch; git reset --hard $CIRCLE_SHA1 ; sudo systemctl restart inventory-api"
 workflows:
   main:
     jobs:
-      - test-db
+      - test
+      - deploy
