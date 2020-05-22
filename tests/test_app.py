@@ -1,3 +1,6 @@
+import itertools as it
+import json
+from flask import g, request_started
 import pytest
 from hypothesis import given, example, settings, note
 import hypothesis.strategies as st
@@ -7,11 +10,11 @@ from inventory.app import app as inventory_flask_app
 from inventory.app import get_mongo_client
 from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
-# from contextlib import contextmanager
-from flask import g, request_started
+# give tests longer to complete on ci server
+settings.register_profile("ci", deadline=500)
+settings.load_profile("ci")
 
-import json
-import itertools as it
+# from contextlib import contextmanager
 
 
 def subscriber(sender):
