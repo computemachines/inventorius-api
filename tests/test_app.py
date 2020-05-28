@@ -34,7 +34,6 @@ def init_db():
 @pytest.fixture
 def client():
     inventory_flask_app.testing = True
-    inventory_flask_app.config['LOCAL_MONGO'] = True
     init_db()
     yield inventory_flask_app.test_client()
     # close app
@@ -163,7 +162,7 @@ def test_post_two_uniq(client, uniq1, uniq2, bin):
         assert resp.status_code == 201  # uniq added
 
 
-## avi v1.0.0 test
+# avi v1.0.0 test
 # @given(st.none(), st.none(), st.none())
 # @example(sku1=Sku(id="SKU1", bin_id="BIN1"),
 #          sku2=Sku(id="SKU2", bin_id="BIN1"),
