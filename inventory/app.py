@@ -341,6 +341,13 @@ def search():
     query = request.args['query']
     results = []
 
+    if query == 'ALL':
+        # results.append(Uniq.from_mongodb_doc(db.uniq.find()))
+        # results.append(Sku.from_mongodb_doc(db.sku.find()))
+        # results.append(Batch.from_mongodb_doc(db.batch.find()))
+        results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
+        return json.dumps(results, cls=MyEncoder)
+
     for uniq_doc in db.uniq.find({"id": query}):
         results.append(Uniq.from_mongodb_doc(uniq_doc))
 
