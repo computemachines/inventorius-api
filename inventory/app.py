@@ -53,6 +53,8 @@ def get_body_type():
         return 'form'
 
 # api v2.0.0
+
+
 @app.route('/api/bins', methods=['GET'])
 def bins_get():
     args = request.args
@@ -109,9 +111,12 @@ def bins_post():
 
     if get_body_type() == 'json':
         resp.data = bin.to_json()
+    print(bin.to_json())
     return resp
 
 # api v2.0.0
+
+
 @app.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
@@ -121,6 +126,8 @@ def bin_get(id):
         return json.dumps(existing, cls=MyEncoder), 200
 
 # api v2.0.0
+
+
 @app.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
@@ -133,6 +140,8 @@ def bin_delete(id):
         return 'The bin is not empty and force was not set to true.', 403
 
 # api v2.0.0
+
+
 @app.route('/api/uniqs', methods=['POST'])
 def uniqs_post():
     if get_body_type() == 'json':
@@ -168,6 +177,8 @@ def uniqs_post():
     return resp
 
 # api v2.0.0
+
+
 @app.route('/api/skus', methods=['POST'])
 def skus_post():
     sku = Sku.from_json(request.json)
@@ -183,6 +194,8 @@ def skus_post():
         'Location': url_for('sku_get', id=sku.id)})
 
 # api v2.0.0
+
+
 @app.route('/api/sku/<id>', methods=['GET'])
 def sku_get(id):
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
@@ -191,6 +204,8 @@ def sku_get(id):
     return json.dumps(sku, cls=MyEncoder), 200
 
 # api v2.0.0
+
+
 @app.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
@@ -206,6 +221,8 @@ def sku_delete(id):
     return Response(status=200)
 
 # api v2.0.0
+
+
 @app.route('/api/unit/<id>', methods=['GET'])
 def unit_get(id):
     if id.startswith('UNIQ'):
@@ -228,6 +245,8 @@ def owned_code_get(id):
     return existing
 
 # api v2.0.0
+
+
 @app.route('/api/uniq/<id>', methods=['GET'])
 def uniq_get(id):
     uniq = Uniq.from_mongodb_doc(db.uniq.find_one({"id": id}))
@@ -236,6 +255,8 @@ def uniq_get(id):
     return uniq.to_json(), 200
 
 # api v2.0.0
+
+
 @app.route('/api/uniq/<id>', methods=['DELETE'])
 def uniq_delete(id):
     uniq = Uniq.from_mongodb_doc(db.uniq.find_one({"id": id}))
@@ -248,6 +269,8 @@ def uniq_delete(id):
     return Response(status=200)
 
 # api v2.0.0
+
+
 @app.route('/api/move-units', methods=['POST'])
 def move_unit_post():
     oldBin = Bin.from_mongodb_doc(
@@ -293,6 +316,8 @@ def move_unit_post():
     return Response(status=200)
 
 # api v2.0.0
+
+
 @app.route('/api/receive', methods=['POST'])
 def receive_post():
     bin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['bin_id']}))
@@ -309,6 +334,8 @@ def receive_post():
     return Response(status=200)
 
 # api v2.1.0
+
+
 @app.route('/api/search', methods=['GET'])
 def search():
     query = request.args['query']
@@ -326,4 +353,4 @@ def search():
 
 
 if __name__ == '__main__':
-    app.run(port=8081, debug=True)
+    app.run(port=5000, debug=True)
