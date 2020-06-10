@@ -155,7 +155,7 @@ class Bin(DataModel):
 
 class Sku(DataModel):
     id = DataField("id", required=True)
-    owned_codes = DataField("owned_codes")
+    owned_codes = DataField("owned_codes", default=[])
     name = DataField("name")
     average_unit_original_cost = DataField("average_unit_original_cost")
     average_unit_asset_value = DataField()

@@ -190,7 +190,8 @@ def skus_post():
             'Location': url_for('sku_get', id=sku.id)})
 
     db.sku.insert_one(sku.to_mongodb_doc())
-    return Response(status=200, headers={
+    dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
+    return Response(json.dumps(dbSku, cls=MyEncoder), status=200, headers={
         'Location': url_for('sku_get', id=sku.id)})
 
 # api v2.0.0
@@ -343,7 +344,7 @@ def search():
 
     if query == 'ALL':
         # results.append(Uniq.from_mongodb_doc(db.uniq.find()))
-        # results.append(Sku.from_mongodb_doc(db.sku.find()))
+        results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         # results.append(Batch.from_mongodb_doc(db.batch.find()))
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
         return json.dumps(results, cls=MyEncoder)
@@ -360,4 +361,4 @@ def search():
 
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=8081, debug=True)
