@@ -159,10 +159,10 @@ def uniqs_post():
     bin = Bin.from_mongodb_doc(db.bin.find_one({"id": bin_id}))
 
     if bin is None:
-        return Response(status=404, headers={
-            'Location', url_for('bin_get', id=bin_id)})
+        return Response("Bin not found", status=404, headers={
+            'Location': url_for('bin_get', id=bin_id)})
     if db.uniq.find_one({"id": uniq.id}):
-        return Response(status=409, headers={
+        return Response("Uniq not found", status=409, headers={
             'Location': url_for('uniq_get', id=uniq.id)})
 
     db.uniq.insert_one(uniq.to_mongodb_doc())

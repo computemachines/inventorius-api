@@ -5,7 +5,7 @@ Description=Socket for Inventory Api Server
 ListenStream=/var/run/uwsgi-inventory-api.socket
 SocketUser=www-uwsgi-inventory-api
 SocketGroup=www-data
-SockerMode=0660
+SocketMode=0660
 
 [Install]
 WantedBy=sockets.target
