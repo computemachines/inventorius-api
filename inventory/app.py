@@ -11,6 +11,8 @@
 from flask import Flask, g, Response, url_for
 from flask import request, redirect
 import json
+import re
+import pprint
 # from urllib.parse import urlencode
 
 from pymongo import MongoClient
@@ -52,10 +54,61 @@ def get_body_type():
                             'multipart/form-data'):
         return 'form'
 
-# api v2.0.0
+
+def admin_increment_code(prefix, code):
+    code_number = int(re.sub('[^0-9]', '', code))
+    next_unused = int(re.sub('[^0-9]', '', admin_get_next(prefix)))
+
+    if code_number >= next_unused:
+        max_code = code_number
+        if prefix == "SKU":
+            db.admin.insert_one({"type": "SKU",
+                                 "next": f"SKU{max_code+1:06}"})
+        if prefix == "UNIQ":
+            db.admin.insert_one({"type": "UNIQ",
+                                 "next": f"UNIQ{max_code+1:05}"})
+        if prefix == "BATCH":
+            db.admin.insert_one({"type": "BATCH",
+                                 "next": f"BATCH{max_code+1:04}"})
+        if prefix == "BIN":
+            db.admin.insert_one({"type": "BIN",
+                                 "next": f"BIN{max_code+1:06}"})
 
 
-@app.route('/api/bins', methods=['GET'])
+def admin_get_next(prefix):
+
+    def max_code_value(collection, prefix):
+        cursor = collection.find()
+        max_value = 0
+        for doc in cursor:
+            code_number = int(doc['id'].strip(prefix))
+            if code_number > max_value:
+                max_value = code_number
+        return max_value
+
+    next_code_doc = db.admin.find_one({"type": prefix})
+    if not next_code_doc:
+        if prefix == "SKU":
+            max_value = max_code_value(db.sku, "SKU")
+            db.admin.insert_one({"type": "SKU",
+                                 "next": f"SKU{max_value+1:06}"})
+        if prefix == "UNIQ":
+            max_value = max_code_value(db.uniq, "UNIQ")
+            db.admin.insert_one({"type": "UNIQ",
+                                 "next": f"UNIQ{max_value+1:05}"})
+        if prefix == "BATCH":
+            max_value = max_code_value(db.batch, "BATCH")
+            db.admin.insert_one({"type": "BATCH",
+                                 "next": f"BATCH{max_value+1:04}"})
+        if prefix == "BIN":
+            max_value = max_code_value(db.bin, "BIN")
+            db.admin.insert_one({"type": "BIN",
+                                 "next": f"BIN{max_value+1:06}"})
+        next_code_doc = db.admin.find_one({"type": prefix})
+    return next_code_doc['next']
+
+
+@ app.route('/api/bins', methods=['GET'])
 def bins_get():
     args = request.args
     limit = None
@@ -90,6 +143,7 @@ def bins_post():
             'props': props_from_form(request.form)
         }
     bin = Bin.from_json(bin_json)
+    admin_increment_code("BIN", bin.id)
     existing = db.bin.find_one({'id': bin.id})
 
     resp = Response()
@@ -117,7 +171,7 @@ def bins_post():
 # api v2.0.0
 
 
-@app.route('/api/bin/<id>', methods=['GET'])
+@ app.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
     if existing is None:
@@ -128,7 +182,7 @@ def bin_get(id):
 # api v2.0.0
 
 
-@app.route('/api/bin/<id>', methods=['DELETE'])
+@ app.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
     if existing is None:
@@ -142,7 +196,7 @@ def bin_delete(id):
 # api v2.0.0
 
 
-@app.route('/api/uniqs', methods=['POST'])
+@ app.route('/api/uniqs', methods=['POST'])
 def uniqs_post():
     if get_body_type() == 'json':
         uniq_json = request.json.copy()
@@ -165,6 +219,7 @@ def uniqs_post():
         return Response("Uniq not found", status=409, headers={
             'Location': url_for('uniq_get', id=uniq.id)})
 
+    admin_increment_code("UNIQ", uniq.id)
     db.uniq.insert_one(uniq.to_mongodb_doc())
     db.bin.update_one(
         {"id": bin.id},
@@ -179,7 +234,7 @@ def uniqs_post():
 # api v2.0.0
 
 
-@app.route('/api/skus', methods=['POST'])
+@ app.route('/api/skus', methods=['POST'])
 def skus_post():
     sku = Sku.from_json(request.json)
     if len(sku.owned_codes) == 0 or sku.owned_codes[0] != sku.id:
@@ -189,6 +244,7 @@ def skus_post():
         return Response(status=409, headers={
             'Location': url_for('sku_get', id=sku.id)})
 
+    admin_increment_code("SKU", sku.id)
     db.sku.insert_one(sku.to_mongodb_doc())
     dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
     return Response(json.dumps(dbSku, cls=MyEncoder), status=200, headers={
@@ -197,7 +253,7 @@ def skus_post():
 # api v2.0.0
 
 
-@app.route('/api/sku/<id>', methods=['GET'])
+@ app.route('/api/sku/<id>', methods=['GET'])
 def sku_get(id):
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
     if sku is None:
@@ -207,7 +263,7 @@ def sku_get(id):
 # api v2.0.0
 
 
-@app.route('/api/sku/<id>', methods=['DELETE'])
+@ app.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
 
@@ -224,7 +280,7 @@ def sku_delete(id):
 # api v2.0.0
 
 
-@app.route('/api/unit/<id>', methods=['GET'])
+@ app.route('/api/unit/<id>', methods=['GET'])
 def unit_get(id):
     if id.startswith('UNIQ'):
         redirect(url_for('uniq_get', id=id))
@@ -248,7 +304,7 @@ def owned_code_get(id):
 # api v2.0.0
 
 
-@app.route('/api/uniq/<id>', methods=['GET'])
+@ app.route('/api/uniq/<id>', methods=['GET'])
 def uniq_get(id):
     uniq = Uniq.from_mongodb_doc(db.uniq.find_one({"id": id}))
     if not uniq:
@@ -258,7 +314,7 @@ def uniq_get(id):
 # api v2.0.0
 
 
-@app.route('/api/uniq/<id>', methods=['DELETE'])
+@ app.route('/api/uniq/<id>', methods=['DELETE'])
 def uniq_delete(id):
     uniq = Uniq.from_mongodb_doc(db.uniq.find_one({"id": id}))
     if not uniq:
@@ -272,7 +328,7 @@ def uniq_delete(id):
 # api v2.0.0
 
 
-@app.route('/api/move-units', methods=['POST'])
+@ app.route('/api/move-units', methods=['POST'])
 def move_unit_post():
     oldBin = Bin.from_mongodb_doc(
         db.bin.find_one({"id": request.form['old_bin_id']}))
@@ -319,7 +375,7 @@ def move_unit_post():
 # api v2.0.0
 
 
-@app.route('/api/receive', methods=['POST'])
+@ app.route('/api/receive', methods=['POST'])
 def receive_post():
     bin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['bin_id']}))
     quantity = int(request.form.get('quantity', 1))
@@ -337,7 +393,7 @@ def receive_post():
 # api v2.1.0
 
 
-@app.route('/api/search', methods=['GET'])
+@ app.route('/api/search', methods=['GET'])
 def search():
     query = request.args['query']
     results = []
@@ -358,6 +414,26 @@ def search():
         results.append(Sku.from_mongodb_doc(sku_doc))
 
     return json.dumps(results, cls=MyEncoder)
+
+
+@ app.route('/api/next/sku', methods=['GET'])
+def next_sku():
+    return admin_get_next("SKU")
+
+
+@ app.route('/api/next/uniq', methods=['GET'])
+def next_uniq():
+    return admin_get_next("UNIQ")
+
+
+@ app.route('/api/next/batch', methods=['GET'])
+def next_batch():
+    return admin_get_next("BATCH")
+
+
+@ app.route('/api/next/bin', methods=['GET'])
+def next_bin():
+    return admin_get_next("BIN")
 
 
 if __name__ == '__main__':
