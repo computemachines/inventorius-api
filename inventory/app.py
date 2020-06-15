@@ -377,20 +377,22 @@ def move_unit_post():
 
 @ app.route('/api/receive', methods=['POST'])
 def receive_post():
-    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": request.form['bin_id']}))
-    quantity = int(request.form.get('quantity', 1))
-    sku_id = request.form['sku_id']
+    form = request.json
+    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": form['bin_id']}))
+    if not bin:
+        return "Bin not found", 404
+    quantity = int(form.get('quantity', 1))
+    sku_id = form['sku_id']
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": sku_id}))
-
+    if not sku:
+        return "SKU not found", 404
     # if unit not in bin already, add to bin with quantity 0
     db.bin.update_one({"id": bin.id, "contents": {"$not": {"$elemMatch": {"sku_id": sku.id}}}},
                       {"$push": {"contents": {"sku_id": sku.id, "quantity": 0}}})
     db.bin.update_one({"id": bin.id, "contents.sku_id": sku.id},
                       {"$inc": {"contents.$.quantity": quantity}})
 
-    return Response(status=200)
-
-# api v2.1.0
+    return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
 
 
 @ app.route('/api/search', methods=['GET'])
