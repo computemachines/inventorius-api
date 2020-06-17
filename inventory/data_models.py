@@ -41,7 +41,7 @@ class DataField():
 
 class DataModel():
     """Abstract base class for managing conversion between app data structures and
-       mongodb json documents.
+       mongodb bson documents.
 
        Subclasses must have `DataField` class variables.
     """
@@ -57,17 +57,18 @@ class DataModel():
             #   sometimes called like ChildModel(field=None). in this case kwargs[field]
             #   is none. Don't treat this special. Don't use default. If I take the time
             #   to write field=None, assume I really want None.
+
+            if field in kwargs:
+                setattr(self, field, kwargs[field])
             #
-            # elif class_variable.default is set: then self.<field> = field.default
+            # elif class_variable.default is set: then self.<field> = field.default.copy()
+
+            elif class_variable.default is not None:
+                setattr(self, field, class_variable.default.copy())
             #
             # elif field.required: raise exception
             #
             # else: pass # field was not required and left undefined
-
-            if field in kwargs:
-                setattr(self, field, kwargs[field])
-            elif class_variable.default is not None:
-                setattr(self, field, class_variable.default)
             elif class_variable.required:
                 raise KeyError("'{}' is a required field in class '{}'".format(
                     field, self.__class__.__name__))
