@@ -237,8 +237,6 @@ def uniqs_post():
 @ app.route('/api/skus', methods=['POST'])
 def skus_post():
     sku = Sku.from_json(request.json)
-    if len(sku.owned_codes) == 0 or sku.owned_codes[0] != sku.id:
-        sku.owned_codes.insert(0, sku.id)
 
     if db.sku.find_one({'id': sku.id}):
         return Response(status=409, headers={
