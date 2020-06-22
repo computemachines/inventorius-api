@@ -396,17 +396,36 @@ def receive_post():
 @ app.route('/api/search', methods=['GET'])
 def search():
     query = request.args['query']
+    limit = request.args.get('limit', 20)
+    startingFrom = request.args.get('startingFrom', 0)
     results = []
 
-    if query == 'ALL':
+    if query == '!DUMP':
         results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
         return json.dumps(results, cls=MyEncoder)
 
+    if query.startswith('SKU'):
+        results = Sku.from_mongodb_doc(db.sku.find({'id': query}))
+        return json.dumps(results, cls=MyEncoder)
+
+    if query.startswith('UNIQ'):
+        results = Uniq.from_mongodb_doc(db.uniq.find({'id': query}))
+        return json.dumps(results, cls=MyEncoder)
+
+    if query.startswith('BIN'):
+        results = [Bin.from_mongodb_doc(db.bin.find_one({'id': query}))]
+        return json.dumps(results, cls=MyEncoder)
+
+    if query.startswith('BATCH'):
+        results = Batch.from_mongodb_doc(db.batch.find({'id': query}))
+        return json.dumps(results, cls=MyEncoder)
+
     for uniq_doc in db.uniq.find({"id": query}):
         results.append(Uniq.from_mongodb_doc(uniq_doc))
+        return json.dumps(results, cls=MyEncoder)
 
     cursor = db.sku.find({"$or": [{"id": query},
                                   {"owned_codes": query}]})
