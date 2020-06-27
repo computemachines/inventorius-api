@@ -400,11 +400,27 @@ def search():
     startingFrom = request.args.get('startingFrom', 0)
     results = []
 
-    if query == '!DUMP':
+    if query == '!ALL':
         results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
+        return json.dumps(results, cls=MyEncoder)
+
+    if query == '!BINS':
+        results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
+        return json.dumps(results, cls=MyEncoder)
+
+    if query == '!SKUS':
+        results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
+        return json.dumps(results, cls=MyEncoder)
+
+    if query == '!UNIQS':
+        results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
+        return json.dumps(results, cls=MyEncoder)
+
+    if query == '!BATCHES':
+        results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         return json.dumps(results, cls=MyEncoder)
 
     if query.startswith('SKU'):
