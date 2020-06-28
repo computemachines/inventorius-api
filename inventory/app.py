@@ -393,62 +393,69 @@ def receive_post():
     return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
 
 
+def getIntArgs(args, name, default):
+    str_value = args.get(name, default)
+    try:
+        value = int(str_value)
+    except ValueError:
+        value = default
+    return value
+
+
 @ app.route('/api/search', methods=['GET'])
 def search():
     query = request.args['query']
-    limit = request.args.get('limit', 20)
-    startingFrom = request.args.get('startingFrom', 0)
+    limit = getIntArgs(request.args, "limit", 20)
+    startingFrom = getIntArgs(request.args, "startingFrom", 0)
     results = []
 
+    # debug flags
     if query == '!ALL':
         results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
-        return json.dumps(results, cls=MyEncoder)
-
     if query == '!BINS':
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
-        return json.dumps(results, cls=MyEncoder)
-
     if query == '!SKUS':
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
-        return json.dumps(results, cls=MyEncoder)
-
     if query == '!UNIQS':
         results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
-        return json.dumps(results, cls=MyEncoder)
-
     if query == '!BATCHES':
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
-        return json.dumps(results, cls=MyEncoder)
 
+    # search by label
     if query.startswith('SKU'):
         results = Sku.from_mongodb_doc(db.sku.find({'id': query}))
-        return json.dumps(results, cls=MyEncoder)
-
     if query.startswith('UNIQ'):
         results = Uniq.from_mongodb_doc(db.uniq.find({'id': query}))
-        return json.dumps(results, cls=MyEncoder)
-
     if query.startswith('BIN'):
         results = [Bin.from_mongodb_doc(db.bin.find_one({'id': query}))]
-        return json.dumps(results, cls=MyEncoder)
-
     if query.startswith('BATCH'):
         results = Batch.from_mongodb_doc(db.batch.find({'id': query}))
-        return json.dumps(results, cls=MyEncoder)
-
-    for uniq_doc in db.uniq.find({"id": query}):
-        results.append(Uniq.from_mongodb_doc(uniq_doc))
-        return json.dumps(results, cls=MyEncoder)
 
     cursor = db.sku.find({"$or": [{"id": query},
                                   {"owned_codes": query}]})
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
-    return json.dumps(results, cls=MyEncoder)
+    if results != []:
+        paged = results[startingFrom:(startingFrom+limit)]
+        return json.dumps({
+            "total_num_results": len(results),
+            "starting_from": startingFrom,
+            "limit": limit,
+            "returned_num_results": len(paged),
+            "results": paged
+        }, cls=MyEncoder)
+
+    return json.dumps({
+        "total_num_results": len(results),
+        "starting_from": startingFrom,
+        "limit": limit,
+        "returned_num_results": 0,
+        "results": []
+    }, cls=MyEncoder)
 
 
 @ app.route('/api/next/sku', methods=['GET'])
