@@ -426,13 +426,15 @@ def search():
 
     # search by label
     if query.startswith('SKU'):
-        results = Sku.from_mongodb_doc(db.sku.find({'id': query}))
+        result = Sku.from_mongodb_doc(db.sku.find({'id': query}))
     if query.startswith('UNIQ'):
-        results = Uniq.from_mongodb_doc(db.uniq.find({'id': query}))
+        result = Uniq.from_mongodb_doc(db.uniq.find({'id': query}))
     if query.startswith('BIN'):
-        results = [Bin.from_mongodb_doc(db.bin.find_one({'id': query}))]
+        result = Bin.from_mongodb_doc(db.bin.find_one({'id': query}))
     if query.startswith('BATCH'):
-        results = Batch.from_mongodb_doc(db.batch.find({'id': query}))
+        result = Batch.from_mongodb_doc(db.batch.find({'id': query}))
+    if result:
+        results.append(result)
 
     cursor = db.sku.find({"$or": [{"id": query},
                                   {"owned_codes": query}]})
