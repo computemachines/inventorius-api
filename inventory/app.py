@@ -426,13 +426,13 @@ def search():
 
     # search by label
     if query.startswith('SKU'):
-        result = Sku.from_mongodb_doc(db.sku.find({'id': query}))
+        result = Sku.from_mongodb_doc(db.sku.find_one({'id': query}))
     if query.startswith('UNIQ'):
-        result = Uniq.from_mongodb_doc(db.uniq.find({'id': query}))
+        result = Uniq.from_mongodb_doc(db.uniq.find_one({'id': query}))
     if query.startswith('BIN'):
         result = Bin.from_mongodb_doc(db.bin.find_one({'id': query}))
     if query.startswith('BATCH'):
-        result = Batch.from_mongodb_doc(db.batch.find({'id': query}))
+        result = Batch.from_mongodb_doc(db.batch.find_one({'id': query}))
     if result:
         results.append(result)
 
