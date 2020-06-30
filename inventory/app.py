@@ -436,8 +436,13 @@ def search():
     if result:
         results.append(result)
 
-    cursor = db.sku.find({"$or": [{"id": query},
-                                  {"owned_codes": query}]})
+    # search for skus with owned_codes
+    cursor = db.sku.find({"owned_codes": query})
+    for sku_doc in cursor:
+        results.append(Sku.from_mongodb_doc(sku_doc))
+
+    # search for skus with associated codes
+    cursor = db.sku.find({"associated_codes": query})
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
