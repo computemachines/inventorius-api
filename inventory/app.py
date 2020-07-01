@@ -253,6 +253,8 @@ def skus_post():
 
 @ app.route('/api/sku/<id>', methods=['GET'])
 def sku_get(id):
+    detailed = request.args.get("details") == "true"
+
     sku = Sku.from_mongodb_doc(db.sku.find_one({"id": id}))
     if sku is None:
         return 'Sku does not exist.', 404
@@ -426,15 +428,14 @@ def search():
 
     # search by label
     if query.startswith('SKU'):
-        result = Sku.from_mongodb_doc(db.sku.find_one({'id': query}))
+        results.append(Sku.from_mongodb_doc(db.sku.find_one({'id': query})))
     if query.startswith('UNIQ'):
-        result = Uniq.from_mongodb_doc(db.uniq.find_one({'id': query}))
+        results.append(Uniq.from_mongodb_doc(db.uniq.find_one({'id': query})))
     if query.startswith('BIN'):
-        result = Bin.from_mongodb_doc(db.bin.find_one({'id': query}))
+        results.append(Bin.from_mongodb_doc(db.bin.find_one({'id': query})))
     if query.startswith('BATCH'):
-        result = Batch.from_mongodb_doc(db.batch.find_one({'id': query}))
-    if result:
-        results.append(result)
+        results.append(Batch.from_mongodb_doc(
+            db.batch.find_one({'id': query})))
 
     # search for skus with owned_codes
     cursor = db.sku.find({"owned_codes": query})
