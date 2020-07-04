@@ -436,6 +436,7 @@ def search():
     if query.startswith('BATCH'):
         results.append(Batch.from_mongodb_doc(
             db.batch.find_one({'id': query})))
+    results = [result for result in results if result != None]
 
     # search for skus with owned_codes
     cursor = db.sku.find({"owned_codes": query})
