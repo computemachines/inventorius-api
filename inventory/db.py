@@ -1,0 +1,33 @@
+from flask import g
+from pymongo import MongoClient
+from werkzeug.local import LocalProxy
+
+# memoize mongo_client
+_mongo_client = None
+
+
+def get_mongo_client():
+    global _mongo_client
+    if _mongo_client is None:
+        db_host = "localhost"
+        _mongo_client = MongoClient(db_host, 27017)
+        _mongo_client.inventorydb.uniq.create_index('name')
+        _mongo_client.inventorydb.sku.create_index('name')
+
+    return _mongo_client
+
+
+def get_db():
+    if 'db' not in g:
+        g.db = get_mongo_client().inventorydb
+    return g.db
+
+
+db = LocalProxy(get_db)
+
+
+def init_db():
+    get_mongo_client().testing.bin.drop()
+    get_mongo_client().testing.uniq.drop()
+    get_mongo_client().testing.sku.drop()
+    get_mongo_client().testing.batch.drop()

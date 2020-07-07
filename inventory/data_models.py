@@ -19,7 +19,7 @@ def get_fields(cls):
 # -------- Utility classes
 
 
-class MyEncoder(json.JSONEncoder):
+class DataModelJSONEncoder(json.JSONEncoder):
     def default(self, o):
         return {k: v for k, v in o.__dict__.items()}
 
@@ -85,7 +85,7 @@ class DataModel():
         return True
 
     def to_json(self):
-        return json.dumps(self, cls=MyEncoder)
+        return json.dumps(self, cls=DataModelJSONEncoder)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({", ".join("=".join((k, v.__repr__())) for k, v in self.__dict__.items())})'
@@ -143,7 +143,7 @@ class DataModel():
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""
     # if a datafield does not have a db_key set then it should not be stored as a db field
-    id = DataField("id", required=True)
+    id = DataField("_id", required=True)
     props = DataField("props")
     # contents = [{unit_type: BIN|BATCH|UNIQ|SKU, label: ID, quantity: n}]
     contents = DataField("contents", default=[])
@@ -155,7 +155,7 @@ class Bin(DataModel):
 
 
 class Sku(DataModel):
-    id = DataField("id", required=True)
+    id = DataField("_id", required=True)
     owned_codes = DataField("owned_codes", default=[])
     associated_codes = DataField("associated_codes", default=[])
     name = DataField("name")
@@ -165,7 +165,7 @@ class Sku(DataModel):
 
 
 class Batch(DataModel):
-    id = DataField("id", required=True)
+    id = DataField("_id", required=True)
     sku_id = DataField("sku_id")
     original_cost = DataField()
     original_cost_per_unit = DataField()
@@ -180,7 +180,7 @@ class Batch(DataModel):
 
 
 class Uniq(DataModel):
-    id = DataField("id", required=True)
+    id = DataField("_id", required=True)
     bin_id = DataField("bin_id", required=True)
     owned_codes = DataField("owned_codes")
     sku_parent = DataField("sku_id")
@@ -198,7 +198,7 @@ class Uniq(DataModel):
 #         self.contents = json.get('contents', None)
 
 #     def toJson(self):
-#         return json.dumps(self, cls=MyEncoder)
+#         return json.dumps(self, cls=DataModelJSONEncoder)
 
 #     def toDict(self):
 #         d = {'id': self._id}
@@ -221,4 +221,4 @@ class Uniq(DataModel):
 #         return d
 
 #     def toJson(self):
-#         return json.dumps(self, cls=MyEncoder)
+#         return json.dumps(self, cls=DataModelJSONEncoder)

@@ -1,25 +1,28 @@
+from inventory.data_models import Bin, DataModelJSONEncoder as Encoder
+
 import pytest
-
-from hypothesis import given, example
-import hypothesis.strategies as strat
-
-#delete this. only for debugging on windows
-import sys, os
-sys.path.append(os.getcwd()+"\\uwsgi-api-server")
-sys.path.append(os.getcwd()+"\\uwsgi-api-server\\tests")
-
-from inventory.data_models import Bin, MyEncoder
-import data_models_strategies as my_strat
 import json
+from hypothesis import given, example
+from hypothesis.strategies import composite, integers
 
-@strat.composite
+from data_models_strategies import json_
+
+# delete this. only for debugging on windows
+# import sys
+# import os
+# sys.path.append(os.getcwd()+"\\uwsgi-api-server")
+# sys.path.append(os.getcwd()+"\\uwsgi-api-server\\tests")
+
+
+@composite
 def bin_and_id_props(
         draw,
-        ids=strat.integers().map(lambda i: f"BIN{i:08d}")):
+        ids=integers().map(lambda i: f"BIN{i:08d}")):
     id = draw(ids)
-    props = draw(my_strat.json)
+    props = draw(json_)
     bin = Bin(id=id, props=props)
     return (bin, id, props)
+
 
 @given(bin_and_id_props())
 def test_bin(bin_id_props):
@@ -42,7 +45,7 @@ def test_bin(bin_id_props):
 
     print(bin)
 
-    assert bin.to_mongodb_doc()['id'] == id
+    assert bin.to_mongodb_doc()['_id'] == id
     assert bin.to_mongodb_doc().get('props') == props
     assert bin.to_mongodb_doc().get('contents') == []
 
@@ -60,4 +63,3 @@ def test_bin(bin_id_props):
 # def test_batch():
 #     batchJson = {"id": "BATCH0008", }
 #     #batch = Batch(json.loads(batchJson))
-    

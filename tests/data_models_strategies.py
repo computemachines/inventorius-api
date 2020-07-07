@@ -1,15 +1,46 @@
-from inventory.data_models import Bin, MyEncoder
+from inventory.data_models import Bin
 
+from hypothesis import given, example, settings, note
 from hypothesis.strategies import *
+
 from string import printable, ascii_lowercase
 
-fieldNames = text(ascii_lowercase+'_')
-simpleTypes = one_of(none(),
-                     integers().filter(lambda x: x.bit_length() < 64),
-                     floats(allow_nan=False), text(printable))
+fieldNames_ = text(ascii_lowercase+'_')
+simpleTypes_ = one_of(none(),
+                      integers().filter(lambda x: x.bit_length() < 64),
+                      floats(allow_nan=False), text(printable))
 
-json = recursive(simpleTypes,
-                 lambda children: one_of(
-                     dictionaries(fieldNames, children),
-                     lists(children)),
-                 max_leaves=2)
+json_ = recursive(simpleTypes_,
+                  lambda children: one_of(
+                      dictionaries(fieldNames_, children),
+                      lists(children)),
+                  max_leaves=2)
+
+
+@composite
+def bins_(draw, id=None, props=None, contents=None):
+    id = id or f"BIN{draw(integers(0, 10)):08d}"
+    props = props or draw(json_)
+    return Bin(id=id, props=props)
+
+
+@composite
+def uniqs_(draw, id=None, bin_id=None):
+    id = id or f"UNIQ{draw(integers(0, 10)):07d}"
+    bin_id = bin_id or f"BIN{draw(integers(0, 10)):08d}"
+    return Uniq(id=id, bin_id=bin_id)
+
+
+@composite
+def skus_(draw, id=None, owned_codes=None, name=None):
+    id = id or f"SKU{draw(integers(0, 10)):08d}"
+    owned_codes = owned_codes or draw(lists(text("abc")))
+    name = draw(text("ABC"))
+    return Sku(id=id, owned_codes=owned_codes, name=name)
+
+
+@composite
+def batches_(draw, id=None, sku_id=None):
+    id = id or f"BAT{draw(integers(0, 10)):08d}"
+    sku_id = sku_id or f"SKU{draw(integers(0, 100)):08d}"
+    return Batch(id=id, sku_id=sku_id)
