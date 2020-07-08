@@ -14,7 +14,10 @@ jobs:
           keys:
           - pip-{{ checksum "requirements.txt" }}
       - run:
-          command: pip install --user -r requirements.txt
+          command: |
+            python -m venv venv
+            . venv/bin/activate
+            pip install --user -r requirements.txt
           name: pip install
       - save_cache:
           key: pip-{{ checksum "requirements.txt" }}
@@ -22,6 +25,7 @@ jobs:
           - /home/circleci/.local/lib/
       - run:
           command: |
+            . venv/bin/activate
             $HOME/.local/bin/coverage run --source=src/ pytest --junitxml=test-results/pytest/results.xml
             $HOME/.local/bin/coverage report
             $HOME/.local/bin/coverage html
