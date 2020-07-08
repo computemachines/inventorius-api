@@ -29,9 +29,12 @@ jobs:
             coverage run --source=inventory -m pytest --junitxml=test-results/pytest/results.xml
             coverage report
             coverage html
+            coverage-badge -o coverage.svg
           name: Test
       - store_artifacts:
           path: htmlcov
+      - store_artifacts:
+          path: coverage.svg
       - store_test_results:
           path: test-results
   deploy:
