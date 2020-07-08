@@ -21,7 +21,10 @@ jobs:
           paths:
           - /home/circleci/.local/lib/
       - run:
-          command: python -m pytest --junitxml=test-results/pytest/results.xml
+          command: |
+            $HOME/.local/bin/coverage run --source=src/ pytest --junitxml=test-results/pytest/results.xml
+            $HOME/.local/bin/coverage report
+            $HOME/.local/bin/coverage html
           name: Test
       - store_test_results:
           path: test-results

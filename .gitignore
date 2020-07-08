@@ -5,3 +5,6 @@
 .venv
 .delete_me.py
 .vscode
+.coverage
+test-results
+htmlcov
