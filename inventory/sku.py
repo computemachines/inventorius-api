@@ -1,6 +1,7 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, Response, url_for
 from inventory.data_models import Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
+from inventory.util import admin_increment_code
 
 import json
 
@@ -13,13 +14,13 @@ def skus_post():
 
     if db.sku.find_one({'id': sku.id}):
         return Response(status=409, headers={
-            'Location': url_for('sku_get', id=sku.id)})
+            'Location': url_for('sku.sku_get', id=sku.id)})
 
     admin_increment_code("SKU", sku.id)
     db.sku.insert_one(sku.to_mongodb_doc())
     dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
-    return Response(json.dumps(dbSku, cls=MyEncoder), status=200, headers={
-        'Location': url_for('sku_get', id=sku.id)})
+    return Response(json.dumps(dbSku, cls=Encoder), status=200, headers={
+        'Location': url_for('sku.sku_get', id=sku.id)})
 
 # api v2.0.0
 

@@ -2,7 +2,7 @@ import itertools as it
 import json
 from flask import g, request_started
 import pytest
-from hypothesis import given, example, settings, note
+from hypothesis import given, example, settings
 import hypothesis.strategies as st
 import tests.data_models_strategies as my_st
 

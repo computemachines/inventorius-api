@@ -1,6 +1,6 @@
 from inventory.data_models import Bin
 
-from hypothesis import given, example, settings, note
+from hypothesis import given, example, settings
 from hypothesis.strategies import *
 
 from string import printable, ascii_lowercase

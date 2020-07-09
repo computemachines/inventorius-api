@@ -1,3 +1,4 @@
+import contextlib
 import pytest
 from hypothesis import settings
 
@@ -26,3 +27,10 @@ def client():
     init_db()
     yield inventory_flask_app.test_client()
     # close app
+
+
+@contextlib.contextmanager
+def clientContext():
+    inventory_flask_app.testing = True
+    init_db()
+    yield inventory_flask_app.test_client()

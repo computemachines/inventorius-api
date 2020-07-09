@@ -1,4 +1,4 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, url_for
 from inventory.data_models import Uniq, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
@@ -25,10 +25,10 @@ def uniqs_post():
 
     if bin is None:
         return Response("Bin not found", status=404, headers={
-            'Location': url_for('bin_get', id=bin_id)})
+            'Location': url_for('bin.bin_get', id=bin_id)})
     if db.uniq.find_one({"id": uniq.id}):
         return Response("Uniq not found", status=409, headers={
-            'Location': url_for('uniq_get', id=uniq.id)})
+            'Location': url_for('uniq.uniq_get', id=uniq.id)})
 
     admin_increment_code("UNIQ", uniq.id)
     db.uniq.insert_one(uniq.to_mongodb_doc())
