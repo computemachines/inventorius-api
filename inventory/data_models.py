@@ -145,13 +145,16 @@ class Bin(DataModel):
     # if a datafield does not have a db_key set then it should not be stored as a db field
     id = DataField("_id", required=True)
     props = DataField("props")
-    # contents = [{unit_type: BIN|BATCH|UNIQ|SKU, label: ID, quantity: n}]
+    # _contents = [{id: label, quantity: n}]
     contents = DataField("contents", default=[])
     unit_count = DataField()
     sku_count = DataField()
 
-    def skus(self):
-        return {e['sku_id']: e['quantity'] for e in self.contents if 'sku_id' in e}
+    def contentsMap(self, key=None):
+        out = {e['id']: e['quantity'] for e in self.contents}
+        if key:
+            return out[key]
+        return out
 
 
 class Sku(DataModel):

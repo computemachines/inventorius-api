@@ -1,5 +1,5 @@
-from flask import Blueprint, request
-from inventory.data_models import Bin, DataModelJSONEncoder as Encoder
+from flask import Blueprint, request, Response
+from inventory.data_models import Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
 import json
@@ -7,47 +7,44 @@ import json
 inventory = Blueprint("inventory", __name__)
 
 
-@ inventory.route('/api/move-units', methods=['POST'])
+@ inventory.route('/api/move', methods=['POST'])
 def move_unit_post():
     oldBin = Bin.from_mongodb_doc(
-        db.bin.find_one({"id": request.form['old_bin_id']}))
+        db.bin.find_one({"_id": request.json['from']}))
     newBin = Bin.from_mongodb_doc(
-        db.bin.find_one({"id": request.form['new_bin_id']}))
-    quantity = int(request.form.get('quantity', 1))
-    unit_id = request.form['unit_id']
+        db.bin.find_one({"_id": request.json['to']}))
+    quantity = int(request.json.get('quantity', 1))
 
-    if unit_id.startswith('UNIQ'):
+    if 'uniq' in request.json.keys():
         assert quantity == 1
         unit = Uniq.from_mongodb_doc(db.uniq.find_one({"id": unit_id}))
-        db.bin.update_one({"id": oldBin.id},
+        db.bin.update_one({"_id": oldBin.id},
                           {"$pull": {"contents.id": unit.id}})
-        db.bin.update_one({"id": newBin.id},
+        db.bin.update_one({"_id": newBin.id},
                           {"$push": {"contents":
                                      {"id": unit.id,
                                       "quantity": 1}}})
-        db.uniq.update_one({"id": unit.id}, {"bin_id": newBin.id})
-    elif unit_id.startswith('SKU'):
-        assert quantity <= oldBin.skus()[unit_id]
-        unit = Sku.from_mongodb_doc(db.sku.find_one({"id": unit_id}))
-        db.bin.update_one({"id": oldBin.id, "contents.id": unit.id},
+        db.uniq.update_one({"_id": unit.id}, {"bin_id": newBin.id})
+    elif 'sku' in request.json.keys():
+        assert quantity <= oldBin.contentsMap(request.json["sku"])
+        unit = Sku.from_mongodb_doc(
+            db.sku.find_one({"_id": request.json['sku']}))
+        db.bin.update_one({"_id": oldBin.id, "contents.id": unit.id},
                           {"$inc": {"contents.$.quantity": -quantity}})
 
         # if unit not in bin already, add to bin with quantity 0
-        db.bin.update_one({"id": newBin.id,
-                           "contents": {"$not": {"$elemMatch": {"sku_id": unit.id}}}},
-                          {"$push": {"contents": {"sku_id": unit.id, "quantity": 0}}})
-        db.bin.update_one({"id": newBin.id, "contents.sku_id": unit.id},
+        db.bin.update_one({"_id": newBin.id,
+                           "contents": {"$not": {"$elemMatch": {"id": unit.id}}}},
+                          {"$push": {"contents": {"id": unit.id, "quantity": 0}}})
+        db.bin.update_one({"_id": newBin.id, "contents.id": unit.id},
                           {"$inc": {"contents.$.quantity": quantity}})
-        db.bin.update_many({"$or": [{"id": newBin.id},
-                                    {"id": oldBin.id}]},
+        db.bin.update_many({"$or": [{"_id": newBin.id},
+                                    {"_id": oldBin.id}]},
                            {"$pull": {"contents": {"quantity": {"$lte": 0}}}})
-    elif unit_id.startswith('BAT'):
-        unit = Batch.from_mongodb_doc(db.batch.find_one({"id": unit_id}))
+    elif 'batch' in request.json.keys():
+        unit = Batch.from_mongodb_doc(db.batch.find_one({"_id": unit_id}))
         # TODO
     else:
-        unit = owned_code_get(id)
-        # TODO
-    if not unit:
         return Response(status=404)
     return Response(status=200)
 
@@ -75,18 +72,18 @@ def next_bin():
 @ inventory.route('/api/receive', methods=['POST'])
 def receive_post():
     form = request.json
-    bin = Bin.from_mongodb_doc(db.bin.find_one({"id": form['bin_id']}))
+    bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": form['bin_id']}))
     if not bin:
         return "Bin not found", 404
     quantity = int(form.get('quantity', 1))
     sku_id = form['sku_id']
-    sku = Sku.from_mongodb_doc(db.sku.find_one({"id": sku_id}))
+    sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": sku_id}))
     if not sku:
         return "SKU not found", 404
     # if unit not in bin already, add to bin with quantity 0
-    db.bin.update_one({"id": bin.id, "contents": {"$not": {"$elemMatch": {"sku_id": sku.id}}}},
-                      {"$push": {"contents": {"sku_id": sku.id, "quantity": 0}}})
-    db.bin.update_one({"id": bin.id, "contents.sku_id": sku.id},
+    db.bin.update_one({"_id": bin.id, "contents": {"$not": {"$elemMatch": {"id": sku.id}}}},
+                      {"$push": {"contents": {"id": sku.id, "quantity": 0}}})
+    db.bin.update_one({"_id": bin.id, "contents.id": sku.id},
                       {"$inc": {"contents.$.quantity": quantity}})
 
     return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200

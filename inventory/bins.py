@@ -53,13 +53,7 @@ def bins_post():
     else:
         resp.status_code = 409
 
-    if get_body_type() == 'form' and resp.status_code == 201:
-        resp.status_code = 302
-        resp.headers['Location'] = f"/bin/{bin.id}"
-
-    if get_body_type() == 'json':
-        resp.data = bin.to_json()
-    print(bin.to_json())
+    resp.data = bin.to_json()
     return resp
 
 # api v2.0.0
@@ -67,18 +61,18 @@ def bins_post():
 
 @ bins.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
-    existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
+    existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:
         return "The bin does not exist", 404
     else:
-        return json.dumps(existing, cls=Encoder), 200
+        return Response(json.dumps(existing, cls=Encoder), headers={'Content-Type': 'application/json'})
 
 # api v2.0.0
 
 
 @ bins.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
-    existing = Bin.from_mongodb_doc(db.bin.find_one({"id": id}))
+    existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:
         return "The bin does not exist", 404
     if request.args.get('force', 'false') == 'true' or len(existing.contents) == 0:

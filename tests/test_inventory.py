@@ -15,3 +15,13 @@ def test_move(client):
         "sku_id": sku1.id,
         "quantity": 2
     })
+    client.post('/api/move', json={
+        "sku": sku1.id,
+        "from": bin1.id,
+        "to": bin2.id,
+        "count": 1})
+    rp = client.get('/api/bin/BIN1')
+    assert rp.status_code == 200
+    assert rp.is_json
+    assert rp.json['contents'][0]['id'] == sku1.id
+    assert rp.json['contents'][0]['quantity'] == 1
