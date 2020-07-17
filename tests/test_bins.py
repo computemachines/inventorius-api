@@ -9,12 +9,14 @@ from inventory.db import init_db
 from inventory.data_models import DataModelJSONEncoder as Encoder
 
 from conftest import clientContext
+import pytest
 
 
 def post_bin(client, bin):
     return client.post("/api/bins", json=bin.to_json())
 
 
+@pytest.mark.skip
 @given(bin=bins_())
 @settings(max_examples=100)
 def test_post_one_bin(bin):
@@ -25,6 +27,7 @@ def test_post_one_bin(bin):
         assert json.loads(data) == json.loads(json.dumps([bin], cls=Encoder))
 
 
+@pytest.mark.skip
 @given(bin1=one_of(bins_(id="BIN1") | bins_(id="BIN2")),
        bin2=one_of(bins_(id="BIN1") | bins_(id="BIN2")))
 def test_post_two_bins(bin1, bin2):
@@ -39,6 +42,7 @@ def test_post_two_bins(bin1, bin2):
                 assert resp.status_code == 409
 
 
+@pytest.mark.skip
 @given(bins=lists(bins_(), unique_by=lambda b: b.id))
 def test_bins_pagination(bins):
     with clientContext() as client:

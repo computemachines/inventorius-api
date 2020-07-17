@@ -7,14 +7,14 @@ from string import printable, ascii_lowercase
 
 fieldNames_ = text(ascii_lowercase+'_')
 simpleTypes_ = one_of(none(),
-                      integers().filter(lambda x: x.bit_length() < 64),
+                      integers(min_value=-2**63, max_value=2**63),
                       floats(allow_nan=False), text(printable))
 
 json_ = recursive(simpleTypes_,
                   lambda children: one_of(
                       dictionaries(fieldNames_, children),
                       lists(children)),
-                  max_leaves=2)
+                  max_leaves=1)
 
 
 @composite
@@ -22,13 +22,6 @@ def bins_(draw, id=None, props=None, contents=None):
     id = id or f"BIN{draw(integers(0, 10)):08d}"
     props = props or draw(json_)
     return Bin(id=id, props=props)
-
-
-@composite
-def uniqs_(draw, id=None, bin_id=None):
-    id = id or f"UNIQ{draw(integers(0, 10)):07d}"
-    bin_id = bin_id or f"BIN{draw(integers(0, 10)):08d}"
-    return Uniq(id=id, bin_id=bin_id)
 
 
 @composite
