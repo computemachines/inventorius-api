@@ -182,17 +182,17 @@ class Batch(DataModel):
     inherited_props = DataField()
 
 
-class Uniq(DataModel):
-    id = DataField("_id", required=True)
-    bin_id = DataField("bin_id", required=True)
-    owned_codes = DataField("owned_codes")
-    sku_parent = DataField("sku_id")
-    name = DataField("name")
-    original_cost = DataField("original_cost")
-    asset_value = DataField("asset_value")
-    assembly = DataField()
-    props = DataField("props")
-    inherited_props = DataField()
+# class Uniq(DataModel):
+#     id = DataField("_id", required=True)
+#     bin_id = DataField("bin_id", required=True)
+#     owned_codes = DataField("owned_codes")
+#     sku_parent = DataField("sku_id")
+#     name = DataField("name")
+#     original_cost = DataField("original_cost")
+#     asset_value = DataField("asset_value")
+#     assembly = DataField()
+#     props = DataField("props")
+#     inherited_props = DataField()
 
 # class BinExtended:
 #     def __init__(self, json=None):
