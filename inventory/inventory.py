@@ -1,5 +1,6 @@
+from inventory.util import getIntArgs
 from flask import Blueprint, request, Response
-from inventory.data_models import Bin, Sku, DataModelJSONEncoder as Encoder
+from inventory.data_models import Bin, Sku, Uniq, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
 import json
@@ -133,6 +134,14 @@ def search():
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
+    cursor = db.sku.find({"$text": {"$search": query}})
+    for sku_doc in cursor:
+        results.append(Sku.from_mongodb_doc(sku_doc))
+
+    cursor = db.uniq.find({"$text": {"$search": query}})
+    for uniq_doc in cursor:
+        results.append(Uniq.from_mongodb_doc(uniq_doc))
+
     if results != []:
         paged = results[startingFrom:(startingFrom+limit)]
         return json.dumps({
@@ -141,7 +150,7 @@ def search():
             "limit": limit,
             "returned_num_results": len(paged),
             "results": paged
-        }, cls=MyEncoder)
+        }, cls=Encoder)
 
     return json.dumps({
         "total_num_results": len(results),
@@ -149,4 +158,4 @@ def search():
         "limit": limit,
         "returned_num_results": 0,
         "results": []
-    }, cls=MyEncoder)
+    }, cls=Encoder)

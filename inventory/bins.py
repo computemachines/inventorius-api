@@ -8,31 +8,6 @@ import json
 bins = Blueprint("bins", __name__)
 
 
-@ bins.route('/api/bins', methods=['GET'])
-def bins_get():
-    args = request.args
-    limit = None
-    skip = None
-    try:
-        limit = int(args.get('limit', 20))
-        skip = int(args.get('startingFrom', 0))
-    except (TypeError, ValueError):
-        return BAD_REQUEST
-
-    cursor = db.bin.find()
-    cursor.limit(limit)
-    cursor.skip(skip)
-
-    bins = [Bin.from_mongodb_doc(bsonBin) for bsonBin in cursor]
-
-    return json.dumps(bins, cls=Encoder)
-
-
-def props_from_form(form):
-    pass
-
-
-# api v2.0.0
 @bins.route('/api/bins', methods=['POST'])
 def bins_post():
     bin_json = request.json
@@ -44,15 +19,30 @@ def bins_post():
 
     if not bin.id.startswith('BIN'):
         resp.status_code = 400
-        resp.data = 'id must start with BIN'
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-id-format",
+            "title": "Bin Ids must start with 'BIN'.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must start with string 'BIN'"
+            }]})
         return resp
 
-    if existing is None:
-        db.bin.insert_one(bin.to_mongodb_doc())
-        resp.status_code = 201
-    else:
+    if existing:
         resp.status_code = 409
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "duplicate-bin",
+            "title": "Cannot create duplicate bin.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must not be an existing bin id"
+            }]})
+        return resp
 
+    db.bin.insert_one(bin.to_mongodb_doc())
+    resp.status_code = 201
     resp.data = bin.to_json()
     return resp
 
@@ -66,7 +56,9 @@ def bin_get(id):
     if existing is None:
         return "The bin does not exist", 404
     else:
-        return Response(json.dumps(existing, cls=Encoder), headers={'Content-Type': 'application/json'})
+        return {
+            "state": json.loads(existing.to_json())
+        }
 
 # api v2.0.0
 

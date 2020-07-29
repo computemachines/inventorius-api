@@ -1,4 +1,5 @@
 from conftest import clientContext
+import pytest
 import hypothesis.strategies as st
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple
 from inventory.data_models import Bin, Sku, Uniq, Batch
@@ -10,6 +11,7 @@ sku1 = Sku(id="SKU1")
 uniq1 = Uniq(id="UNIQ1", bin_id=bin1.id)
 
 
+@pytest.mark.skip
 def test_move(client):
     client.post('/api/bins', json=bin1.to_json())
     client.post('/api/bins', json=bin2.to_json())
@@ -36,19 +38,40 @@ class InventoryStateMachine(RuleBasedStateMachine):
         super(InventoryStateMachine, self).__init__()
         with clientContext() as client:
             self.client = client
+            self.bins = {}
+            self.skus = {}
+            self.batches = {}
 
-    bins = Bundle("bins")
+    binIds = Bundle("binIds")
+    skuIds = Bundle("skuIds")
+    batchIds = Bundle("batchIds")
 
-    @rule(target=bins, bin=dst.bins_())
+    @rule(target=skuIds, sku=dst.skus_())
+    def add_sku(self, sku):
+        resp = self.client.post('/api/skus', json=sku.to_json())
+        if sku.id in self.skus.keys():
+            assert resp.status_code == 409
+        else:
+            assert resp.status_code == 201
+        return sku.id
+
+    @rule(target=binIds, bin=dst.bins_())
     def add_bin(self, bin):
-        self.client.post('/api/bins', json=bin.to_json())
-        return bin
+        resp = self.client.post('/api/bins', json=bin.to_json())
+        if bin.id in self.bins.keys():
+            assert resp.status_code == 409
+            assert resp.is_json
+            assert resp.json['type'] == 'duplicate-bin'
+        else:
+            assert resp.status_code == 201
+            self.bins[bin.id] = bin
+        return bin.id
 
-    @rule(bin=bins)
-    def get_bin(self, bin):
-        rp = self.client.get(f'/api/bin/{bin.id}')
+    @rule(binId=binIds)
+    def get_bin(self, binId):
+        rp = self.client.get(f'/api/bin/{binId}')
         assert rp.is_json
-        assert bin.props == rp.json['state']['props']
+        assert self.bins[binId].props == rp.json['state']['props']
 
 
 TestInventory = InventoryStateMachine.TestCase

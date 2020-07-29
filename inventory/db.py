@@ -1,5 +1,5 @@
 from flask import g
-from pymongo import MongoClient
+from pymongo import MongoClient, TEXT
 from werkzeug.local import LocalProxy
 
 # memoize mongo_client
@@ -11,8 +11,8 @@ def get_mongo_client():
     if _mongo_client is None:
         db_host = "localhost"
         _mongo_client = MongoClient(db_host, 27017)
-        _mongo_client.inventorydb.uniq.create_index('name')
-        _mongo_client.inventorydb.sku.create_index('name')
+        _mongo_client.inventorydb.uniq.create_index([('name', TEXT)])
+        _mongo_client.inventorydb.sku.create_index([('name', TEXT)])
 
     return _mongo_client
 

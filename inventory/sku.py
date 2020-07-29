@@ -12,6 +12,21 @@ sku = Blueprint("sku", __name__)
 def skus_post():
     sku = Sku.from_json(request.json)
 
+# copied from ./bins.py
+    # resp = Response()
+
+    # if not bin.id.startswith('BIN'):
+    #     resp.status_code = 400
+    #     resp.mimetype = "application/problem+json"
+    #     resp.data = json.dumps({
+    #         "type": "bad-id-format",
+    #         "title": "Bin Ids must start with 'BIN'.",
+    #         "invalid-params": [{
+    #             "name": "id",
+    #             "reason": "must start with string 'BIN'"
+    #         }]})
+    #     return resp
+
     if db.sku.find_one({'id': sku.id}):
         return Response(status=409, headers={
             'Location': url_for('sku.sku_get', id=sku.id)})
