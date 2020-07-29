@@ -19,7 +19,6 @@ from inventory.bins import bins
 from inventory.batch import batch
 from inventory.inventory import inventory
 from inventory.sku import sku
-from inventory.uniq import uniq
 
 # from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
@@ -30,4 +29,3 @@ app.register_blueprint(bins)
 app.register_blueprint(batch)
 app.register_blueprint(inventory)
 app.register_blueprint(sku)
-app.register_blueprint(uniq)

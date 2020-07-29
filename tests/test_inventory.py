@@ -2,13 +2,12 @@ from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple
-from inventory.data_models import Bin, Sku, Uniq, Batch
+from inventory.data_models import Bin, Sku, Batch
 import tests.data_models_strategies as dst
 
 bin1 = Bin(id="BIN1")
 bin2 = Bin(id="BIN2")
 sku1 = Sku(id="SKU1")
-uniq1 = Uniq(id="UNIQ1", bin_id=bin1.id)
 
 
 @pytest.mark.skip

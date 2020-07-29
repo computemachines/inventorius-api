@@ -1,6 +1,6 @@
 from inventory.util import getIntArgs
 from flask import Blueprint, request, Response
-from inventory.data_models import Bin, Sku, Uniq, DataModelJSONEncoder as Encoder
+from inventory.data_models import Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
 import json

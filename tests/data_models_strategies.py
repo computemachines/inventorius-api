@@ -36,4 +36,7 @@ def skus_(draw, id=None, owned_codes=None, name=None):
 def batches_(draw, id=None, sku_id=None):
     id = id or f"BAT{draw(integers(0, 10)):08d}"
     sku_id = sku_id or f"SKU{draw(integers(0, 100)):08d}"
-    return Batch(id=id, sku_id=sku_id)
+    if draw(booleans()):
+        return Batch(id=id, sku_id=sku_id)
+    else:
+        return Batch(id=id)
