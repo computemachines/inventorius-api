@@ -1,4 +1,4 @@
-from inventory.data_models import Bin, Sku
+from inventory.data_models import Bin, Sku, Batch
 
 from hypothesis import given, example, settings
 from hypothesis.strategies import *

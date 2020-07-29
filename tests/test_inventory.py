@@ -51,9 +51,12 @@ class InventoryStateMachine(RuleBasedStateMachine):
         resp = self.client.post('/api/skus', json=sku.to_json())
         if sku.id in self.skus.keys():
             assert resp.status_code == 409
+            assert resp.is_json
+            return multiple()
         else:
             assert resp.status_code == 201
-        return sku.id
+            self.skus[sku.id] = sku
+            return sku.id
 
     @rule(target=binIds, bin=dst.bins_())
     def add_bin(self, bin):
@@ -61,11 +64,21 @@ class InventoryStateMachine(RuleBasedStateMachine):
         if bin.id in self.bins.keys():
             assert resp.status_code == 409
             assert resp.is_json
-            assert resp.json['type'] == 'duplicate-bin'
+            assert resp.json['type'] == 'duplicate-resource'
+            return multiple()
         else:
             assert resp.status_code == 201
             self.bins[bin.id] = bin
-        return bin.id
+            return bin.id
+
+    @rule(target=batchIds, batch=dst.batches_())
+    def add_batch(self, batch):
+        resp = self.client.post('/api/batches', json=batch.to_json())
+        if batch.id in self.batches.keys():
+            assert resp.status_code == 409
+            assert resp.is_json
+        else:
+            assert resp.status_code == 201
 
     @rule(binId=binIds)
     def get_bin(self, binId):
@@ -75,3 +88,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
 
 TestInventory = InventoryStateMachine.TestCase
+
+
+def test_repeat_sku_push():
+    state = InventoryStateMachine()
+    v1 = state.add_sku(sku=Sku(associated_codes=[],
+                               id='SKU00000000', name='', owned_codes=[]))
+    state.add_sku(sku=Sku(associated_codes=[],
+                          id='SKU00000000', name='', owned_codes=[]))

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response
+from flask import Blueprint, request, Response, url_for
 from inventory.data_models import Bin, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import get_body_type, admin_increment_code
@@ -33,16 +33,18 @@ def bins_post():
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
-            "type": "duplicate-bin",
+            "type": "duplicate-resource",
             "title": "Cannot create duplicate bin.",
             "invalid-params": [{
                 "name": "id",
-                "reason": "must not be an existing bin id"
+                "reason": "must not be an existing bin id",
             }]})
+        resp.headers["Location"] = url_for("bins.bin_get", id=bin.id)
         return resp
 
     db.bin.insert_one(bin.to_mongodb_doc())
     resp.status_code = 201
+    resp.mimetype = "application/json"
     resp.data = bin.to_json()
     return resp
 

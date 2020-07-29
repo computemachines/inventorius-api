@@ -5,7 +5,7 @@ import json
 from hypothesis import given, example
 from hypothesis.strategies import composite, integers
 
-from data_models_strategies import json_
+from tests.data_models_strategies import json_
 
 # delete this. only for debugging on windows
 # import sys
