@@ -25,7 +25,7 @@ def bins_post():
             "title": "Bin Ids must start with 'BIN'.",
             "invalid-params": [{
                 "name": "id",
-                "reason": "must start with string 'BIN'"
+                "reason": "must start with 'BIN'"
             }]})
         return resp
 
