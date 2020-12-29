@@ -10,6 +10,10 @@ bin2 = Bin(id="BIN2")
 sku1 = Sku(id="SKU1")
 
 
+# def test_fail():
+#     assert False
+
+
 def test_move(client):
     client.post('/api/bins', json=bin1.to_json())
     client.post('/api/bins', json=bin2.to_json())
