@@ -7,3 +7,4 @@ $ python -m inventory.app
 Run tests with
 
 $ pytest
+$ coverage run --source=inventory -m pytest

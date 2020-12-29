@@ -1,5 +1,6 @@
 from flask import request
 import re
+from string import ascii_letters
 
 from inventory.db import db
 
@@ -40,8 +41,8 @@ def admin_increment_code(prefix, code):
             db.admin.replace_one({"_id": "UNIQ"}, {"_id": "UNIQ",
                                                    "next": f"UNIQ{max_code+1:05}"})
         if prefix == "BATCH":
-            db.admin.replace_one({"_id": "BATCH"}, {"_id": "BATCH",
-                                                    "next": f"BATCH{max_code+1:04}"})
+            db.admin.replace_one({"_id": "BATCH"}, {"_id": "BAT",
+                                                    "next": f"BAT{max_code+1:06}"})
         if prefix == "BIN":
             db.admin.replace_one({"_id": "BIN"}, {"_id": "BIN",
                                                   "next": f"BIN{max_code+1:06}"})
@@ -49,11 +50,11 @@ def admin_increment_code(prefix, code):
 
 def admin_get_next(prefix):
 
-    def max_code_value(collection, prefix):
+    def max_code_value(collection, prefix=ascii_letters):
         cursor = collection.find()
         max_value = 0
         for doc in cursor:
-            code_number = int(doc['id'].strip(prefix))
+            code_number = int(doc['_id'].strip(prefix))
             if code_number > max_value:
                 max_value = code_number
         return max_value
@@ -68,13 +69,17 @@ def admin_get_next(prefix):
             max_value = max_code_value(db.uniq, "UNIQ")
             db.admin.insert_one({"_id": "UNIQ",
                                  "next": f"UNIQ{max_value+1:05}"})
-        if prefix == "BATCH":
-            max_value = max_code_value(db.batch, "BATCH")
-            db.admin.insert_one({"_id": "BATCH",
-                                 "next": f"BATCH{max_value+1:04}"})
+        if prefix == "BAT":
+            max_value = max_code_value(db.batch)
+            db.admin.insert_one({"_id": "BAT",
+                                 "next": f"BAT{max_value+1:07}"})
         if prefix == "BIN":
             max_value = max_code_value(db.bin, "BIN")
             db.admin.insert_one({"_id": "BIN",
                                  "next": f"BIN{max_value+1:06}"})
         next_code_doc = db.admin.find_one({"_id": prefix})
-    return next_code_doc['next']
+
+    if next_code_doc:
+        return next_code_doc['next']
+    else:
+        raise Exception("bad prefix", prefix)

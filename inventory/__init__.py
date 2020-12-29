@@ -15,7 +15,7 @@ from flask import Flask
 # import pprint
 # from urllib.parse import urlencode
 
-from inventory.bins import bins
+from inventory.bin import bin
 from inventory.batch import batch
 from inventory.inventory import inventory
 from inventory.sku import sku
@@ -25,7 +25,7 @@ from inventory.sku import sku
 app = Flask('inventory')
 BAD_REQUEST = ('Bad Request', 400)
 
-app.register_blueprint(bins)
+app.register_blueprint(bin)
 app.register_blueprint(batch)
 app.register_blueprint(inventory)
 app.register_blueprint(sku)

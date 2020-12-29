@@ -19,14 +19,14 @@ json_ = recursive(simpleTypes_,
 
 @composite
 def bins_(draw, id=None, props=None, contents=None):
-    id = id or f"BIN{draw(integers(0, 10)):08d}"
+    id = id or f"BIN{draw(integers(0, 6)):06d}"
     props = props or draw(json_)
     return Bin(id=id, props=props)
 
 
 @composite
 def skus_(draw, id=None, owned_codes=None, name=None):
-    id = id or f"SKU{draw(integers(0, 10)):08d}"
+    id = id or f"SKU{draw(integers(0, 10)):06d}"
     owned_codes = owned_codes or draw(lists(text("abc")))
     name = draw(text("ABC"))
     return Sku(id=id, owned_codes=owned_codes, name=name)
@@ -34,8 +34,8 @@ def skus_(draw, id=None, owned_codes=None, name=None):
 
 @composite
 def batches_(draw, id=None, sku_id=None):
-    id = id or f"BAT{draw(integers(0, 10)):08d}"
-    sku_id = sku_id or f"SKU{draw(integers(0, 100)):08d}"
+    id = id or f"BAT{draw(integers(0, 10)):06d}"
+    sku_id = sku_id or f"SKU{draw(integers(0, 100)):06d}"
     if draw(booleans()):
         return Batch(id=id, sku_id=sku_id)
     else:

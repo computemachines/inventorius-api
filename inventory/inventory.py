@@ -1,4 +1,4 @@
-from inventory.util import getIntArgs
+from inventory.util import getIntArgs, admin_get_next
 from flask import Blueprint, request, Response
 from inventory.data_models import Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db

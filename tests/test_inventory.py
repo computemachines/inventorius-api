@@ -10,7 +10,6 @@ bin2 = Bin(id="BIN2")
 sku1 = Sku(id="SKU1")
 
 
-@pytest.mark.skip
 def test_move(client):
     client.post('/api/bins', json=bin1.to_json())
     client.post('/api/bins', json=bin2.to_json())
@@ -28,8 +27,8 @@ def test_move(client):
     rp = client.get('/api/bin/BIN1')
     assert rp.status_code == 200
     assert rp.is_json
-    assert rp.json['contents'][0]['id'] == sku1.id
-    assert rp.json['contents'][0]['quantity'] == 1
+    assert rp.json['state']['contents'][0]['id'] == sku1.id
+    assert rp.json['state']['contents'][0]['quantity'] == 1
 
 
 class InventoryStateMachine(RuleBasedStateMachine):
@@ -78,6 +77,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert resp.is_json
         else:
             assert resp.status_code == 201
+            self.batches[batch.id] = batch
+            return batch.id
 
     @rule(binId=binIds)
     def get_bin(self, binId):
@@ -95,3 +96,9 @@ def test_repeat_sku_push():
                                id='SKU00000000', name='', owned_codes=[]))
     state.add_sku(sku=Sku(associated_codes=[],
                           id='SKU00000000', name='', owned_codes=[]))
+
+
+def test_add_batch():
+    state = InventoryStateMachine()
+    state.add_batch(batch=Batch(id='BAT00000000'))
+    state.teardown()

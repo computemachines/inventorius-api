@@ -5,10 +5,10 @@ from inventory.util import get_body_type, admin_increment_code
 
 import json
 
-bins = Blueprint("bins", __name__)
+bin = Blueprint("bin", __name__)
 
 
-@bins.route('/api/bins', methods=['POST'])
+@bin.route('/api/bins', methods=['POST'])
 def bins_post():
     bin_json = request.json
     bin = Bin.from_json(bin_json)
@@ -39,7 +39,7 @@ def bins_post():
                 "name": "id",
                 "reason": "must not be an existing bin id",
             }]})
-        resp.headers["Location"] = url_for("bins.bin_get", id=bin.id)
+        resp.headers["Location"] = url_for("bin.bin_get", id=bin.id)
         return resp
 
     db.bin.insert_one(bin.to_mongodb_doc())
@@ -51,7 +51,7 @@ def bins_post():
 # api v2.0.0
 
 
-@ bins.route('/api/bin/<id>', methods=['GET'])
+@ bin.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
     print(id)
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
@@ -65,7 +65,7 @@ def bin_get(id):
 # api v2.0.0
 
 
-@ bins.route('/api/bin/<id>', methods=['DELETE'])
+@ bin.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:

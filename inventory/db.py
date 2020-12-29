@@ -11,8 +11,8 @@ def get_mongo_client():
     if _mongo_client is None:
         db_host = "localhost"
         _mongo_client = MongoClient(db_host, 27017)
-        _mongo_client.inventorydb.uniq.create_index([('name', TEXT)])
         _mongo_client.inventorydb.sku.create_index([('name', TEXT)])
+        _mongo_client.inventorydb.batch.create_index([('name', TEXT)])
 
     return _mongo_client
 
@@ -24,10 +24,3 @@ def get_db():
 
 
 db = LocalProxy(get_db)
-
-
-def init_db():
-    get_mongo_client().testing.bin.drop()
-    get_mongo_client().testing.uniq.drop()
-    get_mongo_client().testing.sku.drop()
-    get_mongo_client().testing.batch.drop()
