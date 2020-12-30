@@ -5,13 +5,13 @@ Requires=mongodb.service
 
 [Service]
 Type=simple
-WorkingDirectory=/home/ubuntu/inventory-v2/uwsgi-api-server/
+WorkingDirectory=/root/inventory-v2/uwsgi-api-server/
 ExecStart=/usr/bin/uwsgi \
-        --ini /home/ubuntu/inventory-v2/uwsgi-api-server/inventory.ini \
-        --socket /var/run/uwsgi-inventory-api.socket
+        --ini /root/inventory-v2/uwsgi-api-server/inventory.ini \
+        --socket /run/uwsgi-inventory-api.socket
 User=www-uwsgi-inventory-api
 Group=www-data
-Restart=on-failure
+#Restart=on-failure
 KillSignal=SIGQUIT
 Type=notify
 StandardError=syslog

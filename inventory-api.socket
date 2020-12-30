@@ -2,7 +2,7 @@
 Description=Socket for Inventory Api Server
 
 [Socket]
-ListenStream=/var/run/uwsgi-inventory-api.socket
+ListenStream=/run/uwsgi-inventory-api.socket
 SocketUser=www-uwsgi-inventory-api
 SocketGroup=www-data
 SocketMode=0660
