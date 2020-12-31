@@ -81,6 +81,7 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-20.04
+    needs: test
     
     steps:
       - name: Checkout
@@ -91,7 +92,7 @@ jobs:
         run: |
           gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
           chmod 600 github_id_rsa
-      - name: test ssh connection
+      - name: Run deployment commands on production server
         run: |
           ssh -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com \
             "cd inventory-v2/uwsgi-api-server/; git fetch; git reset --hard $GITHUB_SHA ; sudo systemctl restart inventory-api"
