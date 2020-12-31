@@ -11,7 +11,7 @@ ExecStart=/usr/bin/uwsgi \
         --socket /run/uwsgi-inventory-api.socket
 User=www-uwsgi-inventory-api
 Group=www-data
-#Restart=on-failure
+Restart=on-failure
 KillSignal=SIGQUIT
 Type=notify
 StandardError=syslog
