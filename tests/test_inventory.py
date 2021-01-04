@@ -110,6 +110,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def update_bin(self, binId, newProps):
         assume(self.model_bins[binId].props != newProps)
         rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
+        # self.model_bins[binId].props = newProps
 
     @ rule(binId=consumes(a_bin_id))
     def delete_bin(self, binId):
@@ -125,6 +126,14 @@ def test_bin():
     v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
     state.get_existing_bin(binId=v1)
     state.teardown()
+
+
+def test_update_bin():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    state.get_existing_bin(binId=v1)
+    state.update_bin(binId=v1, newProps="New prop")
+    state.get_existing_bin(binId=v1)
 
 # def test_repeat_sku_push():
 #     state = InventoryStateMachine()
