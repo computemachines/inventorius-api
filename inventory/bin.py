@@ -51,7 +51,7 @@ def bins_post():
 # api v2.0.0
 
 
-@ bin.route('/api/bin/<id>', methods=['GET'])
+@bin.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:
@@ -73,10 +73,30 @@ def bin_get(id):
             "state": json.loads(existing.to_json())
         }
 
-# api v2.0.0
+
+@bin.route('/api/bin/<id>/props', methods=['PUT'])
+def bin_props_put(id):
+    existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
+    if existing is None:
+        resp = Response()
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "The requested bin does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an existing bin id"
+            }]
+        })
+        return resp
+    newProps = request.json
+    db.bin.update_one({"_id": id},
+                      {"$set": {"props": newProps}})
+    return "Updated bin props", 200
 
 
-@ bin.route('/api/bin/<id>', methods=['DELETE'])
+@bin.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:

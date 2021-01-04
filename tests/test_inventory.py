@@ -110,12 +110,19 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def update_bin(self, binId, newProps):
         assume(self.model_bins[binId].props != newProps)
         rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
-        # self.model_bins[binId].props = newProps
+        self.model_bins[binId].props = newProps
+
+    @rule(binId=a_bin_id, newProps=dst.json)
+    def update_missing_bin(self, binId, newProps):
+        assume(binId not in self.model_bins.keys())
+        rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
+        assert rp.status_code == 404
+        assert rp.json['type'] == 'missing-resource'
 
     @ rule(binId=consumes(a_bin_id))
     def delete_bin(self, binId):
         rp = self.client.get(f'/api/bin{binId}')
-        # assert False
+        # TODO: Assert deleted
 
 
 TestInventory = InventoryStateMachine.TestCase
