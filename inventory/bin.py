@@ -99,10 +99,22 @@ def bin_props_put(id):
 @bin.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
+    resp = Response()
     if existing is None:
-        return "The bin does not exist", 404
+        resp.status_code = 404
+        resp.headers = {"Cache-Control": "no-cache"}
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not delete bin that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting bin id"
+            }]
+        })
+        return resp
     if request.args.get('force', 'false') == 'true' or len(existing.contents) == 0:
-        db.bin.delete_one({"id": id})
-        return 'Bin was deleted along with all contents, if any.', 200
+        db.bin.delete_one({"_id": id})
+        return Response(status=204, headers={"Cache-Control": "no-cache"})
     else:
         return 'The bin is not empty and force was not set to true.', 403

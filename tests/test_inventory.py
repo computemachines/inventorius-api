@@ -119,10 +119,23 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 404
         assert rp.json['type'] == 'missing-resource'
 
-    @ rule(binId=consumes(a_bin_id))
+    @rule(binId=consumes(a_bin_id))
     def delete_bin(self, binId):
-        rp = self.client.get(f'/api/bin{binId}')
-        # TODO: Assert deleted
+        rp = self.client.delete(f'/api/bin/{binId}')
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
+        rp = self.client.get(f"/api/bin/{binId}")
+        assert rp.status_code == 404
+        assert rp.json['type'] == 'missing-resource'
+
+    @rule(binId=dst.label_("BIN"))
+    def delete_missing_bin(self, binId):
+        assume(binId not in self.model_bins.keys())
+        rp = self.client.delete(f'/api/bin/{binId}')
+        assert rp.status_code == 404
+        assert rp.cache_control.no_cache
+        assert rp.is_json
+        assert rp.json['type'] == 'missing-resource'
 
 
 TestInventory = InventoryStateMachine.TestCase
