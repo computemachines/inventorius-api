@@ -147,14 +147,14 @@ class Bin(DataModel):
     props = DataField("props")
     # _contents = [{id: label, quantity: n}]
     contents = DataField("contents", default=[])
-    unit_count = DataField()
-    sku_count = DataField()
+    # unit_count = DataField()
+    # sku_count = DataField()
 
-    def contentsMap(self, key=None):
-        out = {e['id']: e['quantity'] for e in self.contents}
-        if key:
-            return out[key]
-        return out
+    # def contentsMap(self, key=None):
+    #     out = {e['id']: e['quantity'] for e in self.contents}
+    #     if key:
+    #         return out[key]
+    #     return out
 
 
 class Sku(DataModel):
@@ -170,6 +170,7 @@ class Sku(DataModel):
 class Batch(DataModel):
     id = DataField("_id", required=True)
     sku_id = DataField("sku_id")
+    parent_id = DataField("parent_id")
     original_cost = DataField()
     original_cost_per_unit = DataField()
     asset_value = DataField()
@@ -179,7 +180,7 @@ class Batch(DataModel):
     assembly_date = DataField()
     expiration_date = DataField()
     props = DataField("props")
-    inherited_props = DataField()
+    # inherited_props = DataField()
 
 
 # class Uniq(DataModel):

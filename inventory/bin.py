@@ -53,10 +53,21 @@ def bins_post():
 
 @ bin.route('/api/bin/<id>', methods=['GET'])
 def bin_get(id):
-    print(id)
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:
-        return "The bin does not exist", 404
+        resp = Response()
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "The requested bin does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an existing bin id"
+            }]
+        })
+        return resp
+
     else:
         return {
             "state": json.loads(existing.to_json())

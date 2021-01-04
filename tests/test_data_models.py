@@ -5,49 +5,23 @@ import json
 from hypothesis import given, example
 from hypothesis.strategies import composite, integers
 
-from tests.data_models_strategies import json_
-
-# delete this. only for debugging on windows
-# import sys
-# import os
-# sys.path.append(os.getcwd()+"\\uwsgi-api-server")
-# sys.path.append(os.getcwd()+"\\uwsgi-api-server\\tests")
+import tests.data_models_strategies as dst
 
 
-@composite
-def bin_and_id_props(
-        draw,
-        ids=integers().map(lambda i: f"BIN{i:08d}")):
-    id = draw(ids)
-    props = draw(json_)
-    bin = Bin(id=id, props=props)
-    return (bin, id, props)
-
-
-@given(bin_and_id_props())
-def test_bin(bin_id_props):
-    bin, id, props = bin_id_props
-    assert bin.id == id
-    assert bin.props == props
-    assert bin.contents == []
-
-    assert bin == bin
-    assert Bin(id="A") != Bin(id="B")
-    assert not(Bin(id="A") == Bin(id="B"))
-
-    assert json.loads(bin.to_json())['id'] == id
-    assert json.loads(bin.to_json()).get('props') == props
+@given(dst.bins_())
+def test_bin(bin):
+    assert json.loads(bin.to_json())['id'] == bin.id
+    assert json.loads(bin.to_json()).get('props') == bin.props
     assert json.loads(bin.to_json()).get('contents') == []
 
     bin_jsoned = Bin.from_json(bin.to_json())
     assert bin_jsoned == bin
     assert bin == bin_jsoned
 
-    print(bin)
-
-    assert bin.to_mongodb_doc()['_id'] == id
-    assert bin.to_mongodb_doc().get('props') == props
+    assert bin.to_mongodb_doc()['_id'] == bin.id
+    assert bin.to_mongodb_doc().get('props') == bin.props
     assert bin.to_mongodb_doc().get('contents') == []
+
 
 # def test_bin_extended():
 #     pass
