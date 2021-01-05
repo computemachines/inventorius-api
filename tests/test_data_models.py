@@ -1,4 +1,4 @@
-from inventory.data_models import Bin, DataModelJSONEncoder as Encoder
+from inventory.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 
 import pytest
 import json
@@ -21,6 +21,26 @@ def test_bin(bin):
     assert bin.to_mongodb_doc()['_id'] == bin.id
     assert bin.to_mongodb_doc().get('props') == bin.props
     assert bin.to_mongodb_doc().get('contents') == []
+
+
+@given(dst.skus_())
+def test_sku_equality(original_sku):
+    serde1_sku = Sku.from_json(original_sku.to_json())
+    serde2_sku = Sku.from_mongodb_doc(original_sku.to_mongodb_doc())
+
+    assert original_sku == serde1_sku
+    assert serde1_sku == original_sku
+    assert original_sku == serde2_sku
+    assert serde2_sku == original_sku
+    assert serde1_sku == serde2_sku
+    assert original_sku == original_sku
+
+
+@given(sku1=dst.skus_(), sku2=dst.skus_())
+def test_sku_inequality(sku1, sku2):
+    if sku1.id != sku2.id:
+        assert sku1 != sku2
+        assert sku2 != sku1
 
 
 # def test_bin_extended():

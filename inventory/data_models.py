@@ -162,8 +162,8 @@ class Sku(DataModel):
     owned_codes = DataField("owned_codes", default=[])
     associated_codes = DataField("associated_codes", default=[])
     name = DataField("name")
-    average_unit_original_cost = DataField("average_unit_original_cost")
-    average_unit_asset_value = DataField()
+    # average_unit_original_cost = DataField("average_unit_original_cost")
+    # average_unit_asset_value = DataField()
     props = DataField("props")
 
 

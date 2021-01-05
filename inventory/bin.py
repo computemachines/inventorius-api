@@ -74,11 +74,13 @@ def bin_get(id):
         }
 
 
-@bin.route('/api/bin/<id>/props', methods=['PUT'])
-def bin_props_put(id):
+@bin.route('/api/bin/<id>', methods=['PATCH'])
+def bin_patch(id):
+    patch = request.json
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
+    resp = Response()
+
     if existing is None:
-        resp = Response()
         resp.status_code = 404
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
@@ -90,10 +92,12 @@ def bin_props_put(id):
             }]
         })
         return resp
-    newProps = request.json
-    db.bin.update_one({"_id": id},
-                      {"$set": {"props": newProps}})
-    return "Updated bin props", 200
+
+    if "props" in patch.keys():
+        db.bin.update_one({"_id": id},
+                          {"$set": {"props": patch['props']}})
+
+    return Response(status=200, headers={"Cache-Control": "no-cache"})
 
 
 @bin.route('/api/bin/<id>', methods=['DELETE'])

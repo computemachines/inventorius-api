@@ -1,10 +1,10 @@
+import tests.data_models_strategies as dst
+from inventory.data_models import Bin, Sku, Batch
 from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
-from hypothesis import assume
+from hypothesis import assume, settings
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes, invariant
-from inventory.data_models import Bin, Sku, Batch
-import tests.data_models_strategies as dst
 
 # bin1 = Bin(id="BIN1")
 # bin2 = Bin(id="BIN2")
@@ -49,6 +49,85 @@ class InventoryStateMachine(RuleBasedStateMachine):
     a_sku_id = Bundle("skuId")
     a_batch_id = Bundle("batchId")
 
+    @rule(target=a_bin_id, bin=dst.bins_())
+    def new_bin(self, bin):
+        resp = self.client.post('/api/bins', json=bin.to_json())
+        if bin.id in self.model_bins.keys():
+            assert resp.status_code == 409
+            assert resp.is_json
+            assert resp.json['type'] == 'duplicate-resource'
+            return multiple()
+        else:
+            assert resp.status_code == 201
+            self.model_bins[bin.id] = bin
+            return bin.id
+
+    @rule(binId=a_bin_id)
+    def get_existing_bin(self, binId):
+        assert binId in self.model_bins.keys()
+
+        rp = self.client.get(f'/api/bin/{binId}')
+        assert rp.status_code == 200
+        assert rp.is_json
+        assert self.model_bins[binId].props == rp.json['state']['props']
+        found_bin = Bin.from_json(rp.json['state'])
+        assert found_bin == self.model_bins[binId]
+
+    @rule(binId=dst.label_("BIN"))
+    def get_missing_bin(self, binId):
+        assume(binId not in self.model_bins.keys())
+        rp = self.client.get(f'/api/bin/{binId}')
+        assert rp.status_code == 404
+        assert rp.json['type'] == 'missing-resource'
+
+    @rule(binId=a_bin_id, newProps=dst.json)
+    def update_bin(self, binId, newProps):
+        # assume(self.model_bins[binId].props != newProps)
+        rp = self.client.patch(f'/api/bin/{binId}', json={"props": newProps})
+        self.model_bins[binId].props = newProps
+        assert rp.status_code == 200
+        assert rp.cache_control.no_cache
+
+    @rule(binId=a_bin_id, newProps=dst.json)
+    def update_missing_bin(self, binId, newProps):
+        assume(binId not in self.model_bins.keys())
+        rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
+        assert rp.status_code == 404
+        assert rp.json['type'] == 'missing-resource'
+
+    @rule(binId=consumes(a_bin_id))
+    def delete_empty_bin(self, binId):
+        assume(self.model_bins[binId].contents == [])
+        rp = self.client.delete(f'/api/bin/{binId}')
+        del self.model_bins[binId]
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
+
+    @rule(binId=a_bin_id)
+    def delete_nonempty_bin_noforce(self, binId):
+        assume(self.model_bins[binId].contents != [])
+        rp = self.client.delete(f'/api/bin/{binId}')
+        assert rp.status_code == 403
+        assert rp.is_json
+        assert rp.json['type'] == 'dangerous-operation'
+
+    @rule(binId=consumes(a_bin_id))
+    def delete_nonempty_bin_force(self, binId):
+        assume(self.model_bins[binId].contents != [])
+        rp = self.client.delete(
+            f'/api/bin/{binId}', query_string={"force": "true"})
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
+
+    @rule(binId=dst.label_("BIN"))
+    def delete_missing_bin(self, binId):
+        assume(binId not in self.model_bins.keys())
+        rp = self.client.delete(f'/api/bin/{binId}')
+        assert rp.status_code == 404
+        assert rp.cache_control.no_cache
+        assert rp.is_json
+        assert rp.json['type'] == 'missing-resource'
+
     @rule(target=a_sku_id, sku=dst.skus_())
     def new_sku(self, sku):
         resp = self.client.post('/api/skus', json=sku.to_json())
@@ -62,18 +141,55 @@ class InventoryStateMachine(RuleBasedStateMachine):
             self.model_skus[sku.id] = sku
             return sku.id
 
-    @rule(target=a_bin_id, bin=dst.bins_())
-    def new_bin(self, bin):
-        resp = self.client.post('/api/bins', json=bin.to_json())
-        if bin.id in self.model_bins.keys():
-            assert resp.status_code == 409
-            assert resp.is_json
-            assert resp.json['type'] == 'duplicate-resource'
-            return multiple()
-        else:
-            assert resp.status_code == 201
-            self.model_bins[bin.id] = bin
-            return bin.id
+    @rule(skuId=a_sku_id)
+    def get_existing_sku(self, skuId):
+        rp = self.client.get(f"/api/sku/{skuId}")
+        assert rp.status_code == 200
+        assert rp.is_json
+        found_sku = Sku.from_json(rp.json['state'])
+        assert found_sku == self.model_skus[skuId]
+
+    @rule(skuId=dst.label_("SKU"))
+    def get_missing_sku(self, skuId):
+        assume(skuId not in self.model_skus.keys())
+        rp = self.client.get(f"/api/sku/{skuId}")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == 'missing-resource'
+
+    sku_patch = st.builds(lambda sku, use_keys: {
+                          k: v for k, v in sku.__dict__.items() if k in use_keys},
+                          dst.skus_(),
+                          st.sets(st.sampled_from([
+                              "owned_codes",
+                              "associated_codes",
+                              "name",
+                              "props"
+                          ])))
+
+    @rule(skuId=a_sku_id, patch=sku_patch)
+    def update_sku(self, skuId, patch):
+        rp = self.client.patch(f'/api/sku/{skuId}', json=patch)
+        for key in patch.keys():
+            setattr(self.model_skus[skuId], key, patch[key])
+
+    @rule(skuId=consumes(a_sku_id))
+    def delete_unused_sku(self, skuId):
+        # assume(self.model_skus[skuId].contents == [])
+        rp = self.client.delete(f"/api/sku/{skuId}")
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
+        del self.model_skus[skuId]
+
+    # TODO:
+    # @rule(skuId=consumes(a_sku_id))
+    # def delete_used_sku(self, skuId):
+    #     pass
+
+    @rule(skuId=dst.label_("SKU"))
+    def delete_missing_sku(self, skuId):
+        assume(skuId not in self.model_skus.keys())
+        pass
 
     @rule(target=a_batch_id, batch=dst.batches_())
     def add_batch(self, batch):
@@ -88,57 +204,12 @@ class InventoryStateMachine(RuleBasedStateMachine):
             self.model_batches[batch.id] = batch
             return batch.id
 
-    @rule(binId=a_bin_id)
-    def get_existing_bin(self, binId):
-        rp = self.client.get(f'/api/bin/{binId}')
-        assert rp.is_json
-
-        assert binId in self.model_bins.keys()
-        assert rp.status_code == 200
-        assert self.model_bins[binId].props == rp.json['state']['props']
-        found_bin = Bin.from_json(rp.json['state'])
-        assert found_bin == self.model_bins[binId]
-
-    @rule(binId=dst.label_("BIN"))
-    def get_missing_bin(self, binId):
-        assume(binId not in self.model_bins.keys())
-        rp = self.client.get(f'/api/bin/{binId}')
-        assert rp.status_code == 404
-        assert rp.json['type'] == 'missing-resource'
-
-    @rule(binId=a_bin_id, newProps=dst.json)
-    def update_bin(self, binId, newProps):
-        assume(self.model_bins[binId].props != newProps)
-        rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
-        self.model_bins[binId].props = newProps
-
-    @rule(binId=a_bin_id, newProps=dst.json)
-    def update_missing_bin(self, binId, newProps):
-        assume(binId not in self.model_bins.keys())
-        rp = self.client.put(f'/api/bin/{binId}/props', json=newProps)
-        assert rp.status_code == 404
-        assert rp.json['type'] == 'missing-resource'
-
-    @rule(binId=consumes(a_bin_id))
-    def delete_bin(self, binId):
-        rp = self.client.delete(f'/api/bin/{binId}')
-        assert rp.status_code == 204
-        assert rp.cache_control.no_cache
-        rp = self.client.get(f"/api/bin/{binId}")
-        assert rp.status_code == 404
-        assert rp.json['type'] == 'missing-resource'
-
-    @rule(binId=dst.label_("BIN"))
-    def delete_missing_bin(self, binId):
-        assume(binId not in self.model_bins.keys())
-        rp = self.client.delete(f'/api/bin/{binId}')
-        assert rp.status_code == 404
-        assert rp.cache_control.no_cache
-        assert rp.is_json
-        assert rp.json['type'] == 'missing-resource'
-
 
 TestInventory = InventoryStateMachine.TestCase
+TestInventory.settings = settings(
+    max_examples=1000,
+    stateful_step_count=10
+)
 
 
 def test_bin():
@@ -151,9 +222,30 @@ def test_bin():
 def test_update_bin():
     state = InventoryStateMachine()
     v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    state.update_bin(binId=v1, newProps="New props")
     state.get_existing_bin(binId=v1)
-    state.update_bin(binId=v1, newProps="New prop")
-    state.get_existing_bin(binId=v1)
+
+
+def test_recreate_bin():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    state.delete_empty_bin(binId=v1)
+    state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    state.teardown()
+
+
+def test_delete_sku():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    state.delete_unused_sku(skuId=v1)
+    state.teardown()
+
+
+# def test_update_sku():
+#     state = InventoryStateMachine()
+#     v1 = state.new_sku(sku=Sku(id="SKU000000"))
+
 
 # def test_repeat_sku_push():
 #     state = InventoryStateMachine()
