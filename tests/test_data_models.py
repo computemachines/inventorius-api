@@ -12,7 +12,7 @@ import tests.data_models_strategies as dst
 def test_bin(bin):
     assert json.loads(bin.to_json())['id'] == bin.id
     assert json.loads(bin.to_json()).get('props') == bin.props
-    assert json.loads(bin.to_json()).get('contents') == []
+    assert json.loads(bin.to_json()).get('contents') == {}
 
     bin_jsoned = Bin.from_json(bin.to_json())
     assert bin_jsoned == bin
@@ -20,7 +20,7 @@ def test_bin(bin):
 
     assert bin.to_mongodb_doc()['_id'] == bin.id
     assert bin.to_mongodb_doc().get('props') == bin.props
-    assert bin.to_mongodb_doc().get('contents') == []
+    assert bin.to_mongodb_doc().get('contents') == {}
 
 
 @given(dst.skus_())

@@ -103,17 +103,28 @@ def sku_patch(id):
 
 @sku.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):
-    sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
 
-    if sku is None:
-        return 'Sku does not exist.', 404
+    if existing is None:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not delete sku that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
 
-    contained_by_bins = db.bin.find({"contents.sku_id": sku.id})
+    contained_by_bins = db.bin.find({"contents.sku_id": existing.id})
     if not contained_by_bins:
         return 'Must delete all instances of this SKU first.', 403
 
-    db.sku.delete_one({"_id": sku.id})
+    db.sku.delete_one({"_id": existing.id})
     resp.status_code = 204
-    resp.headers = {"Cache-Control": "no-cache"}
     return resp

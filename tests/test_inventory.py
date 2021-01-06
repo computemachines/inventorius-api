@@ -97,7 +97,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(binId=consumes(a_bin_id))
     def delete_empty_bin(self, binId):
-        assume(self.model_bins[binId].contents == [])
+        assume(self.model_bins[binId].contents == {})
         rp = self.client.delete(f'/api/bin/{binId}')
         del self.model_bins[binId]
         assert rp.status_code == 204
@@ -105,7 +105,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(binId=a_bin_id)
     def delete_nonempty_bin_noforce(self, binId):
-        assume(self.model_bins[binId].contents != [])
+        assume(self.model_bins[binId].contents != {})
         rp = self.client.delete(f'/api/bin/{binId}')
         assert rp.status_code == 403
         assert rp.is_json
@@ -113,7 +113,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(binId=consumes(a_bin_id))
     def delete_nonempty_bin_force(self, binId):
-        assume(self.model_bins[binId].contents != [])
+        assume(self.model_bins[binId].contents != {})
         rp = self.client.delete(
             f'/api/bin/{binId}', query_string={"force": "true"})
         assert rp.status_code == 204
@@ -189,20 +189,35 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(skuId=dst.label_("SKU"))
     def delete_missing_sku(self, skuId):
         assume(skuId not in self.model_skus.keys())
-        pass
+        rp = self.client.delete(f"/api/sku/{skuId}")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
 
     @rule(target=a_batch_id, batch=dst.batches_())
     def add_batch(self, batch):
-        resp = self.client.post('/api/batches', json=batch.to_json())
+        rp = self.client.post('/api/batches', json=batch.to_json())
         if batch.id in self.model_batches.keys():
-            assert resp.status_code == 409
-            assert resp.json['type'] == 'duplicate-resource'
-            assert resp.is_json
+            assert rp.status_code == 409
+            assert rp.json['type'] == 'duplicate-resource'
+            assert rp.is_json
             return multiple()
         else:
-            assert resp.status_code == 201
+            assert rp.status_code == 201
             self.model_batches[batch.id] = batch
             return batch.id
+
+    # Inventory operations
+
+    @rule(binId=a_bin_id, skuId=a_sku_id, quantity=st.integers())
+    def receive(self, binId, skuId, quantity):
+        rp = self.client.post(f"/api/bin/{binId}/contents", json={
+            "id": skuId,
+            "quantity": quantity
+        })
+        rp.status_code == 201
+        self.model_bins[binId].contents[skuId] \
+            = self.model_bins[binId].contents.get(skuId, 0) + quantity
 
 
 TestInventory = InventoryStateMachine.TestCase
@@ -214,23 +229,23 @@ TestInventory.settings = settings(
 
 def test_bin():
     state = InventoryStateMachine()
-    v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
     state.get_existing_bin(binId=v1)
     state.teardown()
 
 
 def test_update_bin():
     state = InventoryStateMachine()
-    v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
     state.update_bin(binId=v1, newProps="New props")
     state.get_existing_bin(binId=v1)
 
 
 def test_recreate_bin():
     state = InventoryStateMachine()
-    v1 = state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
     state.delete_empty_bin(binId=v1)
-    state.new_bin(bin=Bin(contents=[], id='BIN000000', props=None))
+    state.new_bin(bin=Bin(id='BIN000000', props=None))
     state.teardown()
 
 

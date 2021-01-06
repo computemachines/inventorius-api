@@ -117,7 +117,7 @@ def bin_delete(id):
             }]
         })
         return resp
-    if request.args.get('force', 'false') == 'true' or len(existing.contents) == 0:
+    if request.args.get('force', 'false') == 'true' or len(existing.contents.keys()) == 0:
         db.bin.delete_one({"_id": id})
         return Response(status=204, headers={"Cache-Control": "no-cache"})
     else:

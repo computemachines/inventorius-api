@@ -146,7 +146,7 @@ class Bin(DataModel):
     id = DataField("_id", required=True)
     props = DataField("props")
     # _contents = [{id: label, quantity: n}]
-    contents = DataField("contents", default=[])
+    contents = DataField("contents", default={})
     # unit_count = DataField()
     # sku_count = DataField()
 

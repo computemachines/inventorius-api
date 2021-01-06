@@ -8,7 +8,7 @@ import json
 inventory = Blueprint("inventory", __name__)
 
 
-@ inventory.route('/api/move', methods=['POST'])
+@inventory.route('/api/move', methods=['POST'])
 def move_unit_post():
     oldBin = Bin.from_mongodb_doc(
         db.bin.find_one({"_id": request.json['from']}))
@@ -50,27 +50,27 @@ def move_unit_post():
     return Response(status=200)
 
 
-@ inventory.route('/api/next/sku', methods=['GET'])
+@inventory.route('/api/next/sku', methods=['GET'])
 def next_sku():
     return admin_get_next("SKU")
 
 
-@ inventory.route('/api/next/uniq', methods=['GET'])
+@inventory.route('/api/next/uniq', methods=['GET'])
 def next_uniq():
     return admin_get_next("UNIQ")
 
 
-@ inventory.route('/api/next/batch', methods=['GET'])
+@inventory.route('/api/next/batch', methods=['GET'])
 def next_batch():
     return admin_get_next("BATCH")
 
 
-@ inventory.route('/api/next/bin', methods=['GET'])
+@inventory.route('/api/next/bin', methods=['GET'])
 def next_bin():
     return admin_get_next("BIN")
 
 
-@ inventory.route('/api/receive', methods=['POST'])
+@inventory.route('/api/receive', methods=['POST'])
 def receive_post():
     form = request.json
     bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": form['bin_id']}))
@@ -90,7 +90,20 @@ def receive_post():
     return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
 
 
-@ inventory.route('/api/search', methods=['GET'])
+@inventory.route('/api/bin/<id>/contents', methods=["POST"])
+def bin_contents_post(id):
+    into_bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
+    skuId = request.json['id']
+    quantity = request.json['quantity']
+    resp = Response()
+
+    db.bin.update_one({"_id": into_bin.id},
+                      {"$inc": {f"contents.{skuId}": quantity}})
+    resp.status_code = 201
+    return resp
+
+
+@inventory.route('/api/search', methods=['GET'])
 def search():
     query = request.args['query']
     limit = getIntArgs(request.args, "limit", 20)
