@@ -3,7 +3,7 @@ from inventory.data_models import Bin, Sku, Batch
 from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
-from hypothesis import assume, settings
+from hypothesis import assume, settings, given
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes, invariant
 
 # bin1 = Bin(id="BIN1")
@@ -181,10 +181,16 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.cache_control.no_cache
         del self.model_skus[skuId]
 
-    # TODO:
-    # @rule(skuId=consumes(a_sku_id))
-    # def delete_used_sku(self, skuId):
-    #     pass
+    @invariant()
+    def positive_quantities(self):
+        for binId, bin in self.model_bins.items():
+            for itemId, quantity in bin.contents.items():
+                assert quantity >= 1
+
+    @rule(skuId=consumes(a_sku_id))
+    def delete_used_sku(self, skuId):
+        assume(False)
+        pass
 
     @rule(skuId=dst.label_("SKU"))
     def delete_missing_sku(self, skuId):
@@ -209,7 +215,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     # Inventory operations
 
-    @rule(binId=a_bin_id, skuId=a_sku_id, quantity=st.integers(0, 100))
+    @rule(binId=a_bin_id, skuId=a_sku_id, quantity=st.integers(1, 100))
     def receive(self, binId, skuId, quantity):
         rp = self.client.post(f"/api/bin/{binId}/contents", json={
             "id": skuId,
@@ -219,11 +225,28 @@ class InventoryStateMachine(RuleBasedStateMachine):
         self.model_bins[binId].contents[skuId] \
             = self.model_bins[binId].contents.get(skuId, 0) + quantity
 
+    @rule(source_binId=a_bin_id, destination_binId=a_bin_id, data=st.data())
+    def move(self, source_binId, destination_binId, data):
+        assume(source_binId != destination_binId)
+        # assume(skuId in self.model_bins[source_binId].contents.keys())
+        assume(self.model_bins[source_binId].contents != {})
+        skuId = data.draw(st.sampled_from(list(
+            self.model_bins[source_binId].contents.keys())))
+        # assume(quantity >= self.model_bins[source_binId].contents[skuId])
+        quantity = data.draw(st.integers(
+            1, self.model_bins[source_binId].contents[skuId]))
+        rp = self.client.put(f'/api/bin/{source_binId}/contents/move', json={
+            "id": skuId,
+            "quantity": quantity,
+            "destination": destination_binId
+        })
+        assert rp.status_code == 200
+
 
 TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
-    max_examples=1000,
-    stateful_step_count=10
+    max_examples=10000,
+    stateful_step_count=20
 )
 
 
@@ -256,6 +279,16 @@ def test_delete_sku():
     state.delete_unused_sku(skuId=v1)
     state.teardown()
 
+
+@given(data=st.data())
+def test_move_sku(data):
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001', props=None))
+    v3 = state.new_sku(sku=Sku(id='SKU000000'))
+    state.receive(binId=v1, skuId=v3, quantity=1)
+    state.move(data=data, destination_binId=v2, source_binId=v1)
+    state.teardown()
 
 # def test_update_sku():
 #     state = InventoryStateMachine()

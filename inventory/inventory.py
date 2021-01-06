@@ -8,46 +8,63 @@ import json
 inventory = Blueprint("inventory", __name__)
 
 
-@inventory.route('/api/move', methods=['POST'])
-def move_unit_post():
-    oldBin = Bin.from_mongodb_doc(
-        db.bin.find_one({"_id": request.json['from']}))
-    newBin = Bin.from_mongodb_doc(
-        db.bin.find_one({"_id": request.json['to']}))
-    quantity = int(request.json.get('quantity', 1))
+# @inventory.route('/api/move', methods=['POST'])
+# def move_unit_post():
+#     oldBin = Bin.from_mongodb_doc(
+#         db.bin.find_one({"_id": request.json['from']}))
+#     newBin = Bin.from_mongodb_doc(
+#         db.bin.find_one({"_id": request.json['to']}))
+#     quantity = int(request.json.get('quantity', 1))
 
-    if 'uniq' in request.json.keys():
-        assert quantity == 1
-        unit = Uniq.from_mongodb_doc(db.uniq.find_one({"id": unit_id}))
-        db.bin.update_one({"_id": oldBin.id},
-                          {"$pull": {"contents.id": unit.id}})
-        db.bin.update_one({"_id": newBin.id},
-                          {"$push": {"contents":
-                                     {"id": unit.id,
-                                      "quantity": 1}}})
-        db.uniq.update_one({"_id": unit.id}, {"bin_id": newBin.id})
-    elif 'sku' in request.json.keys():
-        assert quantity <= oldBin.contentsMap(request.json["sku"])
-        unit = Sku.from_mongodb_doc(
-            db.sku.find_one({"_id": request.json['sku']}))
-        db.bin.update_one({"_id": oldBin.id, "contents.id": unit.id},
-                          {"$inc": {"contents.$.quantity": -quantity}})
+#     if 'uniq' in request.json.keys():
+#         assert quantity == 1
+#         unit = Uniq.from_mongodb_doc(db.uniq.find_one({"id": unit_id}))
+#         db.bin.update_one({"_id": oldBin.id},
+#                           {"$pull": {"contents.id": unit.id}})
+#         db.bin.update_one({"_id": newBin.id},
+#                           {"$push": {"contents":
+#                                      {"id": unit.id,
+#                                       "quantity": 1}}})
+#         db.uniq.update_one({"_id": unit.id}, {"bin_id": newBin.id})
+#     elif 'sku' in request.json.keys():
+#         assert quantity <= oldBin.contentsMap(request.json["sku"])
+#         unit = Sku.from_mongodb_doc(
+#             db.sku.find_one({"_id": request.json['sku']}))
+#         db.bin.update_one({"_id": oldBin.id, "contents.id": unit.id},
+#                           {"$inc": {"contents.$.quantity": -quantity}})
 
-        # if unit not in bin already, add to bin with quantity 0
-        db.bin.update_one({"_id": newBin.id,
-                           "contents": {"$not": {"$elemMatch": {"id": unit.id}}}},
-                          {"$push": {"contents": {"id": unit.id, "quantity": 0}}})
-        db.bin.update_one({"_id": newBin.id, "contents.id": unit.id},
-                          {"$inc": {"contents.$.quantity": quantity}})
-        db.bin.update_many({"$or": [{"_id": newBin.id},
-                                    {"_id": oldBin.id}]},
-                           {"$pull": {"contents": {"quantity": {"$lte": 0}}}})
-    elif 'batch' in request.json.keys():
-        unit = Batch.from_mongodb_doc(db.batch.find_one({"_id": unit_id}))
-        # TODO
-    else:
-        return Response(status=404)
-    return Response(status=200)
+#         # if unit not in bin already, add to bin with quantity 0
+#         db.bin.update_one({"_id": newBin.id,
+#                            "contents": {"$not": {"$elemMatch": {"id": unit.id}}}},
+#                           {"$push": {"contents": {"id": unit.id, "quantity": 0}}})
+#         db.bin.update_one({"_id": newBin.id, "contents.id": unit.id},
+#                           {"$inc": {"contents.$.quantity": quantity}})
+#         db.bin.update_many({"$or": [{"_id": newBin.id},
+#                                     {"_id": oldBin.id}]},
+#                            {"$pull": {"contents": {"quantity": {"$lte": 0}}}})
+#     elif 'batch' in request.json.keys():
+#         unit = Batch.from_mongodb_doc(db.batch.find_one({"_id": unit_id}))
+#         # TODO
+#     else:
+#         return Response(status=404)
+#     return Response(status=200)
+
+
+@inventory.route('/api/bin/<id>/contents/move', methods=['PUT'])
+def move_bin_contens_put(id):
+    resp = Response()
+    resp.status_code = 200
+    destination = request.json['destination']
+    quantity = request.json['quantity']
+
+    db.bin.update_one({"_id": id},
+                      {"$inc": {f"contents.{id}": - quantity}})
+    db.bin.update_one({"_id": destination},
+                      {"$inc": {f"contents.{id}": quantity}})
+    db.bin.update_one({"_id": id, f"contents.{id}": 0},
+                      {"$unset": {f"contents.{id}": ""}})
+
+    return resp
 
 
 @inventory.route('/api/next/sku', methods=['GET'])

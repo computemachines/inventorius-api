@@ -104,6 +104,8 @@ def bin_patch(id):
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
+
     if existing is None:
         resp.status_code = 404
         resp.headers = {"Cache-Control": "no-cache"}
@@ -119,6 +121,20 @@ def bin_delete(id):
         return resp
     if request.args.get('force', 'false') == 'true' or len(existing.contents.keys()) == 0:
         db.bin.delete_one({"_id": id})
-        return Response(status=204, headers={"Cache-Control": "no-cache"})
+        resp.status_code = 204
+        return resp
     else:
-        return 'The bin is not empty and force was not set to true.', 403
+        resp.status_code = 403
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "dangerous-operation",
+            "title": "Can not delete nonempty bin without force=true.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an empty bin id"
+            }, {
+                "name": "force",
+                "reason": "must be set to true if bin is empty"
+            }]
+        })
+        return resp
