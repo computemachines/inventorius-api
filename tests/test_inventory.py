@@ -209,7 +209,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     # Inventory operations
 
-    @rule(binId=a_bin_id, skuId=a_sku_id, quantity=st.integers())
+    @rule(binId=a_bin_id, skuId=a_sku_id, quantity=st.integers(0, 100))
     def receive(self, binId, skuId, quantity):
         rp = self.client.post(f"/api/bin/{binId}/contents", json={
             "id": skuId,
