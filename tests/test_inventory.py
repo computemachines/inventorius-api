@@ -222,8 +222,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.is_json
         assert rp.json['type'] == "missing-resource"
 
-    @rule(target=a_batch_id, batch=dst.batches_())
-    def add_batch(self, batch):
+    @rule(target=a_batch_id, data=st.data())
+    def new_batch_existing_sku(self, data):
+        assume(self.model_skus != {})
+        skuId = data.draw(st.sampled_from(list(self.model_skus.keys())))
+        batch = data.draw(dst.batches_(skuId=skuId))
         rp = self.client.post('/api/batches', json=batch.to_json())
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
