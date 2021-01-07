@@ -51,9 +51,8 @@ inventory = Blueprint("inventory", __name__)
 
 
 @inventory.route('/api/bin/<id>/contents/move', methods=['PUT'])
-def move_bin_contens_put(id):
+def move_bin_contents_put(id):
     resp = Response()
-    resp.status_code = 200
     destination = request.json['destination']
     quantity = request.json['quantity']
 
@@ -63,6 +62,8 @@ def move_bin_contens_put(id):
                       {"$inc": {f"contents.{id}": quantity}})
     db.bin.update_one({"_id": id, f"contents.{id}": 0},
                       {"$unset": {f"contents.{id}": ""}})
+    resp.status_code = 204
+    resp.headers['Cache-Control'] = 'no-cache'
 
     return resp
 

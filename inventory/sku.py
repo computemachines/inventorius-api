@@ -1,5 +1,5 @@
 from flask import Blueprint, request, Response, url_for
-from inventory.data_models import Sku, DataModelJSONEncoder as Encoder
+from inventory.data_models import Sku, Bin, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import admin_increment_code
 
@@ -121,10 +121,40 @@ def sku_delete(id):
         })
         return resp
 
-    contained_by_bins = db.bin.find({"contents.sku_id": existing.id})
-    if not contained_by_bins:
-        return 'Must delete all instances of this SKU first.', 403
+    num_contained_by_bins = db.bin.count_documents(
+        {f"contents.{id}": {"$exists": True}})
+    if num_contained_by_bins > 0:
+        resp.status_code = 403
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "resource-in-use",
+            "title": "Can not delete sku that is being used. Try releasing all instances of this sku.",
+            "invalid-params": {
+                "name": "id",
+                "reason": "must be an unused sku"
+            }
+        })
+        return resp
 
     db.sku.delete_one({"_id": existing.id})
     resp.status_code = 204
+    return resp
+
+
+@sku.route('/api/sku/<id>/bins', methods=['GET'])
+def sku_bins_get(id):
+    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+
+    resp = Response()
+
+    contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
+        {f"contents.{id}": {"$exists": True}})]
+    locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
+
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": locations
+    })
+
     return resp

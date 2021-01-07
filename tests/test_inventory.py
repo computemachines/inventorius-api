@@ -175,7 +175,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(skuId=consumes(a_sku_id))
     def delete_unused_sku(self, skuId):
-        # assume(self.model_skus[skuId].contents == [])
+        assume(not any([skuId in bin.contents.keys()
+                        for bin in self.model_bins.values()]))
         rp = self.client.delete(f"/api/sku/{skuId}")
         assert rp.status_code == 204
         assert rp.cache_control.no_cache
@@ -187,10 +188,30 @@ class InventoryStateMachine(RuleBasedStateMachine):
             for itemId, quantity in bin.contents.items():
                 assert quantity >= 1
 
-    @rule(skuId=consumes(a_sku_id))
-    def delete_used_sku(self, skuId):
-        assume(False)
-        pass
+    @rule(skuId=a_sku_id)
+    def sku_locations(self, skuId):
+        rp = self.client.get(f"/api/sku/{skuId}/bins")
+        assert rp.status_code == 200
+        assert rp.is_json
+        locations = rp.json['state']
+        for binId, contents in locations.items():
+            for itemId, quantity in contents.items():
+                assert self.model_bins[binId].contents[itemId] == quantity
+        model_locations = {}
+        for binId, bin in self.model_bins.items():
+            if skuId in bin.contents.keys():
+                model_locations[binId] = {
+                    itemId: quantity for itemId, quantity in bin.contents.items() if itemId == skuId}
+        assert model_locations == locations
+
+    @rule(skuId=a_sku_id)
+    def attempt_delete_used_sku(self, skuId):
+        assume(any([skuId in bin.contents.keys()
+                    for bin in self.model_bins.values()]))
+        rp = self.client.delete(f"/api/sku/{skuId}")
+        assert rp.status_code == 403
+        assert rp.is_json
+        assert rp.json['type'] == "resource-in-use"
 
     @rule(skuId=dst.label_("SKU"))
     def delete_missing_sku(self, skuId):
@@ -240,13 +261,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
             "quantity": quantity,
             "destination": destination_binId
         })
-        assert rp.status_code == 200
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
 
 
 TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
     max_examples=10000,
-    stateful_step_count=20
+    stateful_step_count=10
 )
 
 
@@ -280,6 +302,16 @@ def test_delete_sku():
     state.teardown()
 
 
+def test_delete_used_sku():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v2 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    state.receive(binId=v1, quantity=1, skuId=v2)
+    state.attempt_delete_used_sku(skuId=v2)
+    state.teardown()
+
+
 @given(data=st.data())
 def test_move_sku(data):
     state = InventoryStateMachine()
@@ -288,6 +320,17 @@ def test_move_sku(data):
     v3 = state.new_sku(sku=Sku(id='SKU000000'))
     state.receive(binId=v1, skuId=v3, quantity=1)
     state.move(data=data, destination_binId=v2, source_binId=v1)
+    state.teardown()
+
+
+def test_sku_locations():
+    state = InventoryStateMachine()
+    state.delete_missing_sku(skuId='SKU000000')
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v2 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    state.receive(binId=v1, quantity=1, skuId=v2)
+    state.sku_locations(skuId=v2)
     state.teardown()
 
 # def test_update_sku():
