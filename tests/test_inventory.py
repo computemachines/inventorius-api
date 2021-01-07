@@ -227,7 +227,9 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(self.model_skus != {})
         sku_id = data.draw(st.sampled_from(list(self.model_skus.keys())))
         batch = data.draw(dst.batches_(sku_id=sku_id))
+
         rp = self.client.post('/api/batches', json=batch.to_json())
+
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
             assert rp.json['type'] == 'duplicate-resource'
@@ -237,6 +239,12 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
             return batch.id
+
+    @rule(batch=dst.batches_())
+    def new_batch_new_sku(self, batch):
+        assume(batch.sku_id not in self.model_skus.keys())
+        rp = self.client.post("/api/batches", json=batch.to_json())
+        assert False
 
     # Inventory operations
 
@@ -267,6 +275,12 @@ class InventoryStateMachine(RuleBasedStateMachine):
         })
         assert rp.status_code == 204
         assert rp.cache_control.no_cache
+
+        self.model_bins[source_binId].contents[sku_id] -= quantity
+        self.model_bins[destination_binId].contents[sku_id] = quantity \
+            + self.model_bins[destination_binId].contents.get(sku_id, 0)
+        if self.model_bins[source_binId].contents[sku_id] == 0:
+            del self.model_bins[source_binId].contents[sku_id]
 
 
 TestInventory = InventoryStateMachine.TestCase
@@ -328,6 +342,10 @@ def test_move_sku(data):
     state.get_existing_bin(bin_id=v1)
     state.get_existing_bin(bin_id=v2)
     state.teardown()
+
+
+def test_move_sku_given():
+    test_move_sku()
 
 
 def test_sku_locations():
