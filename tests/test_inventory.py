@@ -116,6 +116,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(self.model_bins[binId].contents != {})
         rp = self.client.delete(
             f'/api/bin/{binId}', query_string={"force": "true"})
+        del self.model_bins[binId]
         assert rp.status_code == 204
         assert rp.cache_control.no_cache
 
@@ -331,6 +332,17 @@ def test_sku_locations():
                                id='SKU000000', name='', owned_codes=[], props=None))
     state.receive(binId=v1, quantity=1, skuId=v2)
     state.sku_locations(skuId=v2)
+    state.teardown()
+
+
+def test_delete_sku_after_force_delete_bin():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    state.receive(binId=v2, quantity=1, skuId=v1)
+    state.delete_nonempty_bin_force(binId=v2)
+    state.delete_unused_sku(skuId=v1)
     state.teardown()
 
 # def test_update_sku():

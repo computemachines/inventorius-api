@@ -36,15 +36,15 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
     owned_codes = owned_codes or draw(lists(text("abc")))
     associated_codes = associated_codes or draw(lists(text("abc")))
     name = name or draw(text("ABC"))
-    # props = props or draw(json())
+    props = props or draw(json)
     return Sku(id=id, owned_codes=owned_codes, name=name, associated_codes=associated_codes, props=props)
 
 
 @composite
-def batches_(draw, id=None, sku_id=None):
+def batches_(draw, id=None, sku_id=None, owned_codes=None, associated_codes=None, props=None):
     id = id or f"BAT{draw(integers(0, 10)):06d}"
     sku_id = sku_id or f"SKU{draw(integers(0, 100)):06d}"
-    if draw(booleans()):
-        return Batch(id=id, sku_id=sku_id)
-    else:
-        return Batch(id=id)
+    owned_codes = owned_codes or draw(lists(text("abc")))
+    associated_codes = associated_codes or draw(lists(text("abc")))
+    props = props or draw(json)
+    return Batch(id=id, sku_id=sku_id, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
