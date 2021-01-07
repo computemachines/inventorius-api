@@ -12,7 +12,6 @@ batch = Blueprint("batch", __name__)
 def batches_post():
     batch = Batch.from_json(request.json)
     resp = Response()
-    existing = db.batch.find_one({"_id": batch.id})
 
     if not batch.id.startswith("BAT"):
         resp.status_code = 400
@@ -27,7 +26,8 @@ def batches_post():
         })
         return resp
 
-    if existing:
+    existing_batch = db.batch.find_one({"_id": batch.id})
+    if existing_batch:
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
@@ -39,15 +39,50 @@ def batches_post():
             }]})
         return resp
 
+    if batch.sku_id:
+        existing_sku = db.sku.find_one({"_id": batch.sku_id})
+        if not existing_sku:
+            resp.status_code = 409
+            resp.mimetype = "application/problem+json"
+            resp.data = json.dumps({
+                "type": "missing-resource",
+                "title": "Cannot create a batch for non existing sku.",
+                "invalid-params": [{
+                    "name": "sku_id",
+                    "reason": "must be an existing sku id"
+                }]
+            })
+            return resp
+
     admin_increment_code("BAT", batch.id)
     db.batch.insert_one(batch.to_mongodb_doc())
 
     resp.status_code = 201
-    resp.location = url_for("batch.batch_get", id=batch.id)
+    # resp.location = url_for("batch.batch_get", id=batch.id)
 
     return resp
 
 
 @batch.route("/api/batch/<id>", methods=["GET"])
 def batch_get(id):
-    pass
+    resp = Response()
+    existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+
+    if not existing:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "This batch does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an existing batch id"
+            }]
+        })
+    else:
+        resp.status_code = 200
+        resp.mimetype = "application/json"
+        resp.data = json.dumps({
+            "state": json.loads(existing.to_json())
+        })
+        return resp
