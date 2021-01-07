@@ -272,7 +272,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
     max_examples=10000,
-    stateful_step_count=10
+    stateful_step_count=10,
+    deadline=None,
 )
 
 
@@ -324,6 +325,8 @@ def test_move_sku(data):
     v3 = state.new_sku(sku=Sku(id='SKU000000'))
     state.receive(bin_id=v1, sku_id=v3, quantity=1)
     state.move(data=data, destination_binId=v2, source_binId=v1)
+    state.get_existing_bin(bin_id=v1)
+    state.get_existing_bin(bin_id=v2)
     state.teardown()
 
 
