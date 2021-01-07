@@ -9,8 +9,8 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9, '3.x']
-        mongodb-version: [4.0, 4.2, 4.4]
+        python-version: 3.8 #[3.6, 3.7, 3.8, 3.9, '3.x']
+        mongodb-version: 3.6.8 #[4.0, 4.2, 4.4]
 
     steps:
       - name: Checkout
@@ -33,6 +33,7 @@ jobs:
   coverage-lint-reports:
     name: Coverage Linting
     runs-on: ubuntu-20.04
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v2
