@@ -439,6 +439,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
     def receive_missing_batch_bin(self, bin_id, batch_id, quantity):
+        assume(bin_id not in self.model_bins.keys()
+               or batch_id not in self.model_batches.keys())
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
             "id": batch_id,
             "quantity": quantity
