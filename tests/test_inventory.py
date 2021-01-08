@@ -1,3 +1,4 @@
+from hypothesis.errors import NonInteractiveExampleWarning
 import tests.data_models_strategies as dst
 from inventory.data_models import Bin, Sku, Batch
 from conftest import clientContext
@@ -188,7 +189,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @invariant()
     def positive_quantities(self):
         for bin_id, bin in self.model_bins.items():
-            for itemId, quantity in bin.contents.items():
+            for item_id, quantity in bin.contents.items():
                 assert quantity >= 1
 
     @rule(sku_id=a_sku_id)
@@ -198,13 +199,13 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.is_json
         locations = rp.json['state']
         for bin_id, contents in locations.items():
-            for itemId, quantity in contents.items():
-                assert self.model_bins[bin_id].contents[itemId] == quantity
+            for item_id, quantity in contents.items():
+                assert self.model_bins[bin_id].contents[item_id] == quantity
         model_locations = {}
         for bin_id, bin in self.model_bins.items():
             if sku_id in bin.contents.keys():
                 model_locations[bin_id] = {
-                    itemId: quantity for itemId, quantity in bin.contents.items() if itemId == sku_id}
+                    item_id: quantity for item_id, quantity in bin.contents.items() if item_id == sku_id}
         assert model_locations == locations
 
     @rule(sku_id=a_sku_id)
@@ -307,14 +308,33 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.is_json
         assert rp.json['type'] == "missing-resource"
 
-    @rule(batch_id=a_batch_id, sku_id=dst.label_("SKU"), patch=batch_patch)
+    @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def attempt_update_nonanonymous_batch_sku_id(self, batch_id, sku_id, patch):
         assume(self.model_batches[batch_id].sku_id)
+        assume(sku_id != self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
         assert rp.status_code == 409
         assert rp.is_json
         assert rp.json['type'] == "dangerous-operation"
+
+    @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
+    def update_anonymous_batch_existing_sku_id(self, batch_id, sku_id, patch):
+        patch['sku_id'] = sku_id
+        rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
+        for key in patch.keys():
+            setattr(self.model_batches[batch_id], key, patch[key])
+
+    @rule(batch_id=a_batch_id, sku_id=dst.label_("SKU"), patch=batch_patch)
+    def attempt_update_anonymous_batch_missing_sku_id(self, batch_id, sku_id, patch):
+        assume(sku_id not in self.model_skus.keys())
+        patch['sku_id'] = sku_id
+        rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
+        assert rp.status_code == 409
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
 
     @rule(batch_id=consumes(a_batch_id))
     def delete_unused_batch(self, batch_id):
@@ -324,6 +344,33 @@ class InventoryStateMachine(RuleBasedStateMachine):
         del self.model_batches[batch_id]
         assert rp.status_code == 204
         assert rp.cache_control.no_cache
+
+    @rule(batch_id=a_batch_id)
+    def batch_locations(self, batch_id):
+        rp = self.client.get(f"/api/batch/{batch_id}/bins")
+        assert rp.status_code == 200
+        assert rp.is_json
+        locations = rp.json['state']
+
+        for bin_id, contents in locations.items():
+            for item_id, quantity in contents.items():
+                assert self.model_bins[bin_id].contents[item_id] == quantity
+
+        model_locations = {}
+        for bin_id, bin in self.model_bins.items():
+            if batch_id in bin.contents.keys():
+                model_locations[bin_id] = {
+                    item_id: quantity for item_id, quantity in bin.contents.items() if item_id == batch_id
+                }
+        assert model_locations == locations
+
+    @rule(batch_id=dst.label_("BAT"))
+    def nonexisting_batch_locations(self, batch_id):
+        assume(batch_id not in self.model_batches.keys())
+        rp = self.client.get(f"/api/batch/{batch_id}/bins")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
 
     # Inventory operations
 
@@ -471,4 +518,31 @@ def test_update_batch():
         associated_codes=[], id='BAT000000', owned_codes=[''], props=None, sku_id=None))
     state.update_batch(batch_id=v1, patch={'owned_codes': []})
     state.get_existing_batch(batch_id=v1)
+    state.teardown()
+
+
+@pytest.mark.filterwarnings("ignore:.*example().*")
+def test_update_sku_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000001', name='', owned_codes=[], props=None))
+    v2 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000002', name='', owned_codes=[], props=None))
+    # state.delete_missing_sku(sku_id='SKU000000')
+    data = dst.DataProxy(Batch(associated_codes=[], id='BAT000000',
+                               owned_codes=[], props=0, sku_id='SKU000001'))
+    v2 = state.new_batch_existing_sku(data=data, sku_id=v1)
+    state.attempt_update_nonanonymous_batch_sku_id(
+        batch_id=v2, patch={}, sku_id='SKU000002')
+    state.teardown()
+
+
+def test_add_sku_to_anonymous_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    v2 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
+    state.update_anonymous_batch_existing_sku_id(
+        batch_id=v2, patch={}, sku_id=v1)
     state.teardown()

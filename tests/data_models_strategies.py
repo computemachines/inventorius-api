@@ -49,3 +49,13 @@ def batches_(draw, id=None, sku_id=0, owned_codes=None, associated_codes=None, p
     associated_codes = associated_codes or draw(lists(text("abc")))
     props = props or draw(json)
     return Batch(id=id, sku_id=sku_id, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
+
+
+class DataProxy:
+    def __init__(self, *args):
+        self.source = list(args)
+
+    def draw(self, wants):
+        ret = self.source.pop()
+        assert type(wants.example()) == type(ret)
+        return ret

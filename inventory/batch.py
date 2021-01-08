@@ -110,6 +110,21 @@ def batch_patch(id):
         })
         return resp
 
+    if "sku_id" in patch.keys():
+        existing_sku = db.sku.find_one({"_id": patch['sku_id']})
+        if not existing_sku:
+            resp.status_code = 409
+            resp.mimetype = "application/problem+json"
+            resp.data = json.dumps({
+                "type": "missing-resource",
+                "title": "Cannot create a batch for non existing sku.",
+                "invalid-params": [{
+                    "name": "sku_id",
+                    "reason": "must be an existing sku id"
+                }]
+            })
+            return resp
+
     if existing.sku_id and "sku_id" in patch.keys() and patch["sku_id"] != existing.sku_id:
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
@@ -126,9 +141,11 @@ def batch_patch(id):
     if "props" in patch.keys():
         db.batch.update_one({"_id": id},
                             {"$set": {"props": patch['props']}})
+
     if "sku_id" in patch.keys():
         db.batch.update_one({"_id": id},
                             {"$set": {"sku_id": patch['sku_id']}})
+
     if "owned_codes" in patch.keys():
         db.batch.update_one({"_id": id},
                             {"$set": {"owned_codes": patch['owned_codes']}})
@@ -151,3 +168,37 @@ def batch_delete(id):
         resp.headers = {"Cache-Control": "no-cache"}
         db.batch.delete_one({"_id": id})
         return resp
+
+
+@batch.route("/api/batch/<id>/bins", methods=["GET"])
+def batch_bins_get(id):
+    resp = Response()
+    existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+
+    if not existing:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "This batch does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an existing batch id"
+            }]
+        })
+        return resp
+
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+
+    contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
+        {f"contents.{id}": {"$exists": True}})]
+    locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
+
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": locations
+    })
+
+    return resp
