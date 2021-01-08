@@ -328,7 +328,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def update_anonymous_batch_existing_sku_id(self, batch_id, sku_id, patch):
-        assume(self.model_batches[batch_id].sku_id)
+        assume(not self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
         assert rp.status_code == 204
@@ -403,7 +403,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     # Inventory operations
 
     @rule(bin_id=a_bin_id, sku_id=a_sku_id, quantity=st.integers(1, 100))
-    def receive(self, bin_id, sku_id, quantity):
+    def receive_sku(self, bin_id, sku_id, quantity):
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
             "id": sku_id,
             "quantity": quantity
@@ -411,6 +411,35 @@ class InventoryStateMachine(RuleBasedStateMachine):
         rp.status_code == 201
         self.model_bins[bin_id].contents[sku_id] \
             = self.model_bins[bin_id].contents.get(sku_id, 0) + quantity
+
+    @rule(bin_id=dst.label_("BIN"), sku_id=dst.label_("SKU"), quantity=st.integers(1, 100))
+    def receive_missing_sku_bin(self, bin_id, sku_id, quantity):
+        rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
+            "id": sku_id,
+            "quantity": quantity
+        })
+        if bin_id not in self.model_bins.keys():
+            assert rp.status_code == 404
+            assert rp.is_json
+            assert rp.json['type'] == 'missing-resource'
+        elif sku_id not in self.model_bins.keys():
+            assert rp.status_code == 409
+            assert rp.is_json
+            assert rp.json['type'] == 'missing-resource'
+
+    @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
+    def receive_batch(self, bin_id, batch_id, quantity):
+        rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
+            "id": batch_id,
+            "quantity": quantity
+        })
+        rp.status_code == 201
+        self.model_bins[bin_id].contents[batch_id] \
+            = self.model_bins[bin_id].contents.get(batch_id, 0) + quantity
+
+    @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
+    def receive_missing_batch_bin(self, bin_id, batch_id, quantity):
+        assert False
 
     @rule(source_binId=a_bin_id, destination_binId=a_bin_id, data=st.data())
     def move(self, source_binId, destination_binId, data):
