@@ -124,17 +124,17 @@ def batch_patch(id):
         return resp
 
     if "props" in patch.keys():
-        db.bin.update_one({"_id": id},
-                          {"$set": {"props": patch['props']}})
+        db.batch.update_one({"_id": id},
+                            {"$set": {"props": patch['props']}})
     if "sku_id" in patch.keys():
-        db.bin.update_one({"_id": id},
-                          {"$set": {"sku_id": patch['sku_id']}})
+        db.batch.update_one({"_id": id},
+                            {"$set": {"sku_id": patch['sku_id']}})
     if "owned_codes" in patch.keys():
-        db.bin.update_one({"_id": id},
-                          {"$set": {"owned_codes": patch['owned_codes']}})
+        db.batch.update_one({"_id": id},
+                            {"$set": {"owned_codes": patch['owned_codes']}})
     if "associated_codes" in patch.keys():
-        db.bin.update_one({"_id": id},
-                          {"$set": {"associated_codes": patch['associated_codes']}})
+        db.batch.update_one({"_id": id},
+                            {"$set": {"associated_codes": patch['associated_codes']}})
     resp.status_code = 204
     return resp
 

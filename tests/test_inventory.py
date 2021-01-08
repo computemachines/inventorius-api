@@ -294,7 +294,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(batch_id=a_batch_id, patch=batch_patch)
     def update_batch(self, batch_id, patch):
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
-        assert rp.status_code == 200
+        assert rp.status_code == 204
         assert rp.cache_control.no_cache
         for key in patch.keys():
             setattr(self.model_batches[batch_id], key, patch[key])
@@ -321,6 +321,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(not any([batch_id in bin.contents.keys()
                         for bin in self.model_bins.values()]))
         rp = self.client.delete(f"/api/batch/{batch_id}")
+        del self.model_batches[batch_id]
         assert rp.status_code == 204
         assert rp.cache_control.no_cache
 
@@ -453,20 +454,21 @@ def test_update_nonexisting_batch():
     state.update_nonexisting_batch(batch_id='BAT000000', patch={})
     state.teardown()
 
-# def test_update_sku():
-#     state = InventoryStateMachine()
-#     v1 = state.new_sku(sku=Sku(id="SKU000000"))
+
+def test_recreate_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000001', owned_codes=[], props=None, sku_id=None))
+    state.delete_unused_batch(batch_id=v1)
+    state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000001', owned_codes=[], props=None, sku_id=None))
+    state.teardown()
 
 
-# def test_repeat_sku_push():
-#     state = InventoryStateMachine()
-#     v1 = state.add_sku(sku=Sku(associated_codes=[],
-#                                id='SKU00000000', name='', owned_codes=[]))
-#     state.add_sku(sku=Sku(associated_codes=[],
-#                           id='SKU00000000', name='', owned_codes=[]))
-
-
-# def test_add_batch():
-#     state = InventoryStateMachine()
-#     state.add_batch(batch=Batch(id='BAT00000000'))
-#     state.teardown()
+def test_update_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000000', owned_codes=[''], props=None, sku_id=None))
+    state.update_batch(batch_id=v1, patch={'owned_codes': []})
+    state.get_existing_batch(batch_id=v1)
+    state.teardown()
