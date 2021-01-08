@@ -171,6 +171,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(sku_id=a_sku_id, patch=sku_patch)
     def update_sku(self, sku_id, patch):
         rp = self.client.patch(f'/api/sku/{sku_id}', json=patch)
+        assert rp.status_code == 200
+        assert rp.cache_control.no_cache
         for key in patch.keys():
             setattr(self.model_skus[sku_id], key, patch[key])
 
@@ -222,10 +224,9 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.is_json
         assert rp.json['type'] == "missing-resource"
 
-    @rule(target=a_batch_id, data=st.data())
-    def new_batch_existing_sku(self, data):
+    @rule(target=a_batch_id, sku_id=a_sku_id, data=st.data())
+    def new_batch_existing_sku(self, sku_id, data):
         assume(self.model_skus != {})
-        sku_id = data.draw(st.sampled_from(list(self.model_skus.keys())))
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
         rp = self.client.post('/api/batches', json=batch.to_json())
@@ -242,9 +243,86 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch=dst.batches_())
     def new_batch_new_sku(self, batch):
+        assume(batch.sku_id)
         assume(batch.sku_id not in self.model_skus.keys())
         rp = self.client.post("/api/batches", json=batch.to_json())
-        assert False
+
+        assert rp.status_code == 409
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
+
+    @rule(target=a_batch_id, batch=dst.batches_(sku_id=None))
+    def new_anonymous_batch(self, batch):
+        assert not batch.sku_id
+        rp = self.client.post("/api/batches", json=batch.to_json())
+
+        if batch.id in self.model_batches.keys():
+            assert rp.status_code == 409
+            assert rp.json['type'] == 'duplicate-resource'
+            assert rp.is_json
+            return multiple()
+        else:
+            assert rp.status_code == 201
+            self.model_batches[batch.id] = batch
+            return batch.id
+
+    @rule(batch_id=a_batch_id)
+    def get_existing_batch(self, batch_id):
+        rp = self.client.get(f"/api/batch/{batch_id}")
+        assert rp.status_code == 200
+        assert rp.is_json
+        found_batch = Batch.from_json(rp.json['state'])
+        assert found_batch == self.model_batches[batch_id]
+
+    @rule(batch_id=dst.label_("BAT"))
+    def get_missing_batch(self, batch_id):
+        assume(batch_id not in self.model_batches.keys())
+        rp = self.client.get(f"/api/batch/{batch_id}")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
+
+    batch_patch = st.builds(lambda batch, use_keys: {
+        k: v for k, v in batch.__dict__.items() if k in use_keys},
+        dst.skus_(),
+        st.sets(st.sampled_from([
+            "owned_codes",
+            "associated_codes",
+            "props"
+        ])))
+
+    @rule(batch_id=a_batch_id, patch=batch_patch)
+    def update_batch(self, batch_id, patch):
+        rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
+        assert rp.status_code == 200
+        assert rp.cache_control.no_cache
+        for key in patch.keys():
+            setattr(self.model_batches[batch_id], key, patch[key])
+
+    @rule(batch_id=dst.label_("BAT"), patch=batch_patch)
+    def update_nonexisting_batch(self, batch_id, patch):
+        assume(batch_id not in self.model_batches.keys())
+        rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
+
+    @rule(batch_id=a_batch_id, sku_id=dst.label_("SKU"), patch=batch_patch)
+    def attempt_update_nonanonymous_batch_sku_id(self, batch_id, sku_id, patch):
+        assume(self.model_batches[batch_id].sku_id)
+        patch['sku_id'] = sku_id
+        rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
+        assert rp.status_code == 409
+        assert rp.is_json
+        assert rp.json['type'] == "dangerous-operation"
+
+    @rule(batch_id=consumes(a_batch_id))
+    def delete_unused_batch(self, batch_id):
+        assume(not any([batch_id in bin.contents.keys()
+                        for bin in self.model_bins.values()]))
+        rp = self.client.delete(f"/api/batch/{batch_id}")
+        assert rp.status_code == 204
+        assert rp.cache_control.no_cache
 
     # Inventory operations
 
@@ -367,6 +445,12 @@ def test_delete_sku_after_force_delete_bin():
     state.receive(bin_id=v2, quantity=1, sku_id=v1)
     state.delete_nonempty_bin_force(bin_id=v2)
     state.delete_unused_sku(sku_id=v1)
+    state.teardown()
+
+
+def test_update_nonexisting_batch():
+    state = InventoryStateMachine()
+    state.update_nonexisting_batch(batch_id='BAT000000', patch={})
     state.teardown()
 
 # def test_update_sku():

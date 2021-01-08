@@ -41,9 +41,10 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
 
 
 @composite
-def batches_(draw, id=None, sku_id=None, owned_codes=None, associated_codes=None, props=None):
+def batches_(draw, id=None, sku_id=0, owned_codes=None, associated_codes=None, props=None):
     id = id or f"BAT{draw(integers(0, 10)):06d}"
-    sku_id = sku_id or f"SKU{draw(integers(0, 100)):06d}"
+    if sku_id == 0:
+        sku_id = draw(none(), label_("SKU"))
     owned_codes = owned_codes or draw(lists(text("abc")))
     associated_codes = associated_codes or draw(lists(text("abc")))
     props = props or draw(json)

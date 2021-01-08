@@ -83,6 +83,7 @@ def sku_get(id):
 def sku_patch(id):
     patch = request.json
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
     sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
     if "owned_codes" in patch:
@@ -97,8 +98,8 @@ def sku_patch(id):
     if "props" in patch:
         db.sku.update_one({"_id": id},
                           {"$set": {"props": patch["props"]}})
-
-    return Response(status=200)
+    resp.status_code = 200
+    return resp
 
 
 @sku.route('/api/sku/<id>', methods=['DELETE'])

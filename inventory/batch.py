@@ -12,6 +12,7 @@ batch = Blueprint("batch", __name__)
 def batches_post():
     batch = Batch.from_json(request.json)
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
 
     if not batch.id.startswith("BAT"):
         resp.status_code = 400
@@ -79,10 +80,74 @@ def batch_get(id):
                 "reason": "must be an existing batch id"
             }]
         })
+        return resp
     else:
         resp.status_code = 200
         resp.mimetype = "application/json"
         resp.data = json.dumps({
             "state": json.loads(existing.to_json())
         })
+        return resp
+
+
+@batch.route("/api/batch/<id>", methods=["PATCH"])
+def batch_patch(id):
+    patch = request.json
+    existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
+
+    if not existing:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not update nonexisting batch.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an existing batch id"
+            }]
+        })
+        return resp
+
+    if existing.sku_id and "sku_id" in patch.keys() and patch["sku_id"] != existing.sku_id:
+        resp.status_code = 409
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "dangerous-operation",
+            "title": "Can not change the sku of a batch once set.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be a batch without sku_id set"
+            }]
+        })
+        return resp
+
+    if "props" in patch.keys():
+        db.bin.update_one({"_id": id},
+                          {"$set": {"props": patch['props']}})
+    if "sku_id" in patch.keys():
+        db.bin.update_one({"_id": id},
+                          {"$set": {"sku_id": patch['sku_id']}})
+    if "owned_codes" in patch.keys():
+        db.bin.update_one({"_id": id},
+                          {"$set": {"owned_codes": patch['owned_codes']}})
+    if "associated_codes" in patch.keys():
+        db.bin.update_one({"_id": id},
+                          {"$set": {"associated_codes": patch['associated_codes']}})
+    resp.status_code = 204
+    return resp
+
+
+@batch.route("/api/batch/<id>", methods=["DELETE"])
+def batch_delete(id):
+    existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    resp = Response()
+
+    if not existing:
+        pass
+    else:
+        resp.status_code = 204
+        resp.headers = {"Cache-Control": "no-cache"}
+        db.batch.delete_one({"_id": id})
         return resp
