@@ -41,14 +41,15 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
 
 
 @composite
-def batches_(draw, id=None, sku_id=0, owned_codes=None, associated_codes=None, props=None):
+def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_codes=None, props=None):
     id = id or f"BAT{draw(integers(0, 10)):06d}"
     if sku_id == 0:
         sku_id = draw(none(), label_("SKU"))
+    name = name or draw(text("ABC"))
     owned_codes = owned_codes or draw(lists(text("abc")))
     associated_codes = associated_codes or draw(lists(text("abc")))
     props = props or draw(json)
-    return Batch(id=id, sku_id=sku_id, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
+    return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
 
 
 class DataProxy:

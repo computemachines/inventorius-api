@@ -170,6 +170,7 @@ class Sku(DataModel):
 class Batch(DataModel):
     id = DataField("_id", required=True)
     sku_id = DataField("sku_id", default=None)
+    name = DataField("name")
     owned_codes = DataField("owned_codes", default=[])
     associated_codes = DataField("associated_codes", default=[])
     props = DataField("props")

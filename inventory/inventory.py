@@ -1,6 +1,6 @@
 from inventory.util import getIntArgs, admin_get_next
 from flask import Blueprint, request, Response
-from inventory.data_models import Bin, Sku, DataModelJSONEncoder as Encoder
+from inventory.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
 import json
@@ -53,16 +53,16 @@ inventory = Blueprint("inventory", __name__)
 @inventory.route('/api/bin/<id>/contents/move', methods=['PUT'])
 def move_bin_contents_put(id):
     resp = Response()
-    sku_id = request.json['id']
+    item_id = request.json['id']
     destination = request.json['destination']
     quantity = request.json['quantity']
 
     db.bin.update_one({"_id": id},
-                      {"$inc": {f"contents.{sku_id}": - quantity}})
+                      {"$inc": {f"contents.{item_id}": - quantity}})
     db.bin.update_one({"_id": destination},
-                      {"$inc": {f"contents.{sku_id}": quantity}})
-    db.bin.update_one({"_id": id, f"contents.{sku_id}": 0},
-                      {"$unset": {f"contents.{sku_id}": ""}})
+                      {"$inc": {f"contents.{item_id}": quantity}})
+    db.bin.update_one({"_id": id, f"contents.{item_id}": 0},
+                      {"$unset": {f"contents.{item_id}": ""}})
     resp.status_code = 204
     resp.headers['Cache-Control'] = 'no-cache'
 
@@ -112,14 +112,75 @@ def receive_post():
 @inventory.route('/api/bin/<id>/contents', methods=["POST"])
 def bin_contents_post(id):
     into_bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
-    skuId = request.json['id']
+    item_id = request.json['id']
     quantity = request.json['quantity']
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
 
-    db.bin.update_one({"_id": into_bin.id},
-                      {"$inc": {f"contents.{skuId}": quantity}})
-    resp.status_code = 201
-    return resp
+    if not into_bin:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not receive items into a bin that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting bin id"
+            }]
+        })
+        return resp
+
+    if item_id.startswith("SKU"):
+        exisiting_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": item_id}))
+        if not exisiting_sku:
+            resp.status_code = 409
+            resp.mimetype = "application/problem+json"
+            resp.data = json.dumps({
+                "type": "missing-resource",
+                "title": "Can not receive sku that does not exist.",
+                "invalid-params": [{
+                    "name": "item_id",
+                    "reason": "must be an exisiting batch or sku id"
+                }]
+            })
+            return resp
+        else:
+            db.bin.update_one({"_id": into_bin.id},
+                              {"$inc": {f"contents.{item_id}": quantity}})
+            resp.status_code = 201
+            return resp
+    elif item_id.startswith("BAT"):
+        existing_batch = Batch.from_mongodb_doc(
+            db.batch.find_one({"_id": item_id}))
+        if not existing_batch:
+            resp.status_code = 409
+            resp.mimetype = "application/problem+json"
+            resp.data = json.dumps({
+                "type": "missing-resource",
+                "title": "Can not receive batch that does not exist.",
+                "invalid-params": [{
+                    "name": "item_id",
+                    "reason": "must be an exisiting batch or sku id"
+                }]
+            })
+            return resp
+        else:
+            db.bin.update_one({"_id": into_bin.id},
+                              {"$inc": {f"contents.{item_id}": quantity}})
+            resp.status_code = 201
+            return resp
+    else:
+        resp.status_code = 409
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-id-format",
+            "title": "Received item id must be a batch or sku.",
+            "invalid-params": [{
+                "name": "item_id",
+                "reason": "must be an exisiting batch or sku id"
+            }]
+        })
+        return resp
 
 
 @inventory.route('/api/search', methods=['GET'])

@@ -108,7 +108,6 @@ def bin_delete(id):
 
     if existing is None:
         resp.status_code = 404
-        resp.headers = {"Cache-Control": "no-cache"}
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
             "type": "missing-resource",

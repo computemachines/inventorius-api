@@ -141,6 +141,9 @@ def batch_patch(id):
     if "props" in patch.keys():
         db.batch.update_one({"_id": id},
                             {"$set": {"props": patch['props']}})
+    if "name" in patch.keys():
+        db.batch.update_one({"_id": id},
+                            {"$set": {"name": patch['name']}})
 
     if "sku_id" in patch.keys():
         db.batch.update_one({"_id": id},

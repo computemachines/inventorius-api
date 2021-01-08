@@ -422,7 +422,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert rp.status_code == 404
             assert rp.is_json
             assert rp.json['type'] == 'missing-resource'
-        elif sku_id not in self.model_bins.keys():
+        elif sku_id not in self.model_skus.keys():
             assert rp.status_code == 409
             assert rp.is_json
             assert rp.json['type'] == 'missing-resource'
@@ -439,7 +439,18 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
     def receive_missing_batch_bin(self, bin_id, batch_id, quantity):
-        assert False
+        rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
+            "id": batch_id,
+            "quantity": quantity
+        })
+        if bin_id not in self.model_bins.keys():
+            assert rp.status_code == 404
+            assert rp.is_json
+            assert rp.json['type'] == 'missing-resource'
+        elif batch_id not in self.model_batches.keys():
+            assert rp.status_code == 409
+            assert rp.is_json
+            assert rp.json['type'] == 'missing-resource'
 
     @rule(source_binId=a_bin_id, destination_binId=a_bin_id, data=st.data())
     def move(self, source_binId, destination_binId, data):
@@ -509,7 +520,7 @@ def test_delete_used_sku():
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     v2 = state.new_sku(sku=Sku(associated_codes=[],
                                id='SKU000000', name='', owned_codes=[], props=None))
-    state.receive(bin_id=v1, quantity=1, sku_id=v2)
+    state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
     state.attempt_delete_used_sku(sku_id=v2)
     state.teardown()
 
@@ -520,7 +531,7 @@ def test_move_sku(data):
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001', props=None))
     v3 = state.new_sku(sku=Sku(id='SKU000000'))
-    state.receive(bin_id=v1, sku_id=v3, quantity=1)
+    state.receive_sku(bin_id=v1, sku_id=v3, quantity=1)
     state.move(data=data, destination_binId=v2, source_binId=v1)
     state.get_existing_bin(bin_id=v1)
     state.get_existing_bin(bin_id=v2)
@@ -537,7 +548,7 @@ def test_sku_locations():
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     v2 = state.new_sku(sku=Sku(associated_codes=[],
                                id='SKU000000', name='', owned_codes=[], props=None))
-    state.receive(bin_id=v1, quantity=1, sku_id=v2)
+    state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
     state.sku_locations(sku_id=v2)
     state.teardown()
 
@@ -547,7 +558,7 @@ def test_delete_sku_after_force_delete_bin():
     v1 = state.new_sku(sku=Sku(associated_codes=[],
                                id='SKU000000', name='', owned_codes=[], props=None))
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
-    state.receive(bin_id=v2, quantity=1, sku_id=v1)
+    state.receive_sku(bin_id=v2, quantity=1, sku_id=v1)
     state.delete_nonempty_bin_force(bin_id=v2)
     state.delete_unused_sku(sku_id=v1)
     state.teardown()
@@ -605,6 +616,7 @@ def test_add_sku_to_anonymous_batch():
     state.teardown()
 
 
+@pytest.mark.filterwarnings("ignore:.*example().*")
 def test_change_batch_sku():
     state = InventoryStateMachine()
     sku0 = state.new_sku(sku=Sku(id='SKU000000', name=''))
@@ -613,6 +625,26 @@ def test_change_batch_sku():
     data = dst.DataProxy(Batch(id='BAT000000', sku_id=sku0))
     batch0 = state.new_batch_existing_sku(data=data, sku_id=sku0)
 
-    state.update_anonymous_batch_existing_sku_id(
+    state.attempt_update_nonanonymous_batch_sku_id(
         batch_id=batch0, patch={}, sku_id=sku1)
     state.teardown()
+
+
+def test_delete_bin_with_batch():
+    state = InventoryStateMachine()
+    # state.delete_missing_bin(bin_id='BIN000000')
+    v1 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
+    state.delete_nonempty_bin_noforce(bin_id=v2)
+    state.teardown()
+
+
+def test_receive_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
+    state.get_existing_bin(v2)
