@@ -1,5 +1,5 @@
 from flask import Blueprint, request, Response, url_for
-from inventory.data_models import Batch, DataModelJSONEncoder as Encoder
+from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import admin_increment_code
 
