@@ -208,6 +208,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
                     item_id: quantity for item_id, quantity in bin.contents.items() if item_id == sku_id}
         assert model_locations == locations
 
+    @rule(sku_id=dst.label_("SKU"))
+    def missing_sku_locations(self, sku_id):
+        assume(sku_id not in self.model_skus.keys())
+        rp = self.client.get(f"/api/sku/{sku_id}/bins")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == "missing-resource"
+
     @rule(sku_id=a_sku_id)
     def attempt_delete_used_sku(self, sku_id):
         assume(any([sku_id in bin.contents.keys()
@@ -320,6 +328,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def update_anonymous_batch_existing_sku_id(self, batch_id, sku_id, patch):
+        assume(hasattr(self.model_batches[batch_id], 'sku_id'))
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
         assert rp.status_code == 204
@@ -371,6 +380,25 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 404
         assert rp.is_json
         assert rp.json['type'] == "missing-resource"
+
+    @rule(sku_id=a_sku_id)
+    def sku_batchs(self, sku_id):
+        rp = self.client.get(f"/api/sku/{sku_id}/batches")
+        assert rp.status_code == 200
+        assert rp.is_json
+        batch_ids = rp.json['state']
+
+        model_batch_ids = [
+            batch.id for batch in self.model_batches.values() if batch.sku_id == sku_id]
+        assert batch_ids == model_batch_ids
+
+    @rule(sku_id=dst.label_("SKU"))
+    def missing_sku_batches(self, sku_id):
+        assume(sku_id not in self.model_skus.keys())
+        rp = self.client.get(f"/api/sku/{sku_id}/batches")
+        assert rp.status_code == 404
+        assert rp.is_json
+        assert rp.json['type'] == 'missing-resource'
 
     # Inventory operations
 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, Response, url_for
-from inventory.data_models import Sku, Bin, DataModelJSONEncoder as Encoder
+from inventory.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import admin_increment_code
 
@@ -148,6 +148,20 @@ def sku_bins_get(id):
 
     resp = Response()
 
+    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    if not existing:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not get locations of sku that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
+
     contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
         {f"contents.{id}": {"$exists": True}})]
     locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
@@ -156,6 +170,34 @@ def sku_bins_get(id):
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "state": locations
+    })
+
+    return resp
+
+
+@sku.route('/api/sku/<id>/batches', methods=['GET'])
+def sku_batches_get(id):
+    resp = Response()
+
+    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    if not existing:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not get batches for a sku that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
+
+    batches = [Batch.from_mongodb_doc(bson).id
+               for bson in db.bins.find({"sku_id": id})]
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": batches
     })
 
     return resp
