@@ -328,7 +328,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def update_anonymous_batch_existing_sku_id(self, batch_id, sku_id, patch):
-        assume(hasattr(self.model_batches[batch_id], 'sku_id'))
+        assume(self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
         assert rp.status_code == 204
@@ -573,4 +573,17 @@ def test_add_sku_to_anonymous_batch():
         associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
     state.update_anonymous_batch_existing_sku_id(
         batch_id=v2, patch={}, sku_id=v1)
+    state.teardown()
+
+
+def test_change_batch_sku():
+    state = InventoryStateMachine()
+    sku0 = state.new_sku(sku=Sku(id='SKU000000', name=''))
+    sku1 = state.new_sku(sku=Sku(id='SKU000001', name=''))
+
+    data = dst.DataProxy(Batch(id='BAT000000', sku_id=sku0))
+    batch0 = state.new_batch_existing_sku(data=data, sku_id=sku0)
+
+    state.update_anonymous_batch_existing_sku_id(
+        batch_id=batch0, patch={}, sku_id=sku1)
     state.teardown()

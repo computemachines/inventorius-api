@@ -194,7 +194,7 @@ def sku_batches_get(id):
         return resp
 
     batches = [Batch.from_mongodb_doc(bson).id
-               for bson in db.bins.find({"sku_id": id})]
+               for bson in db.batch.find({"sku_id": id})]
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "state": batches
