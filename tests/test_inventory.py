@@ -5,7 +5,7 @@ from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
 from hypothesis import assume, settings, given
-from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes, invariant
+from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes
 
 # bin1 = Bin(id="BIN1")
 # bin2 = Bin(id="BIN2")
@@ -477,6 +477,23 @@ class InventoryStateMachine(RuleBasedStateMachine):
             + self.model_bins[destination_binId].contents.get(sku_id, 0)
         if self.model_bins[source_binId].contents[sku_id] == 0:
             del self.model_bins[source_binId].contents[sku_id]
+
+    # Safety Invariants
+    @invariant()
+    def batches_skus_with_same_sku_never_share_bin(self):
+        return  # TODO: remove this skipped check
+        for bin in self.model_bins.values():
+            sku_types = []
+            for item_id in bin.contents.values():
+                if item_id.startswith("BAT"):
+                    sku_type = self.model_batches[item_id].sku_id
+                elif item_id.startswith("SKU"):
+                    sku_type = item_id
+                else:
+                    assert False  # bin contents must be Batches or Skus
+                if sku_type:
+                    assert sku_type not in sku_types  # each sku type should only appear once
+                    sku_types.append(sku_type)
 
 
 TestInventory = InventoryStateMachine.TestCase
