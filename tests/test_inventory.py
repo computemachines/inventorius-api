@@ -478,6 +478,26 @@ class InventoryStateMachine(RuleBasedStateMachine):
         if self.model_bins[source_binId].contents[sku_id] == 0:
             del self.model_bins[source_binId].contents[sku_id]
 
+    @rule()
+    def api_next(self):
+        rp = self.client.get("/api/next/bin")
+        assert rp.status_code == 200
+        assert rp.is_json
+        next_bin = rp.json['state']
+        assert next_bin not in self.model_bins.keys()
+
+        rp = self.client.get("/api/next/sku")
+        assert rp.status_code == 200
+        assert rp.is_json
+        next_bin = rp.json['state']
+        assert next_bin not in self.model_skus.keys()
+
+        rp = self.client.get("/api/next/batch")
+        assert rp.status_code == 200
+        assert rp.is_json
+        next_bin = rp.json['state']
+        assert next_bin not in self.model_bins.keys()
+
     # Safety Invariants
     @invariant()
     def batches_skus_with_same_sku_never_share_bin(self):

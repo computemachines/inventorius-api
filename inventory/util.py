@@ -37,10 +37,7 @@ def admin_increment_code(prefix, code):
         if prefix == "SKU":
             db.admin.replace_one({"_id": "SKU"}, {"_id": "SKU",
                                                   "next": f"SKU{max_code+1:06}"})
-        if prefix == "UNIQ":
-            db.admin.replace_one({"_id": "UNIQ"}, {"_id": "UNIQ",
-                                                   "next": f"UNIQ{max_code+1:05}"})
-        if prefix == "BATCH":
+        if prefix == "BAT":
             db.admin.replace_one({"_id": "BATCH"}, {"_id": "BAT",
                                                     "next": f"BAT{max_code+1:06}"})
         if prefix == "BIN":
@@ -65,10 +62,6 @@ def admin_get_next(prefix):
             max_value = max_code_value(db.sku, "SKU")
             db.admin.insert_one({"_id": "SKU",
                                  "next": f"SKU{max_value+1:06}"})
-        if prefix == "UNIQ":
-            max_value = max_code_value(db.uniq, "UNIQ")
-            db.admin.insert_one({"_id": "UNIQ",
-                                 "next": f"UNIQ{max_value+1:05}"})
         if prefix == "BAT":
             max_value = max_code_value(db.batch)
             db.admin.insert_one({"_id": "BAT",

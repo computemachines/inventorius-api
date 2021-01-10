@@ -71,22 +71,35 @@ def move_bin_contents_put(id):
 
 @inventory.route('/api/next/sku', methods=['GET'])
 def next_sku():
-    return admin_get_next("SKU")
-
-
-@inventory.route('/api/next/uniq', methods=['GET'])
-def next_uniq():
-    return admin_get_next("UNIQ")
+    resp = Response()
+    resp.status_code == 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": admin_get_next("SKU")
+    })
+    return resp
 
 
 @inventory.route('/api/next/batch', methods=['GET'])
 def next_batch():
-    return admin_get_next("BATCH")
+    resp = Response()
+    resp.status_code == 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": admin_get_next("BAT")
+    })
+    return resp
 
 
 @inventory.route('/api/next/bin', methods=['GET'])
 def next_bin():
-    return admin_get_next("BIN")
+    resp = Response()
+    resp.status_code == 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "state": admin_get_next("BIN")
+    })
+    return resp
 
 
 @inventory.route('/api/receive', methods=['POST'])
@@ -192,7 +205,6 @@ def search():
 
     # debug flags
     if query == '!ALL':
-        results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
@@ -200,19 +212,15 @@ def search():
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
     if query == '!SKUS':
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
-    if query == '!UNIQS':
-        results.extend([Uniq.from_mongodb_doc(e) for e in db.uniq.find()])
     if query == '!BATCHES':
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
 
     # search by label
     if query.startswith('SKU'):
         results.append(Sku.from_mongodb_doc(db.sku.find_one({'id': query})))
-    if query.startswith('UNIQ'):
-        results.append(Uniq.from_mongodb_doc(db.uniq.find_one({'id': query})))
     if query.startswith('BIN'):
         results.append(Bin.from_mongodb_doc(db.bin.find_one({'id': query})))
-    if query.startswith('BATCH'):
+    if query.startswith('BAT'):
         results.append(Batch.from_mongodb_doc(
             db.batch.find_one({'id': query})))
     results = [result for result in results if result != None]
@@ -231,12 +239,12 @@ def search():
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
-    cursor = db.uniq.find({"$text": {"$search": query}})
-    for uniq_doc in cursor:
-        results.append(Uniq.from_mongodb_doc(uniq_doc))
+    cursor = db.batch.find({"$text": {"$search": query}})
+    for batch_doc in cursor:
+        results.append(Batch.from_mongodb_doc(uniq_doc))
 
     if results != []:
-        paged = results[startingFrom:(startingFrom+limit)]
+        paged = results[startingFrom:(startingFrom + limit)]
         return json.dumps({
             "total_num_results": len(results),
             "starting_from": startingFrom,
