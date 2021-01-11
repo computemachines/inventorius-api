@@ -63,8 +63,6 @@ class DataModel():
             #
             # elif class_variable.default is set: then self.<field> = field.default.copy()
 
-            elif class_variable.default is not None:
-                setattr(self, field, class_variable.default.copy())
             #
             # elif field.required: raise exception
             #
@@ -72,9 +70,11 @@ class DataModel():
             elif class_variable.required:
                 raise KeyError("'{}' is a required field in class '{}'".format(
                     field, self.__class__.__name__))
+
+            elif class_variable.default is not None:
+                setattr(self, field, class_variable.default.copy())
             else:
-                # field was not required and left undefined
-                pass
+                setattr(self, field, None)
 
     def __eq__(self, other):
         if type(self) != type(other):
@@ -169,7 +169,7 @@ class Sku(DataModel):
 
 class Batch(DataModel):
     id = DataField("_id", required=True)
-    sku_id = DataField("sku_id", default=None)
+    sku_id = DataField("sku_id")
     name = DataField("name")
     owned_codes = DataField("owned_codes", default=[])
     associated_codes = DataField("associated_codes", default=[])
@@ -184,48 +184,3 @@ class Batch(DataModel):
     # assembly_date = DataField()
     # expiration_date = DataField()
     # inherited_props = DataField()
-
-
-# class Uniq(DataModel):
-#     id = DataField("_id", required=True)
-#     bin_id = DataField("bin_id", required=True)
-#     owned_codes = DataField("owned_codes")
-#     sku_parent = DataField("sku_id")
-#     name = DataField("name")
-#     original_cost = DataField("original_cost")
-#     asset_value = DataField("asset_value")
-#     assembly = DataField()
-#     props = DataField("props")
-#     inherited_props = DataField()
-
-# class BinExtended:
-#     def __init__(self, json=None):
-#         self._id = json['id']
-#         self.props = json.get('props', None)
-#         self.contents = json.get('contents', None)
-
-#     def toJson(self):
-#         return json.dumps(self, cls=DataModelJSONEncoder)
-
-#     def toDict(self):
-#         d = {'id': self._id}
-#         if self.props is not None:
-#             d['props'] = self.props
-#         if self.contents is not None:
-#             d['contents'] = self.contents
-#         return d
-
-# class SKU:
-#     def __init__(self, json):
-#         self._id = json['id']
-#         self.owned_codes = json['owned codes']
-#         self.name = json['name']
-
-#     def toDict(self):
-#         d = {'id': self._id,
-#              'name': self.name,
-#              'owned codes': self.owned_codes}
-#         return d
-
-#     def toJson(self):
-#         return json.dumps(self, cls=DataModelJSONEncoder)

@@ -8,6 +8,11 @@ from hypothesis.strategies import composite, integers
 import tests.data_models_strategies as dst
 
 
+def test_batch_default_values():
+    batch = Batch(id="BAT1")
+    assert batch.sku_id == None
+
+
 @given(dst.bins_())
 def test_bin(bin):
     assert json.loads(bin.to_json())['id'] == bin.id
