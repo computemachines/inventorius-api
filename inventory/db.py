@@ -11,14 +11,6 @@ def get_mongo_client():
     if _mongo_client is None:
         db_host = "localhost"
         _mongo_client = MongoClient(db_host, 27017)
-        try:
-            _mongo_client.inventorydb.create_collection("sku")
-        except:
-            pass
-        try:
-            _mongo_client.inventorydb.create_collection("batch")
-        except:
-            pass
         _mongo_client.inventorydb.sku.create_index([('name', TEXT)])
         _mongo_client.inventorydb.batch.create_index([('name', TEXT)])
 
