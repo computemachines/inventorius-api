@@ -65,7 +65,7 @@ def admin_get_next(prefix):
         if prefix == "BAT":
             max_value = max_code_value(db.batch)
             db.admin.insert_one({"_id": "BAT",
-                                 "next": f"BAT{max_value+1:07}"})
+                                 "next": f"BAT{max_value+1:06}"})
         if prefix == "BIN":
             max_value = max_code_value(db.bin, "BIN")
             db.admin.insert_one({"_id": "BIN",

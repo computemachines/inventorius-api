@@ -485,18 +485,54 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.is_json
         next_bin = rp.json['state']
         assert next_bin not in self.model_bins.keys()
+        assert next_bin.startswith("BIN")
+        assert len(next_bin) == 9
 
         rp = self.client.get("/api/next/sku")
         assert rp.status_code == 200
         assert rp.is_json
-        next_bin = rp.json['state']
-        assert next_bin not in self.model_skus.keys()
+        next_sku = rp.json['state']
+        assert next_sku not in self.model_skus.keys()
+        assert next_sku.startswith("SKU")
+        assert len(next_sku) == 9
 
         rp = self.client.get("/api/next/batch")
         assert rp.status_code == 200
         assert rp.is_json
-        next_bin = rp.json['state']
-        assert next_bin not in self.model_bins.keys()
+        next_batch = rp.json['state']
+        assert next_batch not in self.model_bins.keys()
+        assert next_batch.startswith("BAT")
+        assert len(next_batch) == 9
+
+    def search_results_generator(self, query):
+        def json_to_data_model(in_json_dict):
+            if in_json_dict['id'].startswith("BIN"):
+                return Bin.from_json(in_json_dict)
+            if in_json_dict['id'].startswith("SKU"):
+                return Sku.from_json(in_json_dict)
+            if in_json_dict['id'].startswith("BAT"):
+                return Batch.from_json(in_json_dict)
+
+        starting_from = 0
+        while True:
+            rp = self.client.get("/api/search", query_string={
+                "query": query,
+                "startingFrom": starting_from,
+            })
+            assert rp.status_code == 200
+            assert rp.is_json
+            search_state = rp.json['state']
+            for result_json in search_state['results']:
+                yield json_to_data_model(result_json)
+            if search_state['starting_from'] + search_state['limit'] > search_state['total_num_results']:
+                starting_from += search_state['limit']
+            else:
+                break
+
+    @rule(bin_id=a_bin_id)
+    def search_existing_bin_id(self, bin_id):
+        results = list(self.search_results_generator(bin_id))
+        assert self.model_bins[bin_id] in results
 
     # Safety Invariants
     @invariant()
@@ -687,3 +723,10 @@ def test_receive_batch():
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
     state.get_existing_bin(v2)
+
+
+def test_search_bin_id():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    state.search_existing_bin_id(bin_id=v1)
+    state.teardown()

@@ -201,6 +201,8 @@ def search():
     query = request.args['query']
     limit = getIntArgs(request.args, "limit", 20)
     startingFrom = getIntArgs(request.args, "startingFrom", 0)
+    resp = Response()
+
     results = []
 
     # debug flags
@@ -235,28 +237,35 @@ def search():
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
-    cursor = db.sku.find({"$text": {"$search": query}})
-    for sku_doc in cursor:
-        results.append(Sku.from_mongodb_doc(sku_doc))
-
-    cursor = db.batch.find({"$text": {"$search": query}})
-    for batch_doc in cursor:
-        results.append(Batch.from_mongodb_doc(uniq_doc))
+    if db.sku.find_one({}):
+        cursor = db.sku.find({"$text": {"$search": query}})
+        for sku_doc in cursor:
+            results.append(Sku.from_mongodb_doc(sku_doc))
+    if db.batch.find_one({}):
+        cursor = db.batch.find({"$text": {"$search": query}})
+        for batch_doc in cursor:
+            results.append(Batch.from_mongodb_doc(uniq_doc))
 
     if results != []:
         paged = results[startingFrom:(startingFrom + limit)]
-        return json.dumps({
+        resp.status_code = 200
+        resp.mimetype = "application/json"
+        resp.data = json.dumps({'state': {
             "total_num_results": len(results),
             "starting_from": startingFrom,
             "limit": limit,
             "returned_num_results": len(paged),
             "results": paged
-        }, cls=Encoder)
+        }}, cls=Encoder)
+        return resp
 
-    return json.dumps({
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({'state': {
         "total_num_results": len(results),
         "starting_from": startingFrom,
         "limit": limit,
         "returned_num_results": 0,
         "results": []
-    }, cls=Encoder)
+    }}, cls=Encoder)
+    return resp
