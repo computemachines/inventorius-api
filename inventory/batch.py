@@ -10,11 +10,29 @@ batch = Blueprint("batch", __name__)
 
 @batch.route("/api/batches", methods=['POST'])
 def batches_post():
-    batch = Batch.from_json(request.json)
     resp = Response()
+
+    batch_id = request.json.get('id', None)
+
+    if not batch_id:
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-required-field",
+            "title": "Batch Id is a required field.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be filled in"
+            }]
+        })
+        return resp
+
+    batch = Batch.from_json({
+        "id": batch_id,
+    })
     resp.headers = {"Cache-Control": "no-cache"}
 
-    if not batch.id.startswith("BAT"):
+    if not batch_id.startswith("BAT"):
         resp.status_code = 400
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
@@ -27,7 +45,7 @@ def batches_post():
         })
         return resp
 
-    existing_batch = db.batch.find_one({"_id": batch.id})
+    existing_batch = db.batch.find_one({"_id": batch_id})
     if existing_batch:
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
@@ -55,11 +73,11 @@ def batches_post():
             })
             return resp
 
-    admin_increment_code("BAT", batch.id)
+    admin_increment_code("BAT", batch_id)
     db.batch.insert_one(batch.to_mongodb_doc())
 
     resp.status_code = 201
-    # resp.location = url_for("batch.batch_get", id=batch.id)
+    # resp.location = url_for("batch.batch_get", id=batch_id)
 
     return resp
 
