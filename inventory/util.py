@@ -38,8 +38,8 @@ def admin_increment_code(prefix, code):
             db.admin.replace_one({"_id": "SKU"}, {"_id": "SKU",
                                                   "next": f"SKU{max_code+1:06}"})
         if prefix == "BAT":
-            db.admin.replace_one({"_id": "BATCH"}, {"_id": "BAT",
-                                                    "next": f"BAT{max_code+1:06}"})
+            db.admin.replace_one({"_id": "BAT"}, {"_id": "BAT",
+                                                  "next": f"BAT{max_code+1:06}"})
         if prefix == "BIN":
             db.admin.replace_one({"_id": "BIN"}, {"_id": "BIN",
                                                   "next": f"BIN{max_code+1:06}"})
