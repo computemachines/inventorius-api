@@ -11,6 +11,7 @@ batch = Blueprint("batch", __name__)
 @batch.route("/api/batches", methods=['POST'])
 def batches_post():
     resp = Response()
+    resp.headers = {"Cache-Control": "no-cache"}
 
     batch_id = request.json.get('id', None)
 
@@ -27,11 +28,6 @@ def batches_post():
         })
         return resp
 
-    batch = Batch.from_json({
-        "id": batch_id,
-    })
-    resp.headers = {"Cache-Control": "no-cache"}
-
     if not batch_id.startswith("BAT"):
         resp.status_code = 400
         resp.mimetype = "application/problem+json"
@@ -44,6 +40,8 @@ def batches_post():
             }]
         })
         return resp
+
+    sku_id = request.json.get('sku_id', None)
 
     existing_batch = db.batch.find_one({"_id": batch_id})
     if existing_batch:
@@ -58,8 +56,8 @@ def batches_post():
             }]})
         return resp
 
-    if batch.sku_id:
-        existing_sku = db.sku.find_one({"_id": batch.sku_id})
+    if sku_id:
+        existing_sku = db.sku.find_one({"_id": sku_id})
         if not existing_sku:
             resp.status_code = 409
             resp.mimetype = "application/problem+json"
@@ -72,6 +70,11 @@ def batches_post():
                 }]
             })
             return resp
+
+    batch = Batch.from_json({
+        "id": batch_id,
+        "sku_id": sku_id,
+    })
 
     admin_increment_code("BAT", batch_id)
     db.batch.insert_one(batch.to_mongodb_doc())

@@ -134,7 +134,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_sku_id, sku=dst.skus_())
     def new_sku(self, sku):
-        resp = self.client.post('/api/skus', json=sku.to_json())
+        resp = self.client.post('/api/skus', json=sku.to_dict())
         if sku.id in self.model_skus.keys():
             assert resp.status_code == 409
             assert resp.is_json
