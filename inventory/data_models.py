@@ -137,6 +137,9 @@ class DataModel():
                 transformed_dict[db_key] = model_value
         return transformed_dict
 
+    def to_dict(self):
+        return self.__dict__
+
 # -------- Data models for db
 
 

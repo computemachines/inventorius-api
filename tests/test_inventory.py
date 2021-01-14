@@ -240,7 +240,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(self.model_skus != {})
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
-        rp = self.client.post('/api/batches', json=batch.to_json())
+        rp = self.client.post('/api/batches', json=batch.to_dict())
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -265,7 +265,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(target=a_batch_id, batch=dst.batches_(sku_id=None))
     def new_anonymous_batch(self, batch):
         assert not batch.sku_id
-        rp = self.client.post("/api/batches", json=batch.to_json())
+        rp = self.client.post("/api/batches", json=batch.to_dict())
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -527,9 +527,9 @@ class InventoryStateMachine(RuleBasedStateMachine):
             for result_json in search_state['results']:
                 yield json_to_data_model(result_json)
             if search_state['starting_from'] + search_state['limit'] > search_state['total_num_results']:
-                starting_from += search_state['limit']
-            else:
                 break
+            else:
+                starting_from += search_state['limit']
 
     @rule(bin_id=a_bin_id)
     def search_existing_bin_id(self, bin_id):
@@ -556,7 +556,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
 TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
-    max_examples=10000,
+    max_examples=1000,
     stateful_step_count=10,
     deadline=timedelta(milliseconds=200),
 )

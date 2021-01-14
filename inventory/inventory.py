@@ -219,12 +219,12 @@ def search():
 
     # search by label
     if query.startswith('SKU'):
-        results.append(Sku.from_mongodb_doc(db.sku.find_one({'id': query})))
+        results.append(Sku.from_mongodb_doc(db.sku.find_one({'_id': query})))
     if query.startswith('BIN'):
-        results.append(Bin.from_mongodb_doc(db.bin.find_one({'id': query})))
+        results.append(Bin.from_mongodb_doc(db.bin.find_one({'_id': query})))
     if query.startswith('BAT'):
         results.append(Batch.from_mongodb_doc(
-            db.batch.find_one({'id': query})))
+            db.batch.find_one({'_id': query})))
     results = [result for result in results if result != None]
 
     # search for skus with owned_codes
