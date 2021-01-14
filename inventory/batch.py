@@ -74,6 +74,10 @@ def batches_post():
     batch = Batch.from_json({
         "id": batch_id,
         "sku_id": sku_id,
+        "name": request.json.get("name", None),
+        "owned_codes": request.json.get("owned_codes", None),
+        "associated_codes": request.json.get("associated_codes", None),
+        "props": request.json.get("props", None)
     })
 
     admin_increment_code("BAT", batch_id)
