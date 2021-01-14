@@ -7,6 +7,8 @@ import hypothesis.strategies as st
 from hypothesis import assume, settings, given
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes
 
+from datetime import timedelta
+
 # bin1 = Bin(id="BIN1")
 # bin2 = Bin(id="BIN2")
 # sku1 = Sku(id="SKU1")
@@ -556,7 +558,7 @@ TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
     max_examples=10000,
     stateful_step_count=10,
-    deadline=None,
+    deadline=timedelta(milliseconds=200),
 )
 
 
