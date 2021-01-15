@@ -741,3 +741,12 @@ def test_search_bin_with_sku():
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     state.search_existing_bin_id(bin_id=v2)
     state.teardown()
+
+
+def test_search_bin_with_batch():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+    ], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
+    state.search_existing_bin_id(bin_id=v1)
+    state.teardown()

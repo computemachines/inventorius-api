@@ -237,14 +237,14 @@ def search():
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
-    if db.sku.find_one({}):
-        cursor = db.sku.find({"$text": {"$search": query}})
-        for sku_doc in cursor:
-            results.append(Sku.from_mongodb_doc(sku_doc))
-    if db.batch.find_one({}):
-        cursor = db.batch.find({"$text": {"$search": query}})
-        for batch_doc in cursor:
-            results.append(Batch.from_mongodb_doc(uniq_doc))
+    # if not DEV_ENV:
+    #     cursor = db.sku.find({"$text": {"$search": query}})
+    #     for sku_doc in cursor:
+    #         results.append(Sku.from_mongodb_doc(sku_doc))
+    # if not DEV_ENV:
+    #     cursor = db.batch.find({"$text": {"$search": query}})
+    #     for batch_doc in cursor:
+    #         results.append(Batch.from_mongodb_doc(uniq_doc))
 
     if results != []:
         paged = results[startingFrom:(startingFrom + limit)]

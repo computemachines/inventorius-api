@@ -88,6 +88,7 @@ def batches_post():
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.batch.index_information().keys():
+        print("Creating text index for batch#name")
         db.sku.create_index([("name", TEXT)])
 
     resp.status_code = 201
