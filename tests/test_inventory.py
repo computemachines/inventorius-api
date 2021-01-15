@@ -558,7 +558,7 @@ TestInventory = InventoryStateMachine.TestCase
 TestInventory.settings = settings(
     max_examples=1000,
     stateful_step_count=10,
-    deadline=timedelta(milliseconds=200),
+    deadline=timedelta(milliseconds=1000),
 )
 
 
