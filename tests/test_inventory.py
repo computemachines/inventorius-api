@@ -732,3 +732,12 @@ def test_search_bin_id():
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     state.search_existing_bin_id(bin_id=v1)
     state.teardown()
+
+
+def test_search_bin_with_sku():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                               id='SKU000000', name='', owned_codes=[], props=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    state.search_existing_bin_id(bin_id=v2)
+    state.teardown()

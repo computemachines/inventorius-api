@@ -3,6 +3,8 @@ from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encod
 from inventory.db import db
 from inventory.util import admin_increment_code
 
+from pymongo import TEXT
+
 import json
 
 batch = Blueprint("batch", __name__)
@@ -82,6 +84,11 @@ def batches_post():
 
     admin_increment_code("BAT", batch_id)
     db.batch.insert_one(batch.to_mongodb_doc())
+
+    # Add text index if not yet created
+    # TODO: This should probably be turned into a global flag
+    if "name_text" not in db.batch.index_information().keys():
+        db.sku.create_index([("name", TEXT)])
 
     resp.status_code = 201
     # resp.location = url_for("batch.batch_get", id=batch_id)

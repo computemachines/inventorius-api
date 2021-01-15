@@ -3,6 +3,8 @@ from inventory.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encod
 from inventory.db import db
 from inventory.util import admin_increment_code
 
+from pymongo import TEXT
+
 import json
 
 sku = Blueprint("sku", __name__)
@@ -43,6 +45,11 @@ def skus_post():
     admin_increment_code("SKU", sku.id)
     db.sku.insert_one(sku.to_mongodb_doc())
     # dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
+
+    # Add text index if not yet created
+    # TODO: This should probably be turned into a global flag
+    if "name_text" not in db.sku.index_information().keys():
+        db.sku.create_index([("name", TEXT)])
 
     resp.status_code = 201
     # resp.headers = {'Location': url_for('sku.sku_get', id=sku.id)}
