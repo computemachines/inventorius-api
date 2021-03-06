@@ -29,3 +29,8 @@ app.register_blueprint(bin)
 app.register_blueprint(batch)
 app.register_blueprint(inventory)
 app.register_blueprint(sku)
+
+
+@app.route("/api/version", methods=["GET"])
+def get_version():
+    return "0.1.0"
