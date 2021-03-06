@@ -557,6 +557,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(data=st.data(), sku_id=a_sku_id)
     def search_existing_sku_owned_code(self, data, sku_id):
         owned_codes = self.model_skus[sku_id].owned_codes
+        assume(owned_codes != [])
         owned_code = data.draw(st.sampled_from(owned_codes))
         results = list(self.search_results_generator(owned_code))
         assert self.model_skus[sku_id] in results

@@ -197,9 +197,10 @@ def test_search_bin_with_batch():
     state.teardown()
 
 
+@pytest.mark.filterwarnings("ignore:.*example().*")
 def test_search_existing_sku_owned_code():
     state = InventoryStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
-    state.search_existing_sku_owned_code(data=dst.DataProxy(), sku_id=v1)
+                               id='SKU000000', name='', owned_codes=["123"], props=None))
+    state.search_existing_sku_owned_code(data=dst.DataProxy("123"), sku_id=v1)
     state.teardown()
