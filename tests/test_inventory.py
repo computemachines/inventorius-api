@@ -536,7 +536,18 @@ class InventoryStateMachine(RuleBasedStateMachine):
         results = list(self.search_results_generator(bin_id))
         assert self.model_bins[bin_id] in results
 
+    @rule(sku_id=a_sku_id)
+    def search_existing_sku_id(self, sku_id):
+        results = list(self.search_results_generator(sku_id))
+        assert self.model_skus[sku_id] in results
+
+    @rule(batch_id=a_batch_id)
+    def search_existing_batch_id(self, batch_id):
+        results = list(self.search_results_generator(batch_id))
+        assert self.model_batches[batch_id] in results
+
     # Safety Invariants
+
     @invariant()
     def batches_skus_with_same_sku_never_share_bin(self):
         return  # TODO: remove this skipped check
