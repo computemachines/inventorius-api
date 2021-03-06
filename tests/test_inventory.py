@@ -562,6 +562,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
         results = list(self.search_results_generator(owned_code))
         assert self.model_skus[sku_id] in results
 
+    @rule(data=st.data(), batch_id=a_batch_id)
+    def search_existing_batch_owned_code(self, data, batch_id):
+        owned_codes = self.model_batches[batch_id].owned_codes
+        assume(owned_codes != [])
+        owned_code = data.draw(st.sampled_from(owned_codes))
+        results = list(self.search_results_generator(owned_code))
+        assert self.model_batches[batch_id] in results
+
     # Safety Invariants
 
     @invariant()

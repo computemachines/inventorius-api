@@ -204,3 +204,13 @@ def test_search_existing_sku_owned_code():
                                id='SKU000000', name='', owned_codes=["123"], props=None))
     state.search_existing_sku_owned_code(data=dst.DataProxy("123"), sku_id=v1)
     state.teardown()
+
+
+@pytest.mark.filterwarnings("ignore:.*example().*")
+def test_search_existing_batch_owned_code():
+    state = InventoryStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[],
+                                               id='BAT000000', name='', owned_codes=["123"], props=None, sku_id=None))
+    state.search_existing_batch_owned_code(
+        data=dst.DataProxy("123"), batch_id=v1)
+    state.teardown()

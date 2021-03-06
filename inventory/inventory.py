@@ -237,6 +237,16 @@ def search():
     for sku_doc in cursor:
         results.append(Sku.from_mongodb_doc(sku_doc))
 
+    # search for skus with owned_codes
+    cursor = db.batch.find({"owned_codes": query})
+    for batch_doc in cursor:
+        results.append(Batch.from_mongodb_doc(batch_doc))
+
+    # search for batchs with associated codes
+    cursor = db.batch.find({"associated_codes": query})
+    for batch_doc in cursor:
+        results.append(Batch.from_mongodb_doc(batch_doc))
+
     # if not DEV_ENV:
     #     cursor = db.sku.find({"$text": {"$search": query}})
     #     for sku_doc in cursor:
