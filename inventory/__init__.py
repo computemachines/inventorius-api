@@ -33,4 +33,4 @@ app.register_blueprint(sku)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.1.1"
+    return "0.1.2"

@@ -76,3 +76,7 @@ def admin_get_next(prefix):
         return next_code_doc['next']
     else:
         raise Exception("bad prefix", prefix)
+
+
+def check_code_list(codes):
+    return any(re.search('\\s', code) or code == '' for code in codes)

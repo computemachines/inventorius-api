@@ -1,7 +1,7 @@
 from flask import Blueprint, request, Response, url_for
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
-from inventory.util import admin_increment_code
+from inventory.util import admin_increment_code, check_code_list
 
 from pymongo import TEXT
 
@@ -15,9 +15,11 @@ def batches_post():
     resp = Response()
     resp.headers = {"Cache-Control": "no-cache"}
 
-    batch_id = request.json.get('id', None)
+    batch = Batch.from_json(request.json)
 
-    if not batch_id:
+    # batch_id = request.json.get('id', None)
+
+    if not batch.id:
         resp.status_code = 400
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
@@ -30,7 +32,7 @@ def batches_post():
         })
         return resp
 
-    if not batch_id.startswith("BAT"):
+    if not batch.id.startswith("BAT"):
         resp.status_code = 400
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
@@ -43,9 +45,9 @@ def batches_post():
         })
         return resp
 
-    sku_id = request.json.get('sku_id', None)
+    # sku_id = request.json.get('sku_id', None)
 
-    existing_batch = db.batch.find_one({"_id": batch_id})
+    existing_batch = db.batch.find_one({"_id": batch.id})
     if existing_batch:
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
@@ -58,8 +60,8 @@ def batches_post():
             }]})
         return resp
 
-    if sku_id:
-        existing_sku = db.sku.find_one({"_id": sku_id})
+    if batch.sku_id:
+        existing_sku = db.sku.find_one({"_id": batch.sku_id})
         if not existing_sku:
             resp.status_code = 409
             resp.mimetype = "application/problem+json"
@@ -73,16 +75,42 @@ def batches_post():
             })
             return resp
 
-    batch = Batch.from_json({
-        "id": batch_id,
-        "sku_id": sku_id,
-        "name": request.json.get("name", None),
-        "owned_codes": request.json.get("owned_codes", None),
-        "associated_codes": request.json.get("associated_codes", None),
-        "props": request.json.get("props", None)
-    })
+    # batch = Batch.from_json({
+    #     "id": batch_id,
+    #     "sku_id": sku_id,
+    #     "name": request.json.get("name", None),
+    #     "owned_codes": request.json.get("owned_codes", None),
+    #     "associated_codes": request.json.get("associated_codes", None),
+    #     "props": request.json.get("props", None)
+    # })
 
-    admin_increment_code("BAT", batch_id)
+    if check_code_list(batch.owned_codes):
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-input-format",
+            "title": "Codes must not contain whitespace.",
+            "invalid-params": [{
+                "name": "owned_codes",
+                "reason": "must be list of nonempty strings containing no whitespace characters"
+            }]
+        })
+        return resp
+
+    if check_code_list(batch.associated_codes):
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-input-format",
+            "title": "Codes must not contain whitespace.",
+            "invalid-params": [{
+                "name": "owned_codes",
+                "reason": "must be list of nonempty strings containing no whitespace characters"
+            }]
+        })
+        return resp
+
+    admin_increment_code("BAT", batch.id)
     db.batch.insert_one(batch.to_mongodb_doc())
 
     # Add text index if not yet created

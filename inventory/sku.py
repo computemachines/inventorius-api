@@ -1,7 +1,7 @@
 from flask import Blueprint, request, Response, url_for
 from inventory.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
-from inventory.util import admin_increment_code
+from inventory.util import admin_increment_code, check_code_list
 
 from pymongo import TEXT
 
@@ -40,6 +40,32 @@ def skus_post():
             }]
         })
         # resp.headers['Location'] = url_for('sku.sku_get', id=sku.id)
+        return resp
+
+    if check_code_list(sku.owned_codes):
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-input-format",
+            "title": "Codes must not contain whitespace.",
+            "invalid-params": [{
+                "name": "owned_codes",
+                "reason": "must be list of nonempty strings containing no whitespace characters"
+            }]
+        })
+        return resp
+
+    if check_code_list(sku.associated_codes):
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-input-format",
+            "title": "Codes must not contain whitespace.",
+            "invalid-params": [{
+                "name": "owned_codes",
+                "reason": "must be list of nonempty strings containing no whitespace characters"
+            }]
+        })
         return resp
 
     admin_increment_code("SKU", sku.id)

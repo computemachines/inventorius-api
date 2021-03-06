@@ -5,7 +5,7 @@ from hypothesis.strategies import *
 
 from string import printable, ascii_lowercase
 
-fieldNames_ = text(ascii_lowercase+'_')
+fieldNames_ = text(ascii_lowercase + '_')
 simpleTypes_ = one_of(none(),
                       integers(min_value=-2**63, max_value=2**63),
                       floats(allow_nan=False), text(printable))
@@ -33,8 +33,8 @@ def bins_(draw, id=None, props=None, contents=None):
 @composite
 def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, props=None):
     id = id or f"SKU{draw(integers(0, 10)):06d}"
-    owned_codes = owned_codes or draw(lists(text("abc")))
-    associated_codes = associated_codes or draw(lists(text("abc")))
+    owned_codes = owned_codes or draw(lists(text("abc", min_size=1)))
+    associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     name = name or draw(text("ABC"))
     props = props or draw(json)
     return Sku(id=id, owned_codes=owned_codes, name=name, associated_codes=associated_codes, props=props)
@@ -46,8 +46,8 @@ def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_co
     if sku_id == 0:
         sku_id = draw(none(), label_("SKU"))
     name = name or draw(text("ABC"))
-    owned_codes = owned_codes or draw(lists(text("abc")))
-    associated_codes = associated_codes or draw(lists(text("abc")))
+    owned_codes = owned_codes or draw(lists(text("abc", min_size=1)))
+    associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     props = props or draw(json)
     return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
 

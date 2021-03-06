@@ -145,6 +145,22 @@ class InventoryStateMachine(RuleBasedStateMachine):
             self.model_skus[sku.id] = sku
             return sku.id
 
+    @rule(sku=dst.skus_(), bad_code=st.sampled_from(["", " ", "\t", "     ", " 123", "1 2 3", "123 abc"]))
+    def new_sku_bad_format_owned_codes(self, sku, bad_code):
+        temp_sku = Sku.from_json(sku.to_json())
+        temp_sku.owned_codes.append(bad_code)
+        resp = self.client.post('/api/skus', json=temp_sku.to_dict())
+        assert resp.status_code == 400
+        assert resp.is_json
+        assert resp.json['type'] == 'bad-input-format'
+
+        temp_sku = Sku.from_json(sku.to_json())
+        temp_sku.associated_codes.append(bad_code)
+        resp = self.client.post('/api/skus', json=temp_sku.to_dict())
+        assert resp.status_code == 400
+        assert resp.is_json
+        assert resp.json['type'] == 'bad-input-format'
+
     @rule(sku_id=a_sku_id)
     def get_existing_sku(self, sku_id):
         rp = self.client.get(f"/api/sku/{sku_id}")
@@ -237,7 +253,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_batch_id, sku_id=a_sku_id, data=st.data())
     def new_batch_existing_sku(self, sku_id, data):
-        assume(self.model_skus != {})
+        assume(self.model_skus != {})  # TODO: check if this is necessary
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
         rp = self.client.post('/api/batches', json=batch.to_dict())
@@ -251,6 +267,25 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
             return batch.id
+
+    @rule(data=dst.data(), sku_id=a_sku_id, bad_code=st.sampled_from(["", " ", "\t", "     ", " 123", "1 2 3", "123 abc"]))
+    def new_batch_bad_format_owned_codes(self, data, sku_id, bad_code):
+        batch = data.draw(dst.batches_(sku_id=sku_id))
+        assume(batch.id not in self.model_batches.keys())
+
+        temp_batch = Batch.from_json(batch.to_json())
+        temp_batch.owned_codes.append(bad_code)
+        resp = self.client.post('/api/batches', json=temp_batch.to_dict())
+        assert resp.status_code == 400
+        assert resp.is_json
+        assert resp.json['type'] == 'bad-input-format'
+
+        temp_batch = Batch.from_json(batch.to_json())
+        temp_batch.associated_codes.append(bad_code)
+        resp = self.client.post('/api/batches', json=temp_batch.to_dict())
+        assert resp.status_code == 400
+        assert resp.is_json
+        assert resp.json['type'] == 'bad-input-format'
 
     @rule(batch=dst.batches_())
     def new_batch_new_sku(self, batch):
@@ -538,6 +573,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def search(self, query):
         results = list(self.search_results_generator(query))
         self.check_search_results(query, results)
+
+    @rule()
+    def search_no_query(self):
+        results = list(self.search_results_generator(""))
+        assert results == []
 
     @rule(bin_id=a_bin_id)
     def search_existing_bin_id(self, bin_id):

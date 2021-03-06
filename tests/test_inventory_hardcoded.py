@@ -105,7 +105,7 @@ def test_recreate_batch():
 def test_update_batch():
     state = InventoryStateMachine()
     v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[''], props=None, sku_id=None))
+        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
     state.update_batch(batch_id=v1, patch={'owned_codes': []})
     state.get_existing_batch(batch_id=v1)
     state.teardown()
@@ -213,4 +213,11 @@ def test_search_existing_batch_owned_code():
                                                id='BAT000000', name='', owned_codes=["123"], props=None, sku_id=None))
     state.search_existing_batch_owned_code(
         data=dst.DataProxy("123"), batch_id=v1)
+    state.teardown()
+
+
+def test_new_sku_bad_format_owned_codes():
+    state = InventoryStateMachine()
+    state.new_sku_bad_format_owned_codes(bad_code='', sku=Sku(
+        associated_codes=[], id='SKU000000', name='', owned_codes=[], props=None))
     state.teardown()
