@@ -4,7 +4,7 @@ from inventory.data_models import Bin, Sku, Batch
 from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
-from hypothesis import assume, settings, given
+from hypothesis import assume, settings, given, reproduce_failure
 from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize, invariant, multiple, consumes
 
 from datetime import timedelta
@@ -37,7 +37,6 @@ from datetime import timedelta
 #     assert rp.is_json
 #     assert rp.json['state']['contents'][0]['id'] == sku1.id
 #     assert rp.json['state']['contents'][0]['quantity'] == 1
-
 
 class InventoryStateMachine(RuleBasedStateMachine):
     def __init__(self):
@@ -147,6 +146,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(sku=dst.skus_(), bad_code=st.sampled_from(["", " ", "\t", "     ", " 123", "1 2 3", "123 abc"]))
     def new_sku_bad_format_owned_codes(self, sku, bad_code):
+        assume(sku.id not in self.model_skus.keys())
         temp_sku = Sku.from_json(sku.to_json())
         temp_sku.owned_codes.append(bad_code)
         resp = self.client.post('/api/skus', json=temp_sku.to_dict())
@@ -253,7 +253,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_batch_id, sku_id=a_sku_id, data=st.data())
     def new_batch_existing_sku(self, sku_id, data):
-        assume(self.model_skus != {})  # TODO: check if this is necessary
+        # assume(self.model_skus != {})  # TODO: check if this is necessary
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
         rp = self.client.post('/api/batches', json=batch.to_dict())
