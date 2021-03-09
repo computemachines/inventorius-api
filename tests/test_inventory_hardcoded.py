@@ -172,52 +172,52 @@ def test_receive_batch():
     state.get_existing_bin(v2)
 
 
-def test_search_bin_id():
-    state = InventoryStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
-    state.search_existing_bin_id(bin_id=v1)
-    state.teardown()
+# def test_search_bin_id():
+#     state = InventoryStateMachine()
+#     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+#     state.search_existing_bin_id(bin_id=v1)
+#     state.teardown()
 
 
-def test_search_bin_with_sku():
-    state = InventoryStateMachine()
-    v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
-    state.search_existing_bin_id(bin_id=v2)
-    state.teardown()
+# def test_search_bin_with_sku():
+#     state = InventoryStateMachine()
+#     v1 = state.new_sku(sku=Sku(associated_codes=[],
+#                                id='SKU000000', name='', owned_codes=[], props=None))
+#     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+#     state.search_existing_bin_id(bin_id=v2)
+#     state.teardown()
 
 
-def test_search_bin_with_batch():
-    state = InventoryStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
-    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
-    ], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
-    state.search_existing_bin_id(bin_id=v1)
-    state.teardown()
+# def test_search_bin_with_batch():
+#     state = InventoryStateMachine()
+#     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+#     v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+#     ], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
+#     state.search_existing_bin_id(bin_id=v1)
+#     state.teardown()
 
 
-@pytest.mark.filterwarnings("ignore:.*example().*")
-def test_search_existing_sku_owned_code():
-    state = InventoryStateMachine()
-    v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=["123"], props=None))
-    state.search_existing_sku_owned_code(data=dst.DataProxy("123"), sku_id=v1)
-    state.teardown()
+# @pytest.mark.filterwarnings("ignore:.*example().*")
+# def test_search_existing_sku_owned_code():
+#     state = InventoryStateMachine()
+#     v1 = state.new_sku(sku=Sku(associated_codes=[],
+#                                id='SKU000000', name='', owned_codes=["123"], props=None))
+#     state.search_existing_sku_owned_code(data=dst.DataProxy("123"), sku_id=v1)
+#     state.teardown()
 
 
-@pytest.mark.filterwarnings("ignore:.*example().*")
-def test_search_existing_batch_owned_code():
-    state = InventoryStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[],
-                                               id='BAT000000', name='', owned_codes=["123"], props=None, sku_id=None))
-    state.search_existing_batch_owned_code(
-        data=dst.DataProxy("123"), batch_id=v1)
-    state.teardown()
+# @pytest.mark.filterwarnings("ignore:.*example().*")
+# def test_search_existing_batch_owned_code():
+#     state = InventoryStateMachine()
+#     v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[],
+#                                                id='BAT000000', name='', owned_codes=["123"], props=None, sku_id=None))
+#     state.search_existing_batch_owned_code(
+#         data=dst.DataProxy("123"), batch_id=v1)
+#     state.teardown()
 
 
-def test_new_sku_bad_format_owned_codes():
-    state = InventoryStateMachine()
-    state.new_sku_bad_format_owned_codes(bad_code='', sku=Sku(
-        associated_codes=[], id='SKU000000', name='', owned_codes=[], props=None))
-    state.teardown()
+# def test_new_sku_bad_format_owned_codes():
+#     state = InventoryStateMachine()
+#     state.new_sku_bad_format_owned_codes(bad_code='', sku=Sku(
+#         associated_codes=[], id='SKU000000', name='', owned_codes=[], props=None))
+#     state.teardown()
