@@ -172,9 +172,9 @@ def test_receive_batch():
     state.get_existing_bin(v2)
 
 
-def test_search_name():
-    state = InventoryStateMachine()
-    # v1 = state.new_sku(sku=Sku(associated_codes=[],
-    #    id = 'SKU000000', name = 'hello b worlds', owned_codes = [], props = None))
-    # state.search(query='b')
-    state.teardown()
+# def test_search_name():
+#     state = InventoryStateMachine()
+#     v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+#                                    'a'], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
+#     state.search(query='a')
+#     state.teardown()

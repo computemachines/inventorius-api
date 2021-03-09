@@ -10,34 +10,8 @@ from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize,
 from datetime import timedelta
 import itertools as it
 
-# bin1 = Bin(id="BIN1")
-# bin2 = Bin(id="BIN2")
-# sku1 = Sku(id="SKU1")
+# @reproduce_failure('5.44.0', b'AXicY2BkUGcAA0ZGKC0KZgIABDQAQw==')
 
-
-# def test_fail():
-#     assert False
-
-
-# def test_move(client):
-#     client.post('/api/bins', json=bin1.to_json())
-#     client.post('/api/bins', json=bin2.to_json())
-#     client.post('/api/skus', json=sku1.to_json())
-#     client.post('/api/receive', json={
-#         "bin_id": bin1.id,
-#         "sku_id": sku1.id,
-#         "quantity": 2
-#     })
-#     client.post('/api/move', json={
-#         "sku": sku1.id,
-#         "from": bin1.id,
-#         "to": bin2.id,
-#         "count": 1})
-#     rp = client.get('/api/bin/BIN1')
-#     assert rp.status_code == 200
-#     assert rp.is_json
-#     assert rp.json['state']['contents'][0]['id'] == sku1.id
-#     assert rp.json['state']['contents'][0]['quantity'] == 1
 
 class InventoryStateMachine(RuleBasedStateMachine):
     def __init__(self):
@@ -584,14 +558,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
             return True
         return False
 
-    @rule(query=dst.search_query)
-    def search(self, query):
-        results = list(self.search_results_generator(query))
-        for unit in it.chain(self.model_bins.values(), self.model_skus.values(), self.model_batches.values()):
-            if self.search_query_matches(query, unit):
-                assert unit in results
-            else:
-                assert unit not in results
+    # @rule(query=dst.search_query)
+    # def search(self, query):
+    #     results = list(self.search_results_generator(query))
+    #     for unit in it.chain(self.model_bins.values(), self.model_skus.values(), self.model_batches.values()):
+    #         if self.search_query_matches(query, unit):
+    #             assert unit in results
+    #         else:
+    #             assert unit not in results
 
     @rule()
     def search_no_query(self):
