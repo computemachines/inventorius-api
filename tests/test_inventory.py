@@ -568,7 +568,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
                 starting_from += search_state['limit']
 
     def search_query_matches(self, query, unit):
-        if query == "":
+        STOP_WORDS = "a and the".split()
+        terms = query.split()
+        if len(terms) != 1:
+            pass
+        elif query == "" or query in STOP_WORDS:
             return False
         elif query == unit.id:
             return True
@@ -576,8 +580,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
             return True
         elif hasattr(unit, "associate_codes") and query in unit.associated_codes:
             return True
-        # elif hasattr(unit, "name") and query.casefold() in unit.name.casefold():
-        #     return True
+        elif hasattr(unit, "name") and query.casefold() in unit.name.casefold():
+            return True
         return False
 
     @rule(query=dst.search_query)
@@ -593,37 +597,6 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def search_no_query(self):
         results = list(self.search_results_generator(""))
         assert results == []
-
-    # @rule(bin_id=a_bin_id)
-    # def search_existing_bin_id(self, bin_id):
-    #     results = list(self.search_results_generator(bin_id))
-    #     assert self.model_bins[bin_id] in results
-
-    # @rule(sku_id=a_sku_id)
-    # def search_existing_sku_id(self, sku_id):
-    #     results = list(self.search_results_generator(sku_id))
-    #     assert self.model_skus[sku_id] in results
-
-    # @rule(batch_id=a_batch_id)
-    # def search_existing_batch_id(self, batch_id):
-    #     results = list(self.search_results_generator(batch_id))
-    #     assert self.model_batches[batch_id] in results
-
-    # @rule(data=st.data(), sku_id=a_sku_id)
-    # def search_existing_sku_owned_code(self, data, sku_id):
-    #     owned_codes = self.model_skus[sku_id].owned_codes
-    #     assume(owned_codes != [])
-    #     owned_code = data.draw(st.sampled_from(owned_codes))
-    #     results = list(self.search_results_generator(owned_code))
-    #     assert self.model_skus[sku_id] in results
-
-    # @rule(data=st.data(), batch_id=a_batch_id)
-    # def search_existing_batch_owned_code(self, data, batch_id):
-    #     owned_codes = self.model_batches[batch_id].owned_codes
-    #     assume(owned_codes != [])
-    #     owned_code = data.draw(st.sampled_from(owned_codes))
-    #     results = list(self.search_results_generator(owned_code))
-    #     assert self.model_batches[batch_id] in results
 
     # Safety Invariants
 
