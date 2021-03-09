@@ -5,14 +5,14 @@ from hypothesis.strategies import *
 
 from string import printable, ascii_lowercase
 
-fieldNames_ = text(ascii_lowercase + '_')
-simpleTypes_ = one_of(none(),
-                      integers(min_value=-2**63, max_value=2**63),
-                      floats(allow_nan=False), text(printable))
+fieldNames = text(ascii_lowercase + '_')
+simpleTypes = one_of(none(),
+                     integers(min_value=-2**63, max_value=2**63),
+                     floats(allow_nan=False), text(printable))
 
-json = recursive(simpleTypes_,
+json = recursive(simpleTypes,
                  lambda children: one_of(
-                     dictionaries(fieldNames_, children),
+                     dictionaries(fieldNames, children),
                      lists(children)),
                  max_leaves=1)
 
@@ -32,7 +32,7 @@ def bins_(draw, id=None, props=None, contents=None):
 
 @composite
 def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, props=None):
-    id = id or f"SKU{draw(integers(0, 10)):06d}"
+    id = id or draw(label_("SKU"))
     owned_codes = owned_codes or draw(lists(text("abc", min_size=1)))
     associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     name = name or draw(text("ABC"))
@@ -42,7 +42,7 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
 
 @composite
 def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_codes=None, props=None):
-    id = id or f"BAT{draw(integers(0, 10)):06d}"
+    id = id or draw(label_("BAT"))
     if sku_id == 0:
         sku_id = draw(none(), label_("SKU"))
     name = name or draw(text("ABC"))
@@ -50,6 +50,10 @@ def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_co
     associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     props = props or draw(json)
     return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
+
+
+search_query = one_of(text(), text("abc", min_size=1), text(
+    "ABC", min_size=1), label_("SKU"), label_("BIN"), label_("BAT"))
 
 
 class DataProxy:
