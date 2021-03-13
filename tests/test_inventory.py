@@ -141,7 +141,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         rp = self.client.get(f"/api/sku/{sku_id}")
         assert rp.status_code == 200
         assert rp.is_json
-        found_sku = Sku.from_json(rp.json['state'])
+        found_sku = Sku(**rp.json['state'])
         assert found_sku == self.model_skus[sku_id]
 
     @rule(sku_id=dst.label_("SKU"))

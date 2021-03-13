@@ -108,8 +108,8 @@ def sku_get(id):
         resp.status_code = 200
         resp.mimetype = "application/json"
         resp.data = json.dumps({
-            "state": sku.to_json()
-        })
+            "state": sku
+        }, cls=Encoder)
         return resp
 
 
