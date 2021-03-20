@@ -5,9 +5,9 @@ Requires=mongodb.service
 
 [Service]
 Type=simple
-WorkingDirectory=/root/inventory-v2/uwsgi-api-server/
+WorkingDirectory=/root/inventory/uwsgi-api-server/
 ExecStart=/usr/bin/uwsgi \
-        --ini /root/inventory-v2/uwsgi-api-server/inventory.ini \
+        --ini /root/inventory/uwsgi-api-server/inventory.ini \
         --socket /run/uwsgi-inventory-api.socket
 User=www-uwsgi-inventory-api
 Group=www-data
