@@ -70,7 +70,23 @@ def bin_get(id):
 
     else:
         return {
-            "state": json.loads(existing.to_json())
+            "Id": url_for("bin.bin_get", id=id),
+            "state": json.loads(existing.to_json()),
+            "operations": [{
+                "rel": "update",
+                "method": "PATCH",
+                "href": url_for("bin.bin_patch", id=id),
+                "Expects-a": "Bin patch"
+            }, {
+                "rel": "delete",
+                "method": "DELETE",
+                "href": url_for("bin.bin_delete", id=id),
+
+                # "rel": "new",
+                # "method": "POST",
+                # "href": url_for("bins_post"),
+                # "Expects-a": "Bin"
+            }]
         }
 
 
