@@ -31,6 +31,17 @@ app.register_blueprint(inventory)
 app.register_blueprint(sku)
 
 
+def cors_allow_all(response):
+    if app.debug:
+        print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
+        response.headers['Access-Control-Allow-Origin'] = '*'
+
+    return response
+
+
+app.after_request(cors_allow_all)
+
+
 @app.route("/api/version", methods=["GET"])
 def get_version():
     return "0.1.4"
