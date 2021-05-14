@@ -1,32 +1,64 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { FrontloadState } from "react-frontload";
+import {
+  createFrontloadState,
+  FrontloadState,
+  FrontloadProvider,
+} from "react-frontload";
 import App from "../components/App";
+import { BrowserRouter } from "react-router-dom";
+import InventoryApi from "../api-client/inventory-api";
 
 declare global {
-    interface Window {
-        __FRONTLOAD_DATA?: FrontloadState;
-    }
-    interface NodeModule {
-        hot?: any;
-    }
+  interface Window {
+    __FRONTLOAD_SERVER_STATE?: FrontloadState;
+    __DEV_MODE?: boolean;
+  }
+  interface NodeModule {
+    hot?: any;
+  }
 }
 
-console.log("running");
+const ClientApp = ({ frontloadState }) => (
+  <BrowserRouter>
+    <FrontloadProvider initialState={frontloadState}>
+      <App />
+    </FrontloadProvider>
+  </BrowserRouter>
+);
 
-if (window.__FRONTLOAD_DATA) {
-    console.log("Hydrating");
-    ReactDOM.hydrate(<App initialState={0} />, document.getElementById("react-root"));
+if (window.__FRONTLOAD_SERVER_STATE) {
+  const frontloadState = createFrontloadState.client({
+    context: {
+      api: new InventoryApi(window.__DEV_MODE ? "http://localhost:8081" : ""),
+    },
+    serverRenderedData: window.__FRONTLOAD_SERVER_STATE,
+    logging: window.__DEV_MODE,
+  });
+
+  ReactDOM.hydrate(
+    <ClientApp frontloadState={frontloadState} />,
+    document.getElementById("react-root")
+  );
 } else {
+  // no server side rendering DEVELOPMENT ONLY
+  const frontloadState = createFrontloadState.client({
+    serverRenderedData: {},
+    context: { api: new InventoryApi("http://localhost:8081") },
+    logging: true,
+  });
+  ReactDOM.render(
+    <ClientApp frontloadState={frontloadState} />,
+    document.getElementById("react-root")
+  );
 
-
-    ReactDOM.render(<App initialState={0} />, document.getElementById("react-root"));
-
-    if (module.hot) {
-        module.hot.accept("../components/App.tsx", function () {
-            console.log("Accepted new module");
-        
-            ReactDOM.render(<App initialState={0} />, document.getElementById("react-root"));
-        })
-    }
+  if (module.hot) {
+    module.hot.accept("../components/App.tsx", function () {
+      console.log("Accepted new module");
+      ReactDOM.render(
+        <ClientApp frontloadState={frontloadState} />,
+        document.getElementById("react-root")
+      );
+    });
+  }
 }

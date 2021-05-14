@@ -1,11 +1,11 @@
 import * as React from "react";
 import { useState } from "react";
-// import { FrontloadState } from "react-frontload";
+import { FrontloadState } from "react-frontload";
 
 import A from "./A";
 import B from "./B";
 
-export default ({initialState: any}) => {
+export default () => {
     return (
         <div>
             <A header="headersdsdsd 1st"></A>
