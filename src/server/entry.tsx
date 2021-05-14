@@ -52,7 +52,7 @@ function htmlTemplate(app: string, frontloadState: FrontloadState, dev = false, 
 
 const app = express();
 
-app.use("/assets", express.static( path.join(__dirname, dev ? "assets" : "dist/assets"), { fallthrough: true }));
+app.use("/assets", express.static( path.join(__dirname, "assets" ), { fallthrough: true }));
 app.get("/assets/*", (_, res) => res.sendStatus(404));
 
 app.get("/*", cors(), async function (req, res) {
