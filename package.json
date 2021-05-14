@@ -4,7 +4,10 @@
   "description": "SSR React Typscript Frontend to Inventory App",
   "scripts": {
     "start": "webpack serve",
-    "build": "cross-env NODE_ENV=production webpack",
+    "build:client": "cross-env NODE_ENV=production webpack",
+    "build:client:dev": "webpack",
+    "build:server": "cross-env NODE_ENV=production webpack --config webpack.server.config.js",
+    "build:server:dev": "webpack --config webpack.server.config.js",
     "test": "jest"
   },
   "repository": {
@@ -24,6 +27,7 @@
     "cross-env": "^7.0.3",
     "css-loader": "^5.2.4",
     "fork-ts-checker-webpack-plugin": "^6.2.8",
+    "mini-css-extract-plugin": "^1.6.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-reconciler": "^0.26.2",

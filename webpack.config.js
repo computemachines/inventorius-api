@@ -10,7 +10,11 @@ module.exports = {
     mode: isDevelopment ? 'development' : 'production',
     devtool: isDevelopment && "inline-source-map",
     entry: {
-        main: './src/client/entry.tsx',
+        client: './src/client/entry.tsx',
+    },
+    output: {
+        path: path.join(__dirname, "dist/assets"),
+        filename: "[name].bundle.js"
     },
     devServer: {
         overlay: true,

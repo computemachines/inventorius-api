@@ -8,7 +8,7 @@ export default () => {
     return (
         <div>
             <A header="headersdsd 1st"></A>
-            <B header="headasdfer B"></B>
+            <B header="headsdasdfer B"></B>
         </div>
     )
 };
