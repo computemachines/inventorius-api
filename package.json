@@ -1,0 +1,36 @@
+{
+  "name": "inventory-frontend",
+  "version": "1.0.0",
+  "description": "SSR React Typscript Frontend to Inventory App",
+  "scripts": {
+    "start": "webpack-dev-server --hot",
+    "build": "cross-env NODE_ENV=production webpack",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/computemachines/inventory-frontend.git"
+  },
+  "author": "Tyler Parker",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/computemachines/inventory-frontend/issues"
+  },
+  "homepage": "https://github.com/computemachines/inventory-frontend#readme",
+  "devDependencies": {
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.4.3",
+    "@types/react": "^17.0.5",
+    "@types/react-dom": "^17.0.5",
+    "cross-env": "^7.0.3",
+    "fork-ts-checker-webpack-plugin": "^6.2.8",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-refresh": "^0.10.0",
+    "react-refresh-typescript": "^2.0.0",
+    "ts-loader": "^9.1.2",
+    "typescript": "^4.2.4",
+    "webpack": "^5.37.0",
+    "webpack-cli": "^4.7.0",
+    "webpack-dev-server": "^3.11.2"
+  }
+}
