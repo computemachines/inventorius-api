@@ -8,14 +8,23 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 
 module.exports = {
     mode: isDevelopment ? 'development' : 'production',
+    devtool: isDevelopment && "inline-source-map",
     entry: {
         main: './src/client/entry.tsx',
     },
     devServer: {
-
+        overlay: true,
+        historyApiFallback: true,
+        port: 8080,
+        hotOnly: true
     },
     module: {
         rules: [
+            {
+                test: /\.js$/,
+                enforce: "pre",
+                use: "source-map-loader",
+            },
             {
                 test: /\.tsx?$/,
                 include: path.join(__dirname, 'src'),
@@ -30,6 +39,10 @@ module.exports = {
                         },
                     },
                 ].filter(Boolean),
+            },
+            {
+                test: /\.css$/,
+                use: ["style-loader", "css-loader"],
             },
         ],
     },
