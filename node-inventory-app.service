@@ -1,0 +1,14 @@
+[Unit]
+Description="Inventory Web App Server"
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/inventory/node-deployment
+User=www-data
+Group=www-data
+ExecStart=/root/.nvm/versions/node/v15.5.0/bin/node server.bundle.js -p 3001
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

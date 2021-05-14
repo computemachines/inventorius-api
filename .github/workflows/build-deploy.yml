@@ -1,0 +1,62 @@
+name: Node.js CI Build-Deploy
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "15.x"
+      - name: install deps
+        run: npm ci
+      - name: build client app
+        run: npm run build:client
+      - name: build server
+        run: npm run build:server
+      - name: package for deployment
+        run: |
+          cp -v package.json package-lock.json node-inventory-app.service dist/
+          cd dist/
+          tar -czvf ../inventory-app-package.tar.gz *
+      - name: upload deployment artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: deployment-package
+          path: inventory-app-package.tar.gz
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: setup private key
+        env:
+          PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_PRIVKEY_GPG_PASSWORD }}
+        run: |
+          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
+          chmod 600 github_id_rsa
+      - name: get deployment package
+        uses: actions/download-artifact@v2
+        with:
+          name: deployment-package
+      - name: Upload deployment to production server
+        run: |
+          ls
+          scp -i github_id_rsa -o UserKnownHostsFile=known_hosts inventory-app-package.tar.gz root@computemachines.com:inventory/
+      - name: Run deployment commands on production server
+        run: |
+          ssh -T -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com << EOF
+            cd inventory/ 
+            systemctl stop node-inventory-app
+            rm -r node-deployment/*
+            tar -zxvf inventory-app-package.tar.gz -C node-deployment/
+            cd node-deployment
+            source ~/.nvm/nvm.sh
+            npm ci --production
+            systemctl start node-inventory-app

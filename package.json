@@ -8,6 +8,8 @@
     "build:client:dev": "webpack",
     "build:server": "cross-env NODE_ENV=production webpack --config webpack.server.config.js",
     "build:server:dev": "webpack --config webpack.server.config.js",
+    "server:dev": "node dist/server.bundle.js -p 8080 --dev",
+    "server:only": "node dist/server.bundle.js -p 8080 --dev --noclient",
     "test": "jest"
   },
   "repository": {
@@ -25,6 +27,7 @@
     "@types/react": "^17.0.5",
     "@types/react-dom": "^17.0.5",
     "cross-env": "^7.0.3",
+    "cross-fetch": "^3.1.4",
     "css-loader": "^5.2.4",
     "fork-ts-checker-webpack-plugin": "^6.2.8",
     "mini-css-extract-plugin": "^1.6.0",
