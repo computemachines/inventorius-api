@@ -1,0 +1,39 @@
+.top-bar {
+  background: blue;
+  display: flex;
+  align-items: center;
+}
+
+.branding {
+  flex-grow: 1;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  height: 3rem;
+  flex: 0 0 3rem;
+  border-radius: 50%;
+  background-color: orange;
+}
+
+.branding h2 {
+  font-size: 2rem;
+  margin: 0;
+  margin-left: 1rem;
+}
+
+.hamburger {
+  display: flex;
+  align-items: center;
+}
+
+.hamburger-label {
+  font-weight: 600;
+  display: inline-block;
+  margin-left: 5px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  padding-right: 0.5rem;
+}

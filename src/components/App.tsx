@@ -1,15 +1,27 @@
 import * as React from "react";
 import { useState } from "react";
-import { FrontloadState } from "react-frontload";
 
-import A from "./A";
-import B from "./B";
+import AlertContext from "./AlertContext";
+import ErrorBoundary from "./ErrorBoundary";
+import HamburgerBar from "./HamburgerBar";
+
+import "normalize.css";
 
 export default () => {
-    return (
-        <div>
-            <A header="headersdsdsd 1st"></A>
-            <B header="headsdasdfer B"></B>
+  const [alert, setAlert] = useState(null);
+
+  return (
+    <div className="app-wrapper">
+      <HamburgerBar />
+      <div className="main-container">
+        <div className="main-content">
+          <ErrorBoundary>
+            <AlertContext.Provider value={[alert, setAlert]}>
+              <div className="main-alert">{alert}</div>
+            </AlertContext.Provider>
+          </ErrorBoundary>
         </div>
-    )
+      </div>
+    </div>
+  );
 };
