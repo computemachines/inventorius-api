@@ -5,6 +5,9 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const ReactRefreshTypeScript = require('react-refresh-typescript').default;
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const nohot = process.env.NO_HOT === "true"; // only used in ReactRefreshWebpackPlugin removal
+isDevelopment && console.log("DEVELOPMENT MODE");
+nohot && console.log("DISABLED ReactRefreshWebpackPlugin");
 
 module.exports = {
     mode: isDevelopment ? 'development' : 'production',
@@ -20,7 +23,7 @@ module.exports = {
         overlay: true,
         historyApiFallback: true,
         port: 8080,
-        hotOnly: true
+        hotOnly: true,
     },
     module: {
         rules: [
@@ -38,7 +41,7 @@ module.exports = {
                         options: {
                             transpileOnly: true,
                             getCustomTransformers: () => ({
-                                before: isDevelopment ? [ReactRefreshTypeScript()] : [],
+                                before: isDevelopment && !nohot ? [ReactRefreshTypeScript()] : [],
                             }),
                         },
                     },
@@ -51,7 +54,7 @@ module.exports = {
         ],
     },
     plugins: [
-        isDevelopment && new ReactRefreshWebpackPlugin(),
+        isDevelopment && !nohot && new ReactRefreshWebpackPlugin(), //do not include in nonhot client builds. results in cryptic error "internal/crypto/hash.js:69 TypeError ERR_INVALID_ARG_TYPE"
         new ForkTsCheckerWebpackPlugin(),
     ].filter(Boolean),
     resolve: {

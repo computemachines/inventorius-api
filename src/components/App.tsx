@@ -1,13 +1,14 @@
 import * as React from "react";
 import { useState } from "react";
+// import { FrontloadState } from "react-frontload";
 
 import A from "./A";
 import B from "./B";
 
-export default () => {
+export default ({initialState: any}) => {
     return (
         <div>
-            <A header="headersdsd 1st"></A>
+            <A header="headersdsdsd 1st"></A>
             <B header="headsdasdfer B"></B>
         </div>
     )
