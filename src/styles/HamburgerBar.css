@@ -2,31 +2,44 @@
   background: blue;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-.branding {
-  flex-grow: 1;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-}
-
-.logo {
+.top-bar .logo {
   height: 3rem;
   flex: 0 0 3rem;
   border-radius: 50%;
   background-color: orange;
 }
 
-.branding h2 {
+.top-bar h2 {
+  flex-shrink: 1;
+  flex-grow: 1;
   font-size: 2rem;
   margin: 0;
   margin-left: 1rem;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.top-bar h2::after {
+  content: "";
+  /* flex: 0 0 3rem; */
+  background: linear-gradient(to right, transparent, blue);
+  /* justify-self: right; */
+  /* align-self: stretch; */
+  width: 3rem;
+  min-height: 1.4em;
+  position: absolute;
+  right: 0;
 }
 
 .hamburger {
   display: flex;
   align-items: center;
+  margin: 0.4rem;
+  margin-left: 0;
 }
 
 .hamburger-label {

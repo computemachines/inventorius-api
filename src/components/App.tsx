@@ -6,6 +6,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import HamburgerBar from "./HamburgerBar";
 
 import "normalize.css";
+import "../styles/App.css";
 
 export default () => {
   const [alert, setAlert] = useState(null);

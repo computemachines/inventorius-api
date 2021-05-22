@@ -8,10 +8,8 @@ export default (): JSX.Element => {
   const [isActive, setActive] = useState(false);
   return (
     <div className="top-bar">
-      <div className="branding">
-        <div className="logo" />
-        <h2>Inventory App</h2>
-      </div>
+      <div className="logo" />
+      <h2>Inventory App</h2>
       <button
         className={`hamburger hamburger--squeeze ${
           isActive ? "is-active" : ""

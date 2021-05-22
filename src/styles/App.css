@@ -1,0 +1,26 @@
+.app-wrapper {
+  background-color: #cdd2d6; /* colors.abyss */
+  font-family: Roboto, Helvetica, sans-serif;
+  /* display: flex; */
+  /* flex-flow: column nowrap; */
+  /* display: grid; */
+}
+
+.main-container {
+  background-color: #cdd2d6; /* colors.abyss */
+  height: 100vh;
+}
+
+.main-content {
+  background-color: #ecebe4; /* colors.foreground */
+  min-height: 10em;
+  box-shadow: 0 25px 50px -12px rgba(29, 26, 26, 0.25);
+  padding: 12px;
+  margin: 0 auto;
+}
+
+.main-content::after {
+  content: "";
+  clear: both;
+  display: table;
+}
