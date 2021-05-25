@@ -1,3 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
 .app-wrapper {
   background-color: #cdd2d6; /* colors.abyss */
   font-family: Roboto, Helvetica, sans-serif;

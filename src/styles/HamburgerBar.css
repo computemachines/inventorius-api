@@ -1,15 +1,17 @@
 .top-bar {
-  background: blue;
+  background: #04151f; /* colors.dark1 */
+  color: #ecebe4ff;
   display: flex;
   align-items: center;
   width: 100%;
+  padding: 0.5rem;
 }
 
 .top-bar .logo {
   height: 3rem;
   flex: 0 0 3rem;
   border-radius: 50%;
-  background-color: orange;
+  background-color: #c0771f; /* colors.accent */
 }
 
 .top-bar h2 {
@@ -26,7 +28,7 @@
 .top-bar h2::after {
   content: "";
   /* flex: 0 0 3rem; */
-  background: linear-gradient(to right, transparent, blue);
+  background: linear-gradient(to right, transparent, #04151f);
   /* justify-self: right; */
   /* align-self: stretch; */
   width: 3rem;
@@ -38,9 +40,23 @@
 .hamburger {
   display: flex;
   align-items: center;
-  margin: 0.4rem;
   margin-left: 0;
 }
+
+/*
+ * Override the colors in hamburgers.css package
+ */
+.hamburger-inner,
+.hamburger-inner::before,
+.hamburger-inner::after {
+  background-color: #ecebe4ff;
+}
+.hamburger.is-active .hamburger-inner,
+.hamburger.is-active .hamburger-inner::before,
+.hamburger.is-active .hamburger-inner::after {
+  background-color: #ecebe4ff;
+}
+/* --------- */
 
 .hamburger-label {
   font-weight: 600;

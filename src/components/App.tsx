@@ -3,19 +3,23 @@ import { useState } from "react";
 
 import AlertContext from "./AlertContext";
 import ErrorBoundary from "./ErrorBoundary";
-import HamburgerBar from "./HamburgerBar";
+import Hamburger from "./Hamburger";
 
 import "normalize.css";
+import "../styles/accessibility.css";
 import "../styles/App.css";
+import Navbar from "./Navbar";
 
-export default () => {
+function App() {
   const [alert, setAlert] = useState(null);
+  const [dropdownIsActive, setDropdownIsActive] = useState(false);
 
   return (
     <div className="app-wrapper">
-      <HamburgerBar />
+      <Hamburger isActive={dropdownIsActive} setActive={setDropdownIsActive} />
+      <Navbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
       <div className="main-container">
-        <div className="main-content">
+        <div className="main-content" id="main">
           <ErrorBoundary>
             <AlertContext.Provider value={[alert, setAlert]}>
               <div className="main-alert">{alert}</div>
@@ -25,4 +29,6 @@ export default () => {
       </div>
     </div>
   );
-};
+}
+
+export default App;
