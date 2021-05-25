@@ -28,6 +28,7 @@ const ClientApp = ({ frontloadState }) => (
 );
 
 if (window.__FRONTLOAD_SERVER_STATE) {
+  // console.log("Frontload server hydrate branch");
   const frontloadState = createFrontloadState.client({
     context: {
       api: new InventoryApi(window.__DEV_MODE ? "http://localhost:8081" : ""),
@@ -41,12 +42,14 @@ if (window.__FRONTLOAD_SERVER_STATE) {
     document.getElementById("react-root")
   );
 } else {
+  console.log("Frontload client dev branch");
   // no server side rendering DEVELOPMENT ONLY
   const frontloadState = createFrontloadState.client({
     serverRenderedData: {},
     context: { api: new InventoryApi("http://localhost:8081") },
     logging: true,
   });
+  frontloadState.setFirstRenderDoneOnClient();
   ReactDOM.render(
     <ClientApp frontloadState={frontloadState} />,
     document.getElementById("react-root")
