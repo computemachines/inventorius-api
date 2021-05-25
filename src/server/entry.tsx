@@ -35,7 +35,7 @@ const noclient: boolean = args["--noclient"];
 
 function htmlTemplate(
   app: string,
-  frontloadServerState: FrontloadState,
+  frontloadServerData: any,
   dev = false,
   noclient = false
 ) {
@@ -54,7 +54,7 @@ function htmlTemplate(
               // WARNING: See the following for security issues around embedding JSON in HTML:
               // http://redux.js.org/recipes/ServerRendering.html#security-considerations
             window.__FRONTLOAD_SERVER_STATE = ${JSON.stringify(
-              frontloadServerState
+              frontloadServerData
             ).replace(/</g, "\\u003c")}
         </script>
         ${!noclient ? '<script src="/assets/client.bundle.js"></script>' : ""}
@@ -97,7 +97,7 @@ app.get("/*", cors(), async function (req, res) {
       else res.redirect(context.url);
     }
 
-    const complete_page = htmlTemplate(rendered, frontloadState, dev, noclient);
+    const complete_page = htmlTemplate(rendered, data, dev, noclient);
 
     if (context.status == 404) res.status(404).send(complete_page);
     else res.send(complete_page);
