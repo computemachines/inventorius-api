@@ -31,3 +31,11 @@
   white-space: normal;
   width: auto;
 }
+
+*:focus {
+  border: 3px dashed yellow;
+}
+
+*:focus {
+  border: 3px dashed red;
+}

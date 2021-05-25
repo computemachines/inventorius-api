@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import AlertContext from "./AlertContext";
 import ErrorBoundary from "./ErrorBoundary";
-import Hamburger from "./Hamburger";
+import Topbar from "./Topbar";
 
 import "normalize.css";
 import "../styles/accessibility.css";
@@ -14,9 +14,14 @@ function App() {
   const [alert, setAlert] = useState(null);
   const [dropdownIsActive, setDropdownIsActive] = useState(false);
 
+  // const setDropdownIsActive = (state: boolean) => {
+  //   console.log("setDropdownIsActive(" + state + ")");
+  //   _setDropdownIsActive(state);
+  // };
+
   return (
     <div className="app-wrapper">
-      <Hamburger isActive={dropdownIsActive} setActive={setDropdownIsActive} />
+      <Topbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
       <Navbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
       <div className="main-container">
         <div className="main-content" id="main">

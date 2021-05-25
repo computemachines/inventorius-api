@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import NavbarDropdown from "./NavbarDropdown";
+import NavlinkDropdown from "./NavlinkDropdown";
 
 import "../styles/Navbar.css";
 
@@ -13,14 +13,17 @@ function Navbar({
 }) {
   return (
     <nav
-      onBlur={() => setActive(false)}
+      onBlur={() => {
+        // console.log("nav onblur");
+        setActive(false);
+      }}
       onFocus={() => setActive(true)}
       className={`navbar screen-reader${isActive ? "screen-reader-show" : ""}`}
     >
       <Link className="navlink" to="/">
         Home
       </Link>
-      <NavbarDropdown text="New">
+      <NavlinkDropdown text="New">
         <Link className="navlink" to="/new/bin">
           New Bin
         </Link>
@@ -30,7 +33,7 @@ function Navbar({
         <Link className="navlink" to="/new/batch">
           New Batch
         </Link>
-      </NavbarDropdown>
+      </NavlinkDropdown>
       <Link className="navlink" to="/move">
         Move
       </Link>

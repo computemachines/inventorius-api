@@ -4,7 +4,7 @@ import { useState } from "react";
 import "hamburgers/dist/hamburgers.css";
 import "../styles/HamburgerBar.css"; // must load after hamburgers.css
 
-function Hamburger({ isActive, setActive }): JSX.Element {
+function Topbar({ isActive, setActive }): JSX.Element {
   return (
     <div className="top-bar">
       <div className="logo" />
@@ -16,9 +16,18 @@ function Hamburger({ isActive, setActive }): JSX.Element {
         type="button"
         aria-label="Menu"
         aria-controls="navigation"
-        onClick={() => setActive(!isActive)}
-        onBlur={() => setActive(false)}
-        onFocus={() => setActive(true)}
+        onClick={() => {
+          // console.log("button onClick");
+          setActive(!isActive);
+        }}
+        onBlur={() => {
+          // console.log("button onBlur");
+          setActive(false);
+        }}
+        onFocus={() => {
+          // console.log("button onFocus");
+          // setActive(true);
+        }}
       >
         <span className="hamburger-label">Menu</span>
         <span className="hamburger-box">
@@ -29,4 +38,4 @@ function Hamburger({ isActive, setActive }): JSX.Element {
   );
 }
 
-export default Hamburger;
+export default Topbar;
