@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { Route } from "react-router-dom";
+import { Route, Switch } from "react-router-dom";
 
 import "normalize.css";
 import "../styles/accessibility.css";
@@ -11,6 +11,15 @@ import ErrorBoundary from "./ErrorBoundary";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Home from "./Home";
+import Status from "./Status";
+
+const FourOhFour = () => (
+  <Status code={404}>
+    <div>
+      <h1>404 - Not found</h1>
+    </div>
+  </Status>
+);
 
 function App() {
   const [alert, setAlert] = useState(null);
@@ -32,9 +41,12 @@ function App() {
               <div className="main-alert" id="#alert">
                 {alert}
               </div>
-              <Route exact path="/">
-                <Home />
-              </Route>
+              <Switch>
+                <Route exact path="/">
+                  <Home />
+                </Route>
+                <Route component={FourOhFour} />
+              </Switch>
             </AlertContext.Provider>
           </ErrorBoundary>
         </div>

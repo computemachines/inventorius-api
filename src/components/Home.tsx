@@ -9,7 +9,7 @@ function Home() {
   if (frontloadMeta.pending) return <div>Loading</div>;
   if (frontloadMeta.error) return <div>API Error</div>;
 
-  return <div>Version: {data.version}</div>;
+  return <div>Api Version: {data.version}</div>;
 }
 
 export default Home;

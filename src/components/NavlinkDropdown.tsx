@@ -14,8 +14,11 @@ function NavlinkDropdown({
   return (
     <React.Fragment>
       <button
-        className="navlink"
-        onClick={() => setShowChildren(!showChildren)}
+        className="navlink navlink-parent"
+        onClick={(e) => {
+          setShowChildren(!showChildren);
+          e.stopPropagation();
+        }}
         role="tree"
       >
         {text}
