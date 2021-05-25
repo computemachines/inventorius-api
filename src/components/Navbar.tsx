@@ -15,9 +15,12 @@ function Navbar({
     <nav
       onBlur={() => {
         // console.log("nav onblur");
-        setActive(false);
+        // setActive(false);
       }}
-      onFocus={() => setActive(true)}
+      onFocus={() => {
+        // console.log("nav onFocus");
+        setActive(true);
+      }}
       className={`navbar screen-reader${isActive ? "screen-reader-show" : ""}`}
     >
       <Link className="navlink" to="/">
