@@ -27,4 +27,5 @@
 .navlink:active,
 .navlink:focus {
   background-color: #0c3764;
+  color: white;
 }

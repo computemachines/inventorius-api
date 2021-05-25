@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 
-import "../styles/NavbarDropdown.css";
+import "../styles/NavlinkDropdown.css";
 
 function NavlinkDropdown({
   text,
@@ -12,11 +12,22 @@ function NavlinkDropdown({
 }) {
   const [showChildren, setShowChildren] = useState(false);
   return (
-    <div className="navlink navlink-dropdown screen-reader screen-reader-focusable">
-      <span>{text}</span>
-      <div className="nav"></div>
-      {children}
-    </div>
+    <React.Fragment>
+      <button
+        className="navlink"
+        onClick={() => setShowChildren(!showChildren)}
+        role="tree"
+      >
+        {text}
+      </button>
+      <div
+        className={`navlink-dropdown screen-reader screen-reader-focusable ${
+          showChildren ? "screen-reader-show" : ""
+        }`}
+      >
+        {children}
+      </div>
+    </React.Fragment>
   );
 }
 

@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 
 import "hamburgers/dist/hamburgers.css";
-import "../styles/HamburgerBar.css"; // must load after hamburgers.css
+import "../styles/Topbar.css"; // must load after hamburgers.css
 
 function Topbar({ isActive, setActive }): JSX.Element {
   return (
