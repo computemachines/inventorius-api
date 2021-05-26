@@ -13,7 +13,7 @@ import * as path from "path";
 import * as cors from "cors";
 
 import App from "../components/App";
-import InventoryApi from "../api-client/inventory-api";
+import { InventoryApi } from "../api-client/inventory-api";
 const API_HOSTNAME = "http://localhost:8081";
 
 const doc = `

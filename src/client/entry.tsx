@@ -7,7 +7,7 @@ import {
 } from "react-frontload";
 import App from "../components/App";
 import { BrowserRouter } from "react-router-dom";
-import InventoryApi from "../api-client/inventory-api";
+import { InventoryApi } from "../api-client/inventory-api";
 
 declare global {
   interface Window {

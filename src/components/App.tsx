@@ -12,6 +12,7 @@ import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Home from "./Home";
 import Status from "./Status";
+import NewBin from "./NewBin";
 
 const FourOhFour = () => (
   <Status code={404}>
@@ -21,8 +22,18 @@ const FourOhFour = () => (
   </Status>
 );
 
+const Alert = ({ onClose, children }) =>
+  children ? (
+    <div className="main-alert" id="#alert">
+      <button role="close" className="alert-close-button" onClick={onClose}>
+        X
+      </button>
+      {children}
+    </div>
+  ) : null;
+
 function App() {
-  const [alert, setAlert] = useState(null);
+  const [alertContent, setAlertContent] = useState(null);
   const [dropdownIsActive, setDropdownIsActive] = useState(false);
 
   // const setDropdownIsActive = (state: boolean) => {
@@ -37,14 +48,13 @@ function App() {
       <div className="main-container">
         <div className="main-content" id="main">
           <ErrorBoundary>
-            <AlertContext.Provider value={[alert, setAlert]}>
-              <div className="main-alert" id="#alert">
-                {alert}
-              </div>
+            <AlertContext.Provider value={{ setAlertContent }}>
+              <Alert onClose={() => setAlertContent(null)}>
+                {alertContent}
+              </Alert>
               <Switch>
-                <Route exact path="/">
-                  <Home />
-                </Route>
+                <Route exact path="/" component={Home} />
+                <Route path="/new/bin" component={NewBin} />
                 <Route component={FourOhFour} />
               </Switch>
             </AlertContext.Provider>

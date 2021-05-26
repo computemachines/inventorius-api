@@ -1,0 +1,47 @@
+.form {
+  display: grid;
+  max-width: 40rem;
+  margin: 0 auto;
+  grid-template-columns: auto 1fr 10rem;
+  /* column-gap: 0.4rem; */
+  row-gap: 0.8rem;
+}
+
+.form-title {
+  grid-column: 1 / 4;
+}
+
+.form-label {
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  grid-column: 1 / 4;
+  margin-bottom: -0.8rem;
+}
+
+.form-single-code-input {
+  grid-column: 1 / 3;
+
+  padding: 0.4em;
+}
+
+.form-print-button {
+  grid-column: 3;
+
+  background-color: #0c3764; /* $colors.darkaccent */
+  color: white;
+  font-weight: 400;
+  border: unset;
+  border-radius: 0.3em;
+  padding: 0.4em;
+}
+
+.form-submit {
+  grid-column: 3;
+
+  background-color: #26532b; /* $colors.darkgood */
+  color: white;
+  font-weight: 400;
+  border: unset;
+  border-radius: 0.3em;
+  padding: 0.4em;
+}

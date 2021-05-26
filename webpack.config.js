@@ -20,7 +20,6 @@ module.exports = {
         filename: "[name].bundle.js"
     },
     devServer: {
-        overlay: true,
         historyApiFallback: true,
         port: 8080,
         hotOnly: true,
