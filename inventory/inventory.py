@@ -1,5 +1,5 @@
 from inventory.util import getIntArgs, admin_get_next
-from flask import Blueprint, request, Response
+from flask import Blueprint, request, Response, url_for
 from inventory.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
 
@@ -97,7 +97,14 @@ def next_bin():
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
-        "state": admin_get_next("BIN")
+        "Id": url_for("inventory.next_bin"),
+        "state": admin_get_next("BIN"),
+        "operations": [{
+            "rel": "create",
+            "method": "POST",
+            "href": url_for("bin.bins_post"),
+            "Expects-a": "Bin patch",
+        }]
     })
     return resp
 
