@@ -3,7 +3,21 @@ import { Link } from "react-router-dom";
 
 import "../styles/ItemLabel.css";
 
-const ItemLabel = ({ link = true, label, inline = true }) => {
+const ItemLabel = ({
+  link = true,
+  label,
+  url,
+  inline = true,
+}: {
+  link?: boolean;
+  label?: string;
+  url?: string;
+  inline?: boolean;
+}) => {
+  if (url) {
+    const match = url.match(/^(\/api)?\/(?<unit>bin|sku|batch)\/(?<label>.+)/);
+    label = match.groups.label;
+  }
   const match = label.match(
     /^(?<prefix>BIN|SKU|BAT)(?<leadingZeroes>0*)(?<number>\d+)$/
   );

@@ -8,6 +8,8 @@ import "../styles/form.css";
 import { AlertContext } from "./Alert";
 import ItemLabel from "./ItemLabel";
 
+function handleSubmit() {}
+
 function NewBin() {
   const { setAlertContent } = useContext(AlertContext);
   const [binIdValue, setBinIdValue] = useState("");
@@ -27,31 +29,36 @@ function NewBin() {
   return (
     <form
       className="form"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
+        e.preventDefault();
+
         let binId;
         if (frontloadMeta.done) {
           binId = data.nextBin.state;
         }
         if (binIdValue) binId = binIdValue;
 
-        data.nextBin.create().then((resp) => {
-          if (resp.ok)
-            setAlertContent({
-              content: (
-                <p>
-                  Success, <ItemLabel label={data.nextBin.state} /> created.
-                </p>
-              ),
-              mode: "success",
-            });
-          else setAlertContent({ content: "Failure", mode: "failure" });
+        const resp = await data.api.newBin({ id: binId, props: null });
+        const json = await resp.json();
+        if (resp.ok) {
+          setBinIdValue("");
+          setAlertContent({
+            content: (
+              <p>
+                Success, <ItemLabel url={json.Id} /> created.
+              </p>
+            ),
+            mode: "success",
+          });
+        } else {
+          setAlertContent({
+            content: <p>{json.title}</p>,
+            mode: "failure",
+          });
+        }
 
-          data.api
-            .getNextBin()
-            .then((nextBin) => setData((data) => ({ ...data, nextBin })));
-        });
-
-        e.preventDefault();
+        // data.api.getNextBin()
+        //   .then((nextBin) => setData((data) => ({ ...data, nextBin })));
       }}
     >
       <h2 className="form-title">New Bin</h2>
@@ -64,6 +71,8 @@ function NewBin() {
         id="bin_id"
         placeholder={binIdPlaceholder}
         className="form-single-code-input"
+        value={binIdValue}
+        onChange={(e) => setBinIdValue(e.target.value)}
       />
       <button className="form-print-button">Print</button>
       <input type="submit" value="Submit" className="form-submit" />

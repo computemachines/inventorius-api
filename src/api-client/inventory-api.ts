@@ -38,6 +38,14 @@ export class InventoryApi {
       hostname: this.hostname,
     });
   }
-  async newBin({ id, props }: { id: string; props: unknown }) {}
+  newBin({ id, props }: { id: string; props: unknown }): Promise<Response> {
+    return fetch(`${this.hostname}/api/bins`, {
+      method: "POST",
+      body: JSON.stringify({ id, props }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
   // async getSku
 }
