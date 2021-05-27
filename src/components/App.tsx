@@ -13,6 +13,7 @@ import Navbar from "./Navbar";
 import Home from "./Home";
 import Status from "./Status";
 import NewBin from "./NewBin";
+import Bin from "./Bin";
 
 const FourOhFour = () => (
   <Status code={404}>
@@ -51,6 +52,7 @@ function App() {
               <Switch>
                 <Route exact path="/" component={Home} />
                 <Route path="/new/bin" component={NewBin} />
+                <Route path="/bin/:id" component={Bin} />
                 <Route component={FourOhFour} />
               </Switch>
             </AlertContext.Provider>

@@ -7,6 +7,7 @@ import "../styles/form.css";
 
 import { AlertContext } from "./Alert";
 import ItemLabel from "./ItemLabel";
+import PrintButton from "./PrintButton";
 
 function handleSubmit() {}
 
@@ -76,7 +77,7 @@ function NewBin() {
         value={binIdValue}
         onChange={(e) => setBinIdValue(e.target.value)}
       />
-      <button className="form-print-button">Print</button>
+      <PrintButton />
       <input type="submit" value="Submit" className="form-submit" />
     </form>
   );

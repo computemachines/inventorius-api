@@ -1,0 +1,28 @@
+.info-panel {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.info-item {
+  margin-bottom: 1.5rem;
+}
+
+.info-item-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: grey;
+  font-style: italic;
+  border-bottom: 1px solid grey;
+  margin-bottom: 0.4rem;
+}
+
+.info-item-description {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.info-panel:first-child .info-item .item-label {
+  font-size: 1.4em;
+}
