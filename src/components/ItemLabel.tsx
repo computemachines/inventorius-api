@@ -8,11 +8,13 @@ const ItemLabel = ({
   label,
   url,
   inline = true,
+  onClick,
 }: {
   link?: boolean;
   label?: string;
   url?: string;
   inline?: boolean;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
 }) => {
   if (url) {
     const match = url.match(/^(\/api)?\/(?<unit>bin|sku|batch)\/(?<label>.+)/);
@@ -42,6 +44,7 @@ const ItemLabel = ({
       <Link
         to={unitUrl + label}
         className={`item-label ${inline ? "item-label--inline" : ""}`}
+        onClick={onClick}
       >
         {prefix}
         <span className="item-label--zeroes">{leadingZeros}</span>

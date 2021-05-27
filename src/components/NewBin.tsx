@@ -45,7 +45,9 @@ function NewBin() {
           setAlertContent({
             content: (
               <p>
-                Success, <ItemLabel url={json.Id} /> created.
+                Success,{" "}
+                <ItemLabel url={json.Id} onClick={(e) => setAlertContent({})} />{" "}
+                created.
               </p>
             ),
             mode: "success",
