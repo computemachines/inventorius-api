@@ -30,14 +30,14 @@ export class InventoryApi {
   }
   async getBin(id: string): Promise<Bin> {
     const resp = await fetch(`${this.hostname}/api/bin/${id}`);
-    if (!resp.ok) throw resp;
+    // if (!resp.ok) throw resp;
     const json = await resp.json();
-    const state = json.state;
-    const operations = json.operations.map(
-      (op: RestOperation) =>
-        new CallableRestOperation({ hostname: this.hostname, ...op })
-    );
-    return new Bin(state, operations);
+    return new Bin({
+      state: json.state,
+      operations: json.operations,
+      hostname: this.hostname,
+    });
   }
+  async newBin({ id, props }: { id: string; props: unknown }) {}
   // async getSku
 }

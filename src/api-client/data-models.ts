@@ -68,21 +68,19 @@ export class CallableRestOperation implements RestOperation {
   }
 }
 
-export class Bin implements RestEndpoint {
-  constructor(
-    public state: {
-      id: string;
-      contents: Record<string, number>;
-      props?: Record<string, unknown>;
-    },
-    public operations: {
-      delete: CallableRestOperation;
-      update: CallableRestOperation;
-    }
-  ) {}
+export class Bin extends RestEndpoint {
+  state: {
+    id: string;
+    contents: Record<string, number>;
+    props?: Record<string, unknown>;
+  };
+  operations: {
+    delete: CallableRestOperation;
+    update: CallableRestOperation;
+  };
 
   update(props: Record<string, unknown>): Promise<Response> {
-    return this.operations.update.perform({ body: JSON.stringify({ props }) });
+    return this.operations.update.perform({ json: { props: props } });
   }
 
   delete(): Promise<Response> {
