@@ -35,6 +35,10 @@ def cors_allow_all(response):
     if app.debug:
         print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers.add('Access-Control-Allow-Headers',
+                             'Content-Type,Authorization')
+        response.headers.add(
+            'Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE')
 
     return response
 
@@ -44,4 +48,4 @@ app.after_request(cors_allow_all)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.1.5"
+    return "0.1.6"
