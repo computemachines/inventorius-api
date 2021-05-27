@@ -23,6 +23,6 @@
   align-items: center;
 }
 
-.info-panel:first-child .info-item .item-label {
+.info-panel .info-item:first-child .item-label {
   font-size: 1.4em;
 }

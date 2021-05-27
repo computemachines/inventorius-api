@@ -2,6 +2,7 @@ import * as React from "react";
 import { useParams } from "react-router-dom";
 
 import "../styles/infoPanel.css";
+import DataTable from "./DataTable";
 import FilterWidget from "./FilterWidget";
 
 import ItemLabel from "./ItemLabel";
@@ -24,7 +25,33 @@ function Bin() {
           Contents
           <FilterWidget />
         </div>
-        <div className="info-item-description"></div>
+        <div className="info-item-description">
+          <DataTable
+            headers={[
+              "Identifier",
+              "Name",
+              "Quantity",
+              "Type",
+              "Anonymous",
+              "Pinned",
+            ]}
+            data={[
+              {
+                Identifier: "BAT000023",
+                Name: "Solder",
+                Quantity: 4,
+                Type: "BAT",
+                Anonymous: false,
+                Pinned: true,
+              },
+            ]}
+            types={{
+              Identifier: "ItemLabel",
+              Anonymous: "boolean",
+              Pinned: "boolean",
+            }}
+          />
+        </div>
       </div>
     </div>
   );
