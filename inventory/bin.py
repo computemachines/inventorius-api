@@ -12,7 +12,6 @@ bin = Blueprint("bin", __name__)
 def bins_post():
     bin_json = request.json
     bin = Bin.from_json(bin_json)
-    admin_increment_code("BIN", bin.id)
     existing = db.bin.find_one({'_id': bin.id})
 
     resp = Response()
@@ -29,6 +28,31 @@ def bins_post():
             }]})
         return resp
 
+    if len(bin.id) != 9:
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-id-format",
+            "title": "Bin Ids must be 9 characters.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be 9 characters"
+            }]})
+        return resp
+
+    code_number = bin.id[3:]
+    if not code_number.isdigit():
+        resp.status_code = 400
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "bad-id-format",
+            "title": "Bin Id suffix must be numeric.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "suffic must be numeric"
+            }]})
+        return resp
+
     if existing:
         resp.status_code = 409
         resp.mimetype = "application/problem+json"
@@ -42,10 +66,13 @@ def bins_post():
         resp.headers["Location"] = url_for("bin.bin_get", id=bin.id)
         return resp
 
+    admin_increment_code("BIN", bin.id)
     db.bin.insert_one(bin.to_mongodb_doc())
     resp.status_code = 201
     resp.mimetype = "application/json"
-    resp.data = bin.to_json()
+    resp.data = json.dumps({
+        "Id": url_for("bin.bin_get", id=bin.id),
+    })
     return resp
 
 # api v2.0.0
