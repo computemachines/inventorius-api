@@ -9,25 +9,39 @@ import AlertContext from "./AlertContext";
 
 function NewBin() {
   const { setAlertContent } = useContext(AlertContext);
-  const [binId, setBinId] = useState("Loading");
+  const [binIdValue, setBinIdValue] = useState("");
+  let binIdPlaceholder = "Loading";
 
-  const { data, frontloadMeta } = useFrontload(
+  const { data, setData, frontloadMeta } = useFrontload(
     "new-bin-component",
     async ({ api }: FrontloadContext) => ({
-      nextBinId: await api.getNextBinId(),
+      api,
+      nextBin: await api.getNextBin(),
     })
   );
 
-  useEffect(() => {
-    if (frontloadMeta.error) setBinId("API Error");
-    if (frontloadMeta.done) setBinId(data.nextBinId.state);
-  }, [frontloadMeta]);
+  if (frontloadMeta.error) binIdPlaceholder = "API Error";
+  if (frontloadMeta.done) binIdPlaceholder = data.nextBin.state;
 
   return (
     <form
       className="form"
       onSubmit={(e) => {
-        setAlertContent(<h1>Submitted form!!</h1>);
+        let binId;
+        if (frontloadMeta.done) {
+          binId = data.nextBin.state;
+        }
+        if (binIdValue) binId = binIdValue;
+
+        data.nextBin.create().then((resp) => {
+          if (resp.ok) setAlertContent("Success");
+          else setAlertContent("Failure");
+
+          data.api
+            .getNextBin()
+            .then((nextBin) => setData((data) => ({ ...data, nextBin })));
+        });
+
         e.preventDefault();
       }}
     >
@@ -39,7 +53,7 @@ function NewBin() {
         type="text"
         name="bin_id"
         id="bin_id"
-        placeholder={binId}
+        placeholder={binIdPlaceholder}
         className="form-single-code-input"
       />
       <button className="form-print-button">Print</button>
