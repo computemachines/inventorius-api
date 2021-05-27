@@ -5,7 +5,7 @@ import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 
-import AlertContext from "./AlertContext";
+import { AlertContext } from "./Alert";
 import ItemLabel from "./ItemLabel";
 
 function NewBin() {
@@ -35,8 +35,16 @@ function NewBin() {
         if (binIdValue) binId = binIdValue;
 
         data.nextBin.create().then((resp) => {
-          if (resp.ok) setAlertContent("Success");
-          else setAlertContent("Failure");
+          if (resp.ok)
+            setAlertContent({
+              content: (
+                <p>
+                  Success, <ItemLabel label={data.nextBin.state} /> created.
+                </p>
+              ),
+              mode: "success",
+            });
+          else setAlertContent({ content: "Failure", mode: "failure" });
 
           data.api
             .getNextBin()
@@ -46,7 +54,6 @@ function NewBin() {
         e.preventDefault();
       }}
     >
-      {frontloadMeta.done ? <ItemLabel label={data.nextBin.state} /> : null}
       <h2 className="form-title">New Bin</h2>
       <label htmlFor="bin_id" className="form-label">
         Bin Label

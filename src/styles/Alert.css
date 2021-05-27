@@ -1,0 +1,21 @@
+.main-alert {
+  display: relative;
+  border-radius: 0.5em;
+  background-color: white;
+
+  box-shadow: 0 25px 50px -12px rgba(29, 26, 26, 0.25);
+  padding: 12px;
+  margin-bottom: 0.6rem;
+}
+
+.main-alert > .alert-close-button {
+  float: right;
+}
+
+.main-alert.success {
+  background-color: green;
+}
+
+.main-alert.failure {
+  background-color: red;
+}

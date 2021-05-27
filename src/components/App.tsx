@@ -1,12 +1,12 @@
 import * as React from "react";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Route, Switch } from "react-router-dom";
 
 import "normalize.css";
 import "../styles/accessibility.css";
 import "../styles/App.css";
 
-import AlertContext from "./AlertContext";
+import { AlertContext, Alert } from "./Alert";
 import ErrorBoundary from "./ErrorBoundary";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
@@ -22,18 +22,11 @@ const FourOhFour = () => (
   </Status>
 );
 
-const Alert = ({ onClose, children }) =>
-  children ? (
-    <div className="main-alert" id="#alert">
-      <button role="close" className="alert-close-button" onClick={onClose}>
-        X
-      </button>
-      {children}
-    </div>
-  ) : null;
-
 function App() {
-  const [alertContent, setAlertContent] = useState(null);
+  const [alertContent, setAlertContent] = useState<{
+    content?: ReactNode;
+    mode?: "success" | "failure";
+  }>({});
   const [dropdownIsActive, setDropdownIsActive] = useState(false);
 
   // const setDropdownIsActive = (state: boolean) => {
@@ -49,8 +42,11 @@ function App() {
         <div className="main-content" id="main">
           <ErrorBoundary>
             <AlertContext.Provider value={{ setAlertContent }}>
-              <Alert onClose={() => setAlertContent(null)}>
-                {alertContent}
+              <Alert
+                onClose={() => setAlertContent({ content: null })}
+                mode={alertContent.mode}
+              >
+                {alertContent.content}
               </Alert>
               <Switch>
                 <Route exact path="/" component={Home} />
