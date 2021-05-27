@@ -6,6 +6,7 @@ import { FrontloadContext } from "../api-client/inventory-api";
 import "../styles/form.css";
 
 import AlertContext from "./AlertContext";
+import ItemLabel from "./ItemLabel";
 
 function NewBin() {
   const { setAlertContent } = useContext(AlertContext);
@@ -45,6 +46,7 @@ function NewBin() {
         e.preventDefault();
       }}
     >
+      {frontloadMeta.done ? <ItemLabel label={data.nextBin.state} /> : null}
       <h2 className="form-title">New Bin</h2>
       <label htmlFor="bin_id" className="form-label">
         Bin Label
