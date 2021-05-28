@@ -5,7 +5,10 @@
         "module": "es6",
         "moduleResolution": "node",
         "sourceMap": true,
-        "jsx": "react"
+        "jsx": "react",
+        "lib": [
+            "ES2019.object"
+        ]
     },
     "include": [
         "src"

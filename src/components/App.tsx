@@ -1,3 +1,5 @@
+import "core-js/features/object";
+
 import * as React from "react";
 import { ReactNode, useState } from "react";
 import { Route, Switch } from "react-router-dom";
@@ -11,17 +13,9 @@ import ErrorBoundary from "./ErrorBoundary";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Home from "./Home";
-import Status from "./Status";
 import NewBin from "./NewBin";
 import Bin from "./Bin";
-
-const FourOhFour = () => (
-  <Status code={404}>
-    <div>
-      <h1>404 - Not found</h1>
-    </div>
-  </Status>
-);
+import { FourOhFour } from "./FourOhFour";
 
 function App() {
   const [alertContent, setAlertContent] = useState<{
