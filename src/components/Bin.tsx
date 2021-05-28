@@ -27,28 +27,17 @@ function Bin() {
         </div>
         <div className="info-item-description">
           <DataTable
-            headers={[
-              "Identifier",
-              "Name",
-              "Quantity",
-              "Type",
-              "Anonymous",
-              "Pinned",
-            ]}
+            headers={["Identifier", "Name", "Quantity", "Type"]}
             data={[
               {
                 Identifier: "BAT000023",
                 Name: "Solder",
                 Quantity: 4,
                 Type: "BAT",
-                Anonymous: false,
-                Pinned: true,
               },
             ]}
             types={{
               Identifier: "ItemLabel",
-              Anonymous: "boolean",
-              Pinned: "boolean",
             }}
           />
         </div>

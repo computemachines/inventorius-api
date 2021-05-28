@@ -16,5 +16,9 @@
   border-bottom: 1px solid black;
 }
 
+.data-table > tbody {
+  text-align: center;
+}
+
 .data-table tr {
 }
