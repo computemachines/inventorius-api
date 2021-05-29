@@ -4,6 +4,8 @@ import {
   RestOperation,
   CallableRestOperation,
   NextBin,
+  Problem,
+  Sku,
 } from "./data-models";
 
 export interface FrontloadContext {
@@ -28,15 +30,12 @@ export class InventoryApi {
       hostname: this.hostname,
     });
   }
-  async getBin(id: string): Promise<Bin> {
+  async getBin(id: string): Promise<Bin | Problem> {
     const resp = await fetch(`${this.hostname}/api/bin/${id}`);
-    // if (!resp.ok) throw resp;
     const json = await resp.json();
-    return new Bin({
-      state: json.state,
-      operations: json.operations,
-      hostname: this.hostname,
-    });
+
+    if (resp.ok) return new Bin({ ...json, hostname: this.hostname });
+    else return { ...json, kind: "problem" };
   }
   newBin({ id, props }: { id: string; props: unknown }): Promise<Response> {
     return fetch(`${this.hostname}/api/bins`, {
@@ -46,6 +45,12 @@ export class InventoryApi {
         "Content-Type": "application/json",
       },
     });
+  }
+  async getSku(id: string): Promise<Sku | Problem> {
+    const resp = await fetch(`${this.hostname}/api/sku/${id}`);
+    const json = await resp.json();
+    if (resp.ok) return new Sku({ ...json, hostname: this.hostname });
+    else return { ...json, kind: "problem" };
   }
   // async getSku
 }

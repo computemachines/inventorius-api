@@ -5,18 +5,10 @@ import ItemLabel from "./ItemLabel";
 
 type DataTableType = "string" | "boolean" | "ItemLabel" | "number";
 
-function DataCell({
-  key,
-  value,
-  type,
-}: {
-  key: string;
-  value: unknown;
-  type?: DataTableType;
-}) {
+function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
   let cell = value;
   if (type == "ItemLabel") cell = <ItemLabel label={value as string} />;
-  return <td key={key}>{cell}</td>;
+  return <td>{cell}</td>;
 }
 
 function DataTable({
@@ -40,10 +32,10 @@ function DataTable({
         </thead>
         <tbody>
           {data.map((row, row_index) => (
-            <tr>
+            <tr key={"tr-" + row_index}>
               {headers.map((key, col_index) => (
                 <DataCell
-                  key={"td-" + row_index + "-" + col_index}
+                  key={"td-" + col_index}
                   value={row[key]}
                   type={types[key]}
                 />

@@ -1,5 +1,14 @@
 import fetch from "cross-fetch";
 
+type Props = unknown;
+
+export interface Problem {
+  kind: "problem";
+  type: string;
+  title: string;
+  "invalid-params": Array<{ name: string; reason: string }>;
+}
+
 class RestEndpoint {
   state: unknown;
   operations: Record<string, CallableRestOperation>;
@@ -69,17 +78,18 @@ export class CallableRestOperation implements RestOperation {
 }
 
 export class Bin extends RestEndpoint {
+  kind: "bin" = "bin";
   state: {
     id: string;
     contents: Record<string, number>;
-    props?: Record<string, unknown>;
+    props?: Props;
   };
   operations: {
     delete: CallableRestOperation;
     update: CallableRestOperation;
   };
 
-  update(props: Record<string, unknown>): Promise<Response> {
+  update(props: Props): Promise<Response> {
     return this.operations.update.perform({ json: { props: props } });
   }
 
@@ -88,7 +98,59 @@ export class Bin extends RestEndpoint {
   }
 }
 
+type BinId = string;
+type SkuId = string;
+type BatchId = string;
+interface SkuLocations {
+  kind: "sku-locations";
+  state: Record<BinId, Record<SkuId, number>>;
+}
+interface SkuBatches {
+  kind: "sku-batches";
+  state: BatchId[];
+}
+
+export class Sku extends RestEndpoint {
+  kind: "sku" = "sku";
+  state: {
+    id: string;
+    owned_codes: string[];
+    associated_codes: string[];
+    name?: string;
+    props?: Props;
+  };
+  operations: {
+    update: CallableRestOperation;
+    delete: CallableRestOperation;
+    bins: CallableRestOperation;
+    batches: CallableRestOperation;
+  };
+  update(patch: {
+    owned_codes?: string[];
+    associated_codes?: string[];
+    props: Props;
+  }): Promise<Response> {
+    return this.operations.update.perform({ json: patch });
+  }
+  delete(): Promise<Response> {
+    return this.operations.delete.perform();
+  }
+  async bins(): Promise<SkuLocations | Problem> {
+    const resp = await this.operations.bins.perform();
+    const json = await resp.json();
+    if (resp.ok) return { ...json, kind: "sku-locations" };
+    else return { ...json, kind: "problem" };
+  }
+  async batches(): Promise<SkuBatches | Problem> {
+    const resp = await this.operations.batches.perform();
+    const json = await resp.json();
+    if (resp.ok) return { ...json, kind: "sku-batches" };
+    else return { ...json, kind: "problem" };
+  }
+}
+
 export class NextBin extends RestEndpoint {
+  kind: "next-bin" = "next-bin";
   state: string;
   operations: {
     create: CallableRestOperation;
@@ -104,7 +166,7 @@ export class NextBin extends RestEndpoint {
 //   ownedCodes?: Array<string>;
 //   associatedCodes?: Array<string>;
 //   name?: string;
-//   props?: Record<string, unknown>;
+//   props?: Props;
 // };
 
 // export function Sku(json: Sku): void {
@@ -122,7 +184,7 @@ export class NextBin extends RestEndpoint {
 //   ownedCodes?: Array<string>;
 //   associatedCodes?: Array<string>;
 //   name?: string;
-//   props?: Record<string, unknown>;
+//   props?: Props;
 // };
 
 // export function Batch(json: Batch): void {
