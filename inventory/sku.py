@@ -104,16 +104,32 @@ def sku_get(id):
                 "reason": "must be an existing sku id"
             }]})
         return resp
-    else:
-        resp.status_code = 200
-        resp.mimetype = "application/json"
-        resp.data = json.dumps({
-            "state": sku
-        }, cls=Encoder)
-        return resp
+
+    return {
+        "Id": url_for("sku.sku_get", id=id),
+        "state": json.loads(sku.to_json()),
+        "operations": [{
+            "rel": "update",
+            "method": "PATCH",
+            "href": url_for("sku.sku_patch", id=id),
+            "Expects-a": "Sku patch"
+        }, {
+            "rel": "delete",
+            "method": "DELETE",
+            "href": url_for("sku.sku_delete", id=id),
+        }, {
+            "rel": "bins",
+            "method": "GET",
+            "href": url_for("sku.sku_bins_get", id=id),
+        }, {
+            "rel": "batches",
+            "method": "GET",
+            "href": url_for("sku.sku_batches_get", id=id),
+        }]
+    }
 
 
-@sku.route('/api/sku/<id>', methods=['PATCH'])
+@ sku.route('/api/sku/<id>', methods=['PATCH'])
 def sku_patch(id):
     patch = request.json
     resp = Response()
@@ -136,7 +152,7 @@ def sku_patch(id):
     return resp
 
 
-@sku.route('/api/sku/<id>', methods=['DELETE'])
+@ sku.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
@@ -176,7 +192,7 @@ def sku_delete(id):
     return resp
 
 
-@sku.route('/api/sku/<id>/bins', methods=['GET'])
+@ sku.route('/api/sku/<id>/bins', methods=['GET'])
 def sku_bins_get(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
@@ -209,7 +225,7 @@ def sku_bins_get(id):
     return resp
 
 
-@sku.route('/api/sku/<id>/batches', methods=['GET'])
+@ sku.route('/api/sku/<id>/batches', methods=['GET'])
 def sku_batches_get(id):
     resp = Response()
 
