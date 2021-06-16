@@ -4,11 +4,25 @@ import { useRef } from "react";
 import "../styles/DataTable.css";
 import ItemLabel from "./ItemLabel";
 
+type WidthSpec = FixedWidth | MinMaxWidth;
+interface FixedWidth {
+  kind: "fixed-width";
+  width: number | string;
+}
+interface MinMaxWidth {
+  kind: "min-max-width";
+  minWidth: number | string;
+  maxWidth: number | string;
+}
+
 export class HeaderSpec {
   constructor(
-    public headerType: DataTableType,
-    public minWidth: number = 50,
-    public maxWidth: string = "1fr"
+    public headerType?: DataTableType,
+    public width: WidthSpec = {
+      kind: "min-max-width",
+      minWidth: 50,
+      maxWidth: "1fr",
+    }
   ) {}
 }
 
@@ -92,11 +106,19 @@ function DataTable({
   headerSpecs: Record<string, HeaderSpec>;
 }) {
   const [columnSizes, setColumnSizes] = React.useState(
-    headers.map((header) =>
-      headerSpecs[header]
-        ? `minmax(${headerSpecs[header].minWidth}px, ${headerSpecs[header].maxWidth})`
-        : "minmax(50px, 1fr)"
-    )
+    headers.map((header) => {
+      const width: WidthSpec = (headerSpecs[header] || new HeaderSpec()).width;
+      switch (width.kind) {
+        case "min-max-width":
+          return `minmax(${width.minWidth}px, ${width.maxWidth})`;
+        case "fixed-width":
+          return typeof width.width == "string"
+            ? width.width
+            : `${width.width}px`;
+        default:
+          const _: never = width;
+      }
+    })
   );
 
   return (
