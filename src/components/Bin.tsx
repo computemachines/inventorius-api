@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/infoPanel.css";
-import DataTable from "./DataTable";
+import DataTable, { HeaderSpec } from "./DataTable";
 import FilterWidget from "./FilterWidget";
 import { FourOhFour } from "./FourOhFour";
 
@@ -61,9 +61,9 @@ function BinContentsTable({
     <DataTable
       headers={["Identifier", "Name", "Quantity", "Type"]}
       data={tabularData}
-      types={{
-        Identifier: ".ItemLabel",
-        Name: ".truncated",
+      headerSpecs={{
+        Identifier: new HeaderSpec(".ItemLabel", 100),
+        Name: new HeaderSpec(".truncated", 100),
       }}
     />
   );
