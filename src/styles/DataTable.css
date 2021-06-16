@@ -9,16 +9,35 @@
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+
+  display: grid;
+  grid-template-columns: auto auto auto auto;
 }
 
-.data-table > thead {
-  margin: 0 0.5rem;
+.data-table thead {
   border-bottom: 1px solid black;
+}
+
+.data-table thead th {
+  padding: 0.1rem 0.5rem;
 }
 
 .data-table > tbody {
   text-align: center;
 }
 
-.data-table tr {
+.data-table tr,
+.data-table thead,
+.data-table tbody,
+.data-table colgroup,
+.data-table col {
+  display: contents;
+}
+
+.truncated {
+  /* max-width: 15em; */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

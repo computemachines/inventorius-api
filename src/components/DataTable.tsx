@@ -3,12 +3,31 @@ import * as React from "react";
 import "../styles/DataTable.css";
 import ItemLabel from "./ItemLabel";
 
-type DataTableType = "string" | "boolean" | "ItemLabel" | "number";
+type DataTableType =
+  | "string"
+  | "boolean"
+  | ".ItemLabel"
+  | "number"
+  | ".truncated";
 
 function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
-  let cell = value;
-  if (type == "ItemLabel") cell = <ItemLabel label={value as string} />;
-  return <td>{cell}</td>;
+  switch (type) {
+    case ".ItemLabel":
+      return (
+        <td>
+          <ItemLabel label={value as string} />
+        </td>
+      );
+      break;
+
+    case ".truncated":
+      return <td className="truncated">{value}</td>;
+      break;
+
+    default:
+      return <td>{value}</td>;
+      break;
+  }
 }
 
 function DataTable({
@@ -23,10 +42,22 @@ function DataTable({
   return (
     <div className="data-table-container">
       <table className="data-table">
+        <colgroup>
+          {headers.map((value, index) => (
+            <col
+              key={"col-" + index}
+              className={
+                types[value]?.startsWith(".") ? types[value].slice(1) : ""
+              }
+            />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             {headers.map((value, index) => (
-              <th key={"th-" + index}>{value}</th>
+              <th scope="col" key={"th-" + index}>
+                {value}
+              </th>
             ))}
           </tr>
         </thead>

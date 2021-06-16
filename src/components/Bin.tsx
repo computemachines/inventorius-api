@@ -62,7 +62,8 @@ function BinContentsTable({
       headers={["Identifier", "Name", "Quantity", "Type"]}
       data={tabularData}
       types={{
-        Identifier: "ItemLabel",
+        Identifier: ".ItemLabel",
+        Name: ".truncated",
       }}
     />
   );
