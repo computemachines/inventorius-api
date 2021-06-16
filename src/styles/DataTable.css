@@ -19,8 +19,9 @@
   border-bottom: 1px solid black;
 }
 
-.data-table thead th {
+.data-table th {
   padding: 0.1rem 0.5rem;
+  position: relative;
 }
 
 .data-table > tbody {
@@ -40,4 +41,19 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background-color: black;
+  opacity: 0;
+  width: 4px;
+  cursor: col-resize;
+}
+
+.data-table th:hover .resize-handle {
+  opacity: 0.3;
 }

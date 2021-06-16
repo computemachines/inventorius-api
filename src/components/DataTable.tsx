@@ -30,6 +30,20 @@ function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
   }
 }
 
+function ResizableHeader({
+  resizable = true,
+  children,
+}: {
+  resizable?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <th scope="col">
+      {children} {resizable && <span className="resize-handle" />}
+    </th>
+  );
+}
+
 function DataTable({
   headers,
   data,
@@ -55,9 +69,12 @@ function DataTable({
         <thead>
           <tr>
             {headers.map((value, index) => (
-              <th scope="col" key={"th-" + index}>
+              <ResizableHeader
+                resizable={index != headers.length - 1}
+                key={"th-" + index}
+              >
                 {value}
-              </th>
+              </ResizableHeader>
             ))}
           </tr>
         </thead>
