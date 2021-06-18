@@ -70,14 +70,15 @@ function ResizableHeader({
     window.removeEventListener("mouseup", mouseUpListener);
   };
 
-  const mouseMoveListener = (e) => {
-    // console.log("window#mousemove");
-    const width =
-      document.documentElement.scrollLeft +
-      e.clientX -
-      headerElement.current.offsetLeft;
-    onResize(width);
-  };
+  const mouseMoveListener = (e) =>
+    requestAnimationFrame((time) => {
+      // console.log("window#mousemove");
+      const width =
+        document.documentElement.scrollLeft +
+        e.clientX -
+        headerElement.current.offsetLeft;
+      onResize(width);
+    });
 
   return (
     <th ref={headerElement} scope="col">
