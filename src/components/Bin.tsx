@@ -62,11 +62,13 @@ function BinContentsTable({
       headers={["Identifier", "Name", "Quantity", "Type"]}
       data={tabularData}
       headerSpecs={{
-        Identifier: new HeaderSpec(".ItemLabel", {
-          kind: "fixed-width",
-          width: "auto",
+        Identifier: new HeaderSpec(".ItemLabel"),
+        Name: new HeaderSpec(".truncated", {
+          kind: "min-max-width",
+          minWidth: 100,
+          maxWidth: "1fr",
         }),
-        Name: new HeaderSpec(".truncated"),
+        Quantity: new HeaderSpec(".numeric"),
       }}
     />
   );

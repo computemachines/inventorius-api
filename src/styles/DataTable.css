@@ -22,10 +22,10 @@
 .data-table th {
   padding: 0.1rem 0.5rem;
   position: relative;
+  text-align: left;
 }
 
 .data-table > tbody {
-  text-align: center;
 }
 
 .data-table tr,
@@ -36,11 +36,20 @@
   display: contents;
 }
 
+.data-table col {
+  text-align: center;
+}
+
 .truncated {
   /* max-width: 15em; */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.data-table .numeric,
+.data-table .ItemLabel {
+  text-align: center;
 }
 
 .resize-handle {

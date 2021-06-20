@@ -19,9 +19,8 @@ export class HeaderSpec {
   constructor(
     public headerType?: DataTableType,
     public width: WidthSpec = {
-      kind: "min-max-width",
-      minWidth: 50,
-      maxWidth: "1fr",
+      kind: "fixed-width",
+      width: "auto",
     }
   ) {}
 }
@@ -30,7 +29,7 @@ type DataTableType =
   | "string"
   | "boolean"
   | ".ItemLabel"
-  | "number"
+  | ".numeric"
   | ".truncated";
 
 function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
@@ -55,9 +54,11 @@ function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
 
 function ResizableHeader({
   resizable = true,
+  className,
   children,
   onResize,
 }: {
+  className?: string;
   resizable?: boolean;
   children: React.ReactNode;
   onResize?: (width: number) => void;
@@ -81,7 +82,7 @@ function ResizableHeader({
     });
 
   return (
-    <th ref={headerElement} scope="col">
+    <th ref={headerElement} scope="col" className={className}>
       {children}
       {resizable && (
         <span
@@ -129,12 +130,12 @@ function DataTable({
         style={{ gridTemplateColumns: columnSizes.join(" ") }}
       >
         <colgroup>
-          {headers.map((value, index) => (
+          {headers.map((header, index) => (
             <col
               key={"col-" + index}
               className={
-                headerSpecs[value]?.headerType.startsWith(".")
-                  ? headerSpecs[value].headerType.slice(1)
+                headerSpecs[header]?.headerType.startsWith(".")
+                  ? headerSpecs[header].headerType.slice(1)
                   : ""
               }
             />
@@ -142,17 +143,32 @@ function DataTable({
         </colgroup>
         <thead>
           <tr>
-            {headers.map((value, index) => (
+            {headers.map((header, index) => (
               <ResizableHeader
-                resizable={index != headers.length - 1}
+                resizable={
+                  index != headers.length - 1 &&
+                  headerSpecs[header]?.width.kind == "min-max-width"
+                }
+                className={
+                  headerSpecs[header]?.headerType.startsWith(".")
+                    ? headerSpecs[header].headerType.slice(1)
+                    : ""
+                }
                 key={"th-" + index}
                 onResize={(width) => {
                   const newColumnSizes = [...columnSizes];
+                  let widthSpec = headerSpecs[header]?.width;
+                  if (widthSpec?.kind == "min-max-width") {
+                    if (typeof widthSpec.minWidth == "number")
+                      width = Math.max(width, widthSpec.minWidth);
+                    if (typeof widthSpec.maxWidth == "number")
+                      width = Math.min(width, widthSpec.maxWidth);
+                  }
                   newColumnSizes[index] = `${width}px`;
                   setColumnSizes(newColumnSizes);
                 }}
               >
-                {value}
+                {header}
               </ResizableHeader>
             ))}
           </tr>
