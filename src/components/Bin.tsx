@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
-import { useParams } from "react-router-dom";
+import { RouteComponentProps, useParams } from "react-router-dom";
 import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/infoPanel.css";
@@ -73,8 +73,8 @@ function BinContentsTable({
     />
   );
 }
-function Bin() {
-  const { id } = useParams();
+function Bin(): JSX.Element {
+  const { id } = useParams<{ id: string }>();
   const { data, frontloadMeta } = useFrontload(
     "bin-component",
     async ({ api }: FrontloadContext) => ({
@@ -88,7 +88,7 @@ function Bin() {
   }
 
   if (frontloadMeta.error) {
-    return "Connection Error";
+    return <div>"Connection Error"</div>;
   }
 
   return (

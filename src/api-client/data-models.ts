@@ -77,13 +77,14 @@ export class CallableRestOperation implements RestOperation {
   }
 }
 
+export interface BinState {
+  id: string;
+  contents: Record<string, number>;
+  props?: Props;
+}
 export class Bin extends RestEndpoint {
   kind: "bin" = "bin";
-  state: {
-    id: string;
-    contents: Record<string, number>;
-    props?: Props;
-  };
+  state: BinState;
   operations: {
     delete: CallableRestOperation;
     update: CallableRestOperation;
@@ -110,15 +111,16 @@ interface SkuBatches {
   state: BatchId[];
 }
 
+export interface SkuState {
+  id: string;
+  owned_codes: string[];
+  associated_codes: string[];
+  name?: string;
+  props?: Props;
+}
 export class Sku extends RestEndpoint {
   kind: "sku" = "sku";
-  state: {
-    id: string;
-    owned_codes: string[];
-    associated_codes: string[];
-    name?: string;
-    props?: Props;
-  };
+  state: SkuState;
   operations: {
     update: CallableRestOperation;
     delete: CallableRestOperation;
@@ -159,6 +161,18 @@ export class NextBin extends RestEndpoint {
   create(): Promise<Response> {
     return this.operations.create.perform({ json: { id: this.state } });
   }
+}
+
+export class SearchResults extends RestEndpoint {
+  kind: "search-results" = "search-results";
+  state: {
+    total_num_results: number;
+    starting_from: number;
+    limit: number;
+    returned_num_results: number;
+    results: Array<SkuState | BinState>;
+  };
+  operations: {};
 }
 
 // type Sku = {

@@ -1,4 +1,6 @@
 import fetch from "cross-fetch";
+import { stringify } from "querystring";
+
 import {
   Bin,
   RestOperation,
@@ -6,6 +8,7 @@ import {
   NextBin,
   Problem,
   Sku,
+  SearchResults,
 } from "./data-models";
 
 export interface FrontloadContext {
@@ -29,6 +32,19 @@ export class InventoryApi {
       operations: json.operations,
       hostname: this.hostname,
     });
+  }
+  async getSearchResults(params: {
+    query: string;
+    limit?: number;
+    startingFrom?: number;
+  }): Promise<SearchResults | Problem> {
+    const resp = await fetch(
+      `${this.hostname}/api/search?${stringify(params)}`
+    );
+    const json = await resp.json();
+
+    if (resp.ok) return new SearchResults({ ...json });
+    else return { ...json, kind: "problem" };
   }
   async getBin(id: string): Promise<Bin | Problem> {
     const resp = await fetch(`${this.hostname}/api/bin/${id}`);
