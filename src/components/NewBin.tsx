@@ -66,16 +66,18 @@ function NewBin() {
       <label htmlFor="bin_id" className="form-label">
         Bin Label
       </label>
-      <input
-        type="text"
-        name="bin_id"
-        id="bin_id"
-        placeholder={binIdPlaceholder}
-        className="form-single-code-input"
-        value={binIdValue}
-        onChange={(e) => setBinIdValue(e.target.value)}
-      />
-      <PrintButton value={binIdValue || binIdPlaceholder} />
+      <div className="flex-row">
+        <input
+          type="text"
+          name="bin_id"
+          id="bin_id"
+          placeholder={binIdPlaceholder}
+          className="form-single-code-input"
+          value={binIdValue}
+          onChange={(e) => setBinIdValue(e.target.value)}
+        />
+        <PrintButton value={binIdValue || binIdPlaceholder} />
+      </div>
       <input type="submit" value="Submit" className="form-submit" />
     </form>
   );

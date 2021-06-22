@@ -32,8 +32,7 @@
 }
 
 .form-submit {
-  grid-column: 3;
-
+  margin-top: 1.5rem;
   background-color: #26532b; /* $colors.darkgood */
   color: white;
   font-weight: 400;
