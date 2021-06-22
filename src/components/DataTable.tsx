@@ -102,10 +102,12 @@ function DataTable({
   headers,
   data,
   headerSpecs,
+  loading,
 }: {
   headers: string[];
   data: Record<string, unknown>[];
   headerSpecs: Record<string, HeaderSpec>;
+  loading?: boolean;
 }) {
   const [columnSizes, setColumnSizes] = React.useState(
     headers.map((header) => {
@@ -124,7 +126,7 @@ function DataTable({
   );
 
   return (
-    <div className="data-table-container">
+    <div className={`data-table-container ${loading ? "loading" : ""}`}>
       <table
         className="data-table"
         style={{ gridTemplateColumns: columnSizes.join(" ") }}

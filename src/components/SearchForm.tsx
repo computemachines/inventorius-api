@@ -10,6 +10,7 @@ import SearchResults from "./SearchResults";
 function SearchForm() {
   const location = useLocation();
   const urlQuery = parse(location.search).query as string;
+  const page = parseInt(parse(location.search).page as string);
   const [liveQuery, setLiveQuery] = useState(urlQuery);
   return (
     <div className="search-form">
@@ -23,7 +24,7 @@ function SearchForm() {
         />
         <button type="submit">Search</button>
       </form>
-      <SearchResults query={liveQuery} />
+      <SearchResults query={liveQuery} page={page || 1} />
     </div>
   );
 }
