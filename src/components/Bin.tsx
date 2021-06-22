@@ -88,7 +88,7 @@ function Bin(): JSX.Element {
   }
 
   if (frontloadMeta.error) {
-    return <div>"Connection Error"</div>;
+    return <div>Connection Error</div>;
   }
 
   return (
@@ -97,7 +97,7 @@ function Bin(): JSX.Element {
         <div className="info-item-title">Bin Label</div>
         <div className="info-item-description">
           <ItemLabel link={false} label={id} />
-          <PrintButton />
+          <PrintButton value={id} />
         </div>
       </div>
       <div className="info-item">

@@ -77,7 +77,7 @@ function NewBin() {
         value={binIdValue}
         onChange={(e) => setBinIdValue(e.target.value)}
       />
-      <PrintButton />
+      <PrintButton value={binIdValue || binIdPlaceholder} />
       <input type="submit" value="Submit" className="form-submit" />
     </form>
   );

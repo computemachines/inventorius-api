@@ -17,6 +17,7 @@ import NewBin from "./NewBin";
 import Bin from "./Bin";
 import { FourOhFour } from "./FourOhFour";
 import SearchForm from "./SearchForm";
+import Sku from "./Sku";
 
 function App() {
   const [alertContent, setAlertContent] = useState<{
@@ -48,6 +49,7 @@ function App() {
                 <Route exact path="/" component={Home} />
                 <Route path="/new/bin" component={NewBin} />
                 <Route path="/bin/:id" component={Bin} />
+                <Route path="/sku/:id" component={Sku} />
                 <Route path="/search" component={SearchForm} />
                 <Route component={FourOhFour} />
               </Switch>
