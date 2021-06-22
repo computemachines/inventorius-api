@@ -25,7 +25,8 @@ function NewBin() {
   );
 
   if (frontloadMeta.error) binIdPlaceholder = "API Error";
-  if (frontloadMeta.done) binIdPlaceholder = data.nextBin.state;
+  if (frontloadMeta.done && data.nextBin.kind != "problem")
+    binIdPlaceholder = data.nextBin.state;
 
   return (
     <form
@@ -33,10 +34,7 @@ function NewBin() {
       onSubmit={async (e) => {
         e.preventDefault();
 
-        let binId;
-        if (frontloadMeta.done) {
-          binId = data.nextBin.state;
-        }
+        let binId = binIdPlaceholder;
         if (binIdValue) binId = binIdValue;
 
         const resp = await data.api.newBin({ id: binId, props: null });
