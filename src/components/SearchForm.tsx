@@ -13,9 +13,6 @@ function SearchForm() {
   const [liveQuery, setLiveQuery] = useState(urlQuery);
   return (
     <div className="search-form">
-      urlQuery: {urlQuery}
-      <br />
-      liveQuery: {liveQuery}
       <form action="/search" method="get">
         <input
           type="text"

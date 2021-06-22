@@ -151,6 +151,12 @@ export class Sku extends RestEndpoint {
   }
 }
 
+export interface BatchState {
+  id: string;
+  name: string;
+}
+export class Batch extends RestEndpoint {}
+
 export class NextBin extends RestEndpoint {
   kind: "next-bin" = "next-bin";
   state: string;
@@ -163,6 +169,7 @@ export class NextBin extends RestEndpoint {
   }
 }
 
+export type SearchResult = SkuState | BatchState | BinState;
 export class SearchResults extends RestEndpoint {
   kind: "search-results" = "search-results";
   state: {
@@ -170,9 +177,18 @@ export class SearchResults extends RestEndpoint {
     starting_from: number;
     limit: number;
     returned_num_results: number;
-    results: Array<SkuState | BinState>;
+    results: SearchResult[];
   };
   operations: {};
+}
+export function isSkuState(result: SearchResult): result is SkuState {
+  return result.id.startsWith("SKU");
+}
+export function isBinState(result: SearchResult): result is BinState {
+  return result.id.startsWith("BIN");
+}
+export function isBatchState(result: SearchResult): result is BatchState {
+  return result.id.startsWith("BAT");
 }
 
 // type Sku = {
