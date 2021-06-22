@@ -194,8 +194,6 @@ def sku_delete(id):
 
 @ sku.route('/api/sku/<id>/bins', methods=['GET'])
 def sku_bins_get(id):
-    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
-
     resp = Response()
 
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))

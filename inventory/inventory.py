@@ -268,13 +268,15 @@ def search():
         paged = results[startingFrom:(startingFrom + limit)]
         resp.status_code = 200
         resp.mimetype = "application/json"
+        # TODO: Add next page / prev page operations
         resp.data = json.dumps({'state': {
             "total_num_results": len(results),
             "starting_from": startingFrom,
             "limit": limit,
             "returned_num_results": len(paged),
             "results": paged
-        }}, cls=Encoder)
+        },
+            "operations": []}, cls=Encoder)
         return resp
 
     resp.status_code = 200
@@ -285,5 +287,5 @@ def search():
         "limit": limit,
         "returned_num_results": 0,
         "results": []
-    }}, cls=Encoder)
+    }, "operations": []}, cls=Encoder)
     return resp
