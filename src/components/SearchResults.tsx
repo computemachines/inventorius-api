@@ -59,10 +59,12 @@ function SearchResultsTable({
 function SearchResults({
   query,
   page,
+  unsetPage,
   limit,
 }: {
   query: string;
   page?: number;
+  unsetPage?: () => void;
   limit?: number;
 }) {
   page = page || 1;
@@ -105,6 +107,10 @@ function SearchResults({
       isCancelled = true;
     };
   }, [query, startingFrom, limit]);
+
+  useEffect(() => {
+    if (unsetPage && page != 1) unsetPage();
+  }, [query]);
 
   // save query to history if stay on page for 10s
   useEffect(() => {
