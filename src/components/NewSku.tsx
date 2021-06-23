@@ -5,6 +5,7 @@ import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 import { AlertContext } from "./Alert";
+import CodesInput from "./CodesInput";
 import PrintButton from "./PrintButton";
 
 function NewSku() {
@@ -18,7 +19,7 @@ function NewSku() {
   const { setAlertContent } = useContext(AlertContext);
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
-  const [codes, setCodes] = useState([]);
+  const [codes, setCodes] = useState([""]);
 
   let skuIdPlaceholder;
   if (frontloadMeta.pending) skuIdPlaceholder = "Loading...";
@@ -28,7 +29,7 @@ function NewSku() {
 
   return (
     <form className="form">
-      <h2 className="form-title">New Bin</h2>
+      <h2 className="form-title">New Sku</h2>
       <label htmlFor="sku_id" className="form-label">
         Sku Label
       </label>
@@ -55,6 +56,11 @@ function NewSku() {
         value={nameValue}
         onChange={(e) => setNameValue(e.target.value)}
       />
+      <label htmlFor="codes" className="form-label">
+        Codes
+      </label>
+      <CodesInput id="codes" codes={codes} setCodes={setCodes} />
+      <input type="submit" value="Submit" className="form-submit" />
     </form>
   );
 }
