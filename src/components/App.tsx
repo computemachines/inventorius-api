@@ -2,7 +2,7 @@ import "core-js/features/object";
 
 import * as React from "react";
 import { ReactNode, useState } from "react";
-import { Route, Switch } from "react-router-dom";
+import { Route, Switch, Link } from "react-router-dom";
 
 import "normalize.css";
 import "../styles/accessibility.css";
@@ -19,6 +19,7 @@ import { FourOhFour } from "./FourOhFour";
 import SearchForm from "./SearchForm";
 import Sku from "./Sku";
 import NewSku from "./NewSku";
+import EULA from "./EULA";
 
 function App() {
   const [alertContent, setAlertContent] = useState<{
@@ -53,11 +54,13 @@ function App() {
                 <Route path="/bin/:id" component={Bin} />
                 <Route path="/sku/:id" component={Sku} />
                 <Route path="/search" component={SearchForm} />
+                <Route path="/legal" component={EULA} />
                 <Route component={FourOhFour} />
               </Switch>
             </AlertContext.Provider>
           </ErrorBoundary>
         </div>
+        <Link to="/legal">Legal</Link>
       </div>
     </div>
   );
