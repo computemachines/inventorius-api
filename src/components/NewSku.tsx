@@ -5,7 +5,7 @@ import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 import { AlertContext } from "./Alert";
-import CodesInput from "./CodesInput";
+import CodesInput, { Code } from "./CodesInput";
 import PrintButton from "./PrintButton";
 
 function NewSku() {
@@ -19,7 +19,7 @@ function NewSku() {
   const { setAlertContent } = useContext(AlertContext);
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
-  const [codes, setCodes] = useState([""]);
+  const [codes, setCodes] = useState<Code[]>([{ value: "", kind: "owned" }]);
 
   let skuIdPlaceholder;
   if (frontloadMeta.pending) skuIdPlaceholder = "Loading...";
