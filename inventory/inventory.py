@@ -75,7 +75,14 @@ def next_sku():
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
-        "state": admin_get_next("SKU")
+        "Id": url_for("inventory.next_sku"),
+        "state": admin_get_next("SKU"),
+        "operations": [{
+            "rel": "create",
+            "method": "POST",
+            "href": url_for("sku.skus_post"),
+            "Expects-a": "Sku patch",
+        }]
     })
     return resp
 

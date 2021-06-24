@@ -43,7 +43,7 @@ jobs:
     steps:
       - run:
           name: Deploy over ssh
-          command: ssh $SSH_USER@$SSH_HOST "cd inventory-v2/uwsgi-api-server/; git fetch; git reset --hard $CIRCLE_SHA1 ; sudo systemctl restart inventory-api"
+          command: ssh $SSH_USER@$SSH_HOST "cd inventory-v2/inventory-api/; git fetch; git reset --hard $CIRCLE_SHA1 ; sudo systemctl restart inventory-api"
 workflows:
   main:
     jobs:
