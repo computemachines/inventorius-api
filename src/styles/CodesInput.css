@@ -30,3 +30,25 @@
   margin-top: -2px;
   margin-right: 0.1rem;
 }
+
+.badge-rocker {
+  margin-right: 0.4rem;
+}
+.badge-rocker > button {
+  background: white;
+  border: 1px solid black;
+  border-radius: 0.4rem;
+}
+.badge-rocker > button:first-child {
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.badge-rocker > button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.badge-rocker > .rocker--active {
+  color: white;
+  background: #0c3764; /* darkAccent */
+}

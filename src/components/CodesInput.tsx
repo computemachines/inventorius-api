@@ -10,9 +10,30 @@ function BadgeRocker({
   state,
   setState,
 }: {
-  state: boolean;
-  setState: (newState: boolean) => void;
-}) {}
+  state: "owned" | "associated";
+  setState: (newState: "owned" | "associated") => void;
+}) {
+  return (
+    <div className="badge-rocker">
+      <button
+        tabIndex={-1}
+        type="button"
+        className={state == "owned" ? "rocker--active" : ""}
+        onClick={(e) => setState("owned")}
+      >
+        Owned
+      </button>
+      <button
+        tabIndex={-1}
+        type="button"
+        className={state == "associated" ? "rocker--active" : ""}
+        onClick={(e) => setState("associated")}
+      >
+        Associated
+      </button>
+    </div>
+  );
+}
 
 function CodeInput({
   id,
@@ -37,6 +58,10 @@ function CodeInput({
           setCode({ ...code, value: e.target.value });
         }}
         onKeyDown={onKeyDown}
+      />
+      <BadgeRocker
+        state={code.kind}
+        setState={(state) => setCode({ ...code, kind: state })}
       />
       {children}
     </div>
