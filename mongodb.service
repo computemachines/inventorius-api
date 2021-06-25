@@ -1,0 +1,12 @@
+[Unit]
+Description=An object/document-oriented database
+Documentation=man:mongod(1)
+After=network.target
+
+[Service]
+User=mongodb
+Group=mongodb
+ExecStart=/usr/bin/mongod --quiet --config /etc/mongodb.conf
+
+[Install]
+WantedBy=multi-user.target
