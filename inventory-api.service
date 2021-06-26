@@ -1,7 +1,7 @@
 [Unit]
 Description="Inventory Api Server"
 After=network.target
-Requires=mongodb.service
+Requires=mongod.service
 
 [Service]
 Type=simple
