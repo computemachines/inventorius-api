@@ -2,7 +2,7 @@ name: Deploy new Releases
 
 on:
   release:
-    types: [published]
+    types: [released, prereleased, created]
 
 jobs:
   deploy:
@@ -28,11 +28,14 @@ jobs:
       - name: Run deployment commands on production server
         run: |
           ssh -T -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com << EOF
+            rm inventory-frontend-package.tar.gz
+            systemctl stop inventory-frontend.service
+            wget https://github.com/computemachines/inventory-frontend/releases/latest/inventory-frontend-package.tar.gz
+            
             cd inventory/
-            systemctl stop node-inventory-app
             rm -r node-deployment/*
-            tar -zxvf inventory-app-package.tar.gz -C node-deployment/
+            tar -zxvf ../inventory-app-package.tar.gz -C node-deployment/
             cd node-deployment
             source ~/.nvm/nvm.sh
             npm ci --production
-            systemctl start node-inventory-app
+            systemctl start inventory-frontend.service
