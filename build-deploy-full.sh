@@ -52,25 +52,28 @@ then
   chown -vR mongodb:mongodb /var/log/mongodb /var/lib/mongodb
 fi
 
-echo "---- Building -------------"
-mkdir -pv temp-build
-pushd temp-build
+# echo "---- Building -------------"
+# mkdir -pv temp-build
+# pushd temp-build
 
-echo "---- Building Frontend ----"
-git clone https://github.com/computemachines/inventory-frontend.git
-pushd inventory-frontend
-git pull
-npm ci
-npm run build:client
-npm run build:server
-cp package.json inventory-nginx.conf package-lock.json inventory-frontend.service dist/
-pushd dist
-tar -czf /root/inventory/inventory-frontend-package.tar.gz *
-popd # out dist
-popd # out inventory-frontend
-popd # out temp-build
-echo "---- Cleaning Up ----------"
-rm -rf temp-build/
+# echo "---- Building Frontend ----"
+# git clone https://github.com/computemachines/inventory-frontend.git
+# pushd inventory-frontend
+# git pull
+# npm ci
+# npm run build:client
+# npm run build:server
+# cp package.json inventory-nginx.conf package-lock.json inventory-frontend.service dist/
+# pushd dist
+# tar -czf /root/inventory/inventory-frontend-package.tar.gz *
+# popd # out dist
+# popd # out inventory-frontend
+# popd # out temp-build
+# echo "---- Cleaning Up ----------"
+# rm -rf temp-build/
+
+echo "---- Downloading Frontend Release ----"
+wget https://github.com/computemachines/inventory-frontend/releases/latest/inventory-frontend-package.tar.gz
 
 echo "---- Installing -----------"
 
