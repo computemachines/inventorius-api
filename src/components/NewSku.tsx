@@ -28,7 +28,13 @@ function NewSku() {
   else skuIdPlaceholder = data.nextSku.state;
 
   return (
-    <form className="form">
+    <form
+      className="form"
+      onSubmit={(e) => {
+        // data.api.newSku();
+        e.preventDefault();
+      }}
+    >
       <h2 className="form-title">New Sku</h2>
       <label htmlFor="sku_id" className="form-label">
         Sku Label

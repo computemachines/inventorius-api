@@ -72,5 +72,19 @@ export class InventoryApi {
     if (resp.ok) return new Sku({ ...json, hostname: this.hostname });
     else return { ...json, kind: "problem" };
   }
+  newSku(params: {
+    id: string;
+    props: unknown;
+    owned_codes?: string[];
+    associated_codes?: string[];
+  }): Promise<Response> {
+    return fetch(`${this.hostname}/api/skus`, {
+      method: "POST",
+      body: JSON.stringify(params),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
   // async getSku
 }

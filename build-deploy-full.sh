@@ -1,6 +1,6 @@
 #!/bin/bash --init-file
 
-DOMAINS= -d computemachines.com -d inventory.computemachines.com
+DOMAINS="-d computemachines.com -d inventory.computemachines.com"
 EMAIL=tparker@computemachines.com
 
 cd /root
@@ -12,7 +12,7 @@ then
   echo "---- Creating user for web process ----"
   useradd -M www-uwsgi-inventory-api
 fi
-# if ! id mongodb &>/dev/null
+# if ! id masdfongodb &>/dev/null
 # then
 #   echo "---- Creating user for web process ----"
 #   useradd -M mongodb
