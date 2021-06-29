@@ -74,7 +74,8 @@ export class InventoryApi {
   }
   newSku(params: {
     id: string;
-    props: unknown;
+    name: string;
+    props?: unknown;
     owned_codes?: string[];
     associated_codes?: string[];
   }): Promise<Response> {
