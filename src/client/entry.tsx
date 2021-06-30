@@ -7,7 +7,7 @@ import {
 } from "react-frontload";
 import App from "../components/App";
 import { BrowserRouter } from "react-router-dom";
-import { InventoryApi } from "../api-client/inventory-api";
+import { ApiContext, InventoryApi } from "../api-client/inventory-api";
 
 declare global {
   interface Window {
@@ -22,7 +22,9 @@ declare global {
 const ClientApp = ({ frontloadState }) => (
   <BrowserRouter>
     <FrontloadProvider initialState={frontloadState}>
-      <App />
+      <ApiContext.Provider value={frontloadState.context.api}>
+        <App />
+      </ApiContext.Provider>
     </FrontloadProvider>
   </BrowserRouter>
 );

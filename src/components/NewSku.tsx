@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useContext, useState } from "react";
 import { useFrontload } from "react-frontload";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 import { AlertContext } from "./Alert";
@@ -13,10 +13,10 @@ function NewSku() {
   const { data, frontloadMeta } = useFrontload(
     "new-sku-component",
     async ({ api }: FrontloadContext) => ({
-      api: api,
       nextSku: await api.getNextSku(),
     })
   );
+  const api = useContext(ApiContext);
   const { setAlertContent } = useContext(AlertContext);
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
@@ -53,7 +53,7 @@ function NewSku() {
               break;
           }
         }
-        const resp = await data.api.newSku({
+        const resp = await api.newSku({
           id: skuIdValue || skuIdPlaceholder,
           name: nameValue,
           owned_codes: ownedCodes,

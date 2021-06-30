@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 import { useFrontload } from "react-frontload";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 
@@ -19,10 +19,11 @@ function NewBin() {
   const { data, setData, frontloadMeta } = useFrontload(
     "new-bin-component",
     async ({ api }: FrontloadContext) => ({
-      api,
       nextBin: await api.getNextBin(),
     })
   );
+
+  const api = useContext(ApiContext);
 
   if (frontloadMeta.error) binIdPlaceholder = "API Error";
   if (frontloadMeta.done && data.nextBin.kind != "problem")
@@ -37,7 +38,7 @@ function NewBin() {
         let binId = binIdPlaceholder;
         if (binIdValue) binId = binIdValue;
 
-        const resp = await data.api.newBin({ id: binId, props: null });
+        const resp = await api.newBin({ id: binId, props: null });
         const json = await resp.json();
         if (resp.ok) {
           setBinIdValue("");

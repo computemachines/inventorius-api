@@ -1,6 +1,5 @@
 import * as React from "react";
 import { useState } from "react";
-import { useFrontload } from "react-frontload";
 import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/SkuItemLocations.css";

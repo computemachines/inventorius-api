@@ -1,6 +1,7 @@
 import fetch from "cross-fetch";
 import { json } from "express";
 import { stringify } from "querystring";
+import { createContext } from "react";
 
 import {
   Bin,
@@ -89,3 +90,6 @@ export class InventoryApi {
   }
   // async getSku
 }
+
+// Do not use this on the server side! Use react-frontload.
+export const ApiContext = createContext<InventoryApi>(new InventoryApi(""));

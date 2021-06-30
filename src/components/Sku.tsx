@@ -14,7 +14,6 @@ function Sku() {
   const { data, frontloadMeta } = useFrontload(
     "sku-component",
     async ({ api }: FrontloadContext) => ({
-      api: api,
       sku: await api.getSku(id),
     })
   );

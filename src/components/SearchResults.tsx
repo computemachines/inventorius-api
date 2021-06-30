@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect } from "react";
 import { useHistory } from "react-router";
 import { useFrontload } from "react-frontload";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 import {
   BinState,
   isBatchState,
@@ -76,7 +76,6 @@ function SearchResults({
     async ({ api }: FrontloadContext) => {
       console.log("frontload fetching");
       return {
-        api: api,
         searchResults: await api.getSearchResults({
           query,
           startingFrom,
@@ -85,6 +84,8 @@ function SearchResults({
       };
     }
   );
+
+  const api = React.useContext(ApiContext);
   const history = useHistory();
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -95,11 +96,11 @@ function SearchResults({
 
     let isCancelled = false;
     setIsLoading(true);
-    data.api
+    api
       .getSearchResults({ query, startingFrom, limit })
       .then((newSearchResults) => {
         if (!isCancelled) {
-          setData(({ api }) => ({ api, searchResults: newSearchResults }));
+          setData(() => ({ searchResults: newSearchResults }));
           setIsLoading(false);
         }
       });

@@ -21,7 +21,6 @@ function BinContentsTable({
   const { data, frontloadMeta } = useFrontload(
     `bin-contents-table-${key}-component`,
     async ({ api }: FrontloadContext) => ({
-      api: api,
       detailedContents: await Promise.all(
         Object.entries(contents).map(async function ([id, quantity]) {
           const sku = await api.getSku(id);
@@ -78,7 +77,6 @@ function Bin(): JSX.Element {
   const { data, frontloadMeta } = useFrontload(
     "bin-component",
     async ({ api }: FrontloadContext) => ({
-      api: api,
       bin: await api.getBin(id),
     })
   );
