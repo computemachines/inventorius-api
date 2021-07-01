@@ -96,4 +96,4 @@ jobs:
       - name: Run deployment commands on production server
         run: |
           ssh -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com \
-            "cd inventory/uwsgi-api-server/; git fetch; git reset --hard $GITHUB_SHA ; sudo systemctl restart inventory-api"
+            "cd inventory/inventory-api/; git fetch; git reset --hard $GITHUB_SHA ; sudo systemctl restart inventory-api"
