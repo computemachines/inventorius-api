@@ -80,6 +80,10 @@ def skus_post():
 
     resp.status_code = 201
     # resp.headers = {'Location': url_for('sku.sku_get', id=sku.id)}
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "Id": url_for("sku.sku_get", id=sku.id),
+    })
     return resp
 
 # api v2.0.0
