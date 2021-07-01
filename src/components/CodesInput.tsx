@@ -9,9 +9,11 @@ import { ReactNode } from "react";
 function BadgeRocker({
   state,
   setState,
+  editable = true,
 }: {
   state: "owned" | "associated";
-  setState: (newState: "owned" | "associated") => void;
+  setState?: (newState: "owned" | "associated") => void;
+  editable?: boolean;
 }) {
   return (
     <div className="badge-rocker">
@@ -68,6 +70,17 @@ function CodeInput({
   );
 }
 
+function CodeLine({ code }: { code: Code }) {
+  return (
+    <div className="code-line">
+      <div className="code-line-code">{code.value}</div>
+      <div className="badge">
+        {code.kind == "owned" ? "Owned" : "Associated"}
+      </div>
+    </div>
+  );
+}
+
 export interface Code {
   value: string;
   kind: "owned" | "associated";
@@ -75,57 +88,68 @@ export interface Code {
 function CodesInput({
   id,
   codes,
+  editable = true,
   setCodes,
 }: {
-  id: string;
+  id?: string;
   codes: Code[];
-  setCodes: (codes: Code[]) => void;
+  editable?: boolean;
+  setCodes?: (codes: Code[]) => void;
 }) {
   // function specialKeyDownListener(e: React.KeyboardEventHandler<HTMLInputElement>) {
 
   // }
-
-  return (
-    <div>
-      {codes.map((code, i) => (
-        <CodeInput
-          key={i}
-          code={code}
-          setCode={(code) => {
-            let newCodes = [...codes];
-            newCodes[i] = code;
-            setCodes(newCodes);
-          }}
-          onKeyDown={
-            i == codes.length - 1
-              ? (e) => {
-                  if (e.key == "Tab" && code.value) {
-                    setCodes([...codes, { value: "", kind: "owned" }]);
+  if (editable) {
+    return (
+      <div>
+        {codes.map((code, i) => (
+          <CodeInput
+            key={i}
+            code={code}
+            setCode={(code) => {
+              let newCodes = [...codes];
+              newCodes[i] = code;
+              setCodes(newCodes);
+            }}
+            onKeyDown={
+              i == codes.length - 1
+                ? (e) => {
+                    if (e.key == "Tab" && code.value) {
+                      setCodes([...codes, { value: "", kind: "owned" }]);
+                    }
                   }
+                : null
+            }
+          >
+            {i < codes.length - 1 ? (
+              <Cross
+                className="lnr-cross-circle"
+                onClick={(e) => {
+                  let newCodes = [...codes];
+                  newCodes.splice(i, 1);
+                  setCodes(newCodes);
+                }}
+              />
+            ) : (
+              <PlusCircle
+                className="lnr-plus-circle"
+                onClick={(e) =>
+                  setCodes([...codes, { value: "", kind: "owned" }])
                 }
-              : null
-          }
-        >
-          {i < codes.length - 1 ? (
-            <Cross
-              className="lnr-cross-circle"
-              onClick={(e) => {
-                let newCodes = [...codes];
-                newCodes.splice(i, 1);
-                setCodes(newCodes);
-              }}
-            />
-          ) : (
-            <PlusCircle
-              className="lnr-plus-circle"
-              onClick={(e) =>
-                setCodes([...codes, { value: "", kind: "owned" }])
-              }
-            />
-          )}
-        </CodeInput>
-      ))}
-    </div>
-  );
+              />
+            )}
+          </CodeInput>
+        ))}
+      </div>
+    );
+  } else {
+    return (
+      <div className="code-lines">
+        {codes.map((code, i) => (
+          <CodeLine code={code} />
+        ))}
+      </div>
+    );
+  }
 }
 export default CodesInput;

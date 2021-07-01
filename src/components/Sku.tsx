@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/Sku.css";
+import CodesInput from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
@@ -49,6 +50,28 @@ function Sku() {
           <div className="info-item-title">Locations</div>
           <div className="info-item-description">
             <SkuItemLocations sku={data?.sku} />
+          </div>
+        </div>
+        <div className="info-item">
+          <div className="info-item-title">Codes</div>
+          <div className="info-item-description">
+            {frontloadMeta.done ? (
+              <CodesInput
+                codes={[
+                  ...data.sku.state.owned_codes.map((code) => ({
+                    kind: "owned" as "owned",
+                    value: code,
+                  })),
+                  ...data.sku.state.associated_codes.map((code) => ({
+                    kind: "associated" as "associated",
+                    value: code,
+                  })),
+                ]}
+                editable={false}
+              />
+            ) : (
+              "Loading..."
+            )}
           </div>
         </div>
       </div>
