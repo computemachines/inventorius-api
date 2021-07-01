@@ -41,9 +41,21 @@ jobs:
     machine: 
       enabled: true
     steps:
-      - run:
-          name: Deploy over ssh
-          command: ssh $SSH_USER@$SSH_HOST "cd inventory-v2/inventory-api/; git fetch; git reset --hard $CIRCLE_SHA1 ; sudo systemctl restart inventory-api"
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: setup private key
+        env:
+          PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_PRIVKEY_GPG_PASSWORD }}
+        run: |
+          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
+          chmod 600 github_id_rsa
+      - name: Deploy over ssh
+        run: |
+          ssh -T -i github_id_rsa -o UserKnownHostFile=known_hosts root@computemachines.com << EOF
+           cd inventory/inventory-api/ 
+           git pull
+           echo $CIRCLE_SHA1 # test if substitution happens on ci server or production server
+           sudo systemctl restart inventory-api
 workflows:
   main:
     jobs:
