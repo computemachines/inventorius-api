@@ -61,14 +61,33 @@ function App() {
                 {alertContent.content}
               </Alert>
               <Switch>
-                <Route exact path="/" component={Home} />
-                <Route path="/new/bin" component={NewBin} />
-                <Route path="/new/sku" component={NewSku} />
-                <Route path="/bin/:id" component={Bin} />
-                <Route path="/sku/:id" component={Sku} />
-                <Route path="/search" component={SearchForm} />
-                <Route path="/legal" component={EULA} />
-                <Route component={FourOhFour} />
+                <Route exact path="/">
+                  <Home />
+                </Route>
+                <Route path="/new/bin">
+                  <NewBin />
+                </Route>
+                <Route path="/new/sku">
+                  <NewSku />
+                </Route>
+                <Route path="/bin/:id">
+                  <Bin />
+                </Route>
+                <Route path="/sku/:id/edit">
+                  <Sku editable />
+                </Route>
+                <Route path="/sku/:id">
+                  <Sku />
+                </Route>
+                <Route path="/search">
+                  <SearchForm />
+                </Route>
+                <Route path="/legal">
+                  <EULA />
+                </Route>
+                <Route>
+                  <FourOhFour />
+                </Route>
               </Switch>
             </AlertContext.Provider>
           </ErrorBoundary>
