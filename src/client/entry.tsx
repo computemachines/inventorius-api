@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
+import ReactModal from "react-modal";
 import {
   createFrontloadState,
   FrontloadState,

@@ -1,0 +1,26 @@
+.warn-modal {
+  background-color: #ffffff;
+  max-width: 20em;
+  margin: 3rem auto;
+  position: relative;
+  text-align: center;
+  padding: 1rem;
+}
+
+.warn-modal > h3 {
+  margin-top: 0;
+}
+.modal-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.button-danger {
+  background: red;
+  color: white;
+  font-weight: 600;
+}
+
+.warn-modal {
+}

@@ -4,6 +4,8 @@ import * as React from "react";
 import { ReactNode, useState } from "react";
 import { Route, Switch, Link } from "react-router-dom";
 
+import ReactModal from "react-modal";
+
 import "normalize.css";
 import "../styles/accessibility.css";
 import "../styles/App.css";
@@ -42,6 +44,7 @@ function App() {
   //   console.log("setDropdownIsActive(" + state + ")");
   //   _setDropdownIsActive(state);
   // };
+  ReactModal.setAppElement("#react-root");
 
   return (
     <div className="app-wrapper">

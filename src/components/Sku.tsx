@@ -2,8 +2,10 @@ import * as React from "react";
 import { useFrontload } from "react-frontload";
 import { useParams } from "react-router-dom";
 import { FrontloadContext } from "../api-client/inventory-api";
+import ReactModal from "react-modal";
 
 import "../styles/Sku.css";
+import "../styles/warnModal.css";
 import CodesInput from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
@@ -18,6 +20,7 @@ function Sku() {
       sku: await api.getSku(id),
     })
   );
+  const [showModal, setShowModal] = React.useState(false);
 
   if (data?.sku.kind == "problem") {
     if (data.sku.type == "missing-resource") return <FourOhFour />;
@@ -29,6 +32,12 @@ function Sku() {
 
     return (
       <div className="info-panel">
+        <ReactModal isOpen={showModal} className="warn-modal">
+          <button className="modal-close">X</button>
+          <h3>Are you sure?</h3>
+          <button onClick={() => setShowModal(false)}>Cancel</button>
+          <button className="button-danger">Delete</button>
+        </ReactModal>
         <div className="info-item">
           <div className="info-item-title">Sku Label</div>
           <div className="info-item-description">
@@ -83,8 +92,12 @@ function Sku() {
             <a href="#" className="action-link">
               Receive
             </a>
-            <a href="#" className="action-link">
-              Delete
+            <a
+              href="#"
+              className="action-link"
+              onClick={() => setShowModal(true)}
+            >
+              Delete?
             </a>
           </div>
         </div>
