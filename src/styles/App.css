@@ -29,3 +29,7 @@
   clear: both;
   display: table;
 }
+
+button:active {
+  outline: 2px solid black;
+}
