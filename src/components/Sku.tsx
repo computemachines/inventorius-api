@@ -74,6 +74,20 @@ function Sku() {
             )}
           </div>
         </div>
+        <div className="info-item">
+          <div className="info-item-title">Actions</div>
+          <div className="info-item-description" style={{ display: "block" }}>
+            <a href="#" className="action-link">
+              Edit
+            </a>
+            <a href="#" className="action-link">
+              Receive
+            </a>
+            <a href="#" className="action-link">
+              Delete
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
