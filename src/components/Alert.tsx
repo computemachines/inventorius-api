@@ -3,7 +3,16 @@ import { ReactNode } from "react";
 
 import "../styles/Alert.css";
 
-export const AlertContext = React.createContext(null);
+type SetAlertContent = ({
+  content,
+  mode,
+}: {
+  content?: ReactNode;
+  mode?: "success" | "failure";
+}) => void;
+
+export const AlertContext =
+  React.createContext<{ setAlertContent: SetAlertContent }>(null);
 
 export const Alert = ({
   onClose,
