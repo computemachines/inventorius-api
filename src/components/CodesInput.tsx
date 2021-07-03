@@ -101,7 +101,7 @@ function CodesInput({
   // }
   if (editable) {
     return (
-      <div>
+      <div className="code-lines">
         {codes.map((code, i) => (
           <CodeInput
             key={i}
@@ -145,9 +145,11 @@ function CodesInput({
   } else {
     return (
       <div className="code-lines">
-        {codes.map((code, i) => (
-          <CodeLine code={code} />
-        ))}
+        {codes
+          .filter(({ value }) => value != "")
+          .map((code, i) => (
+            <CodeLine code={code} />
+          ))}
       </div>
     );
   }

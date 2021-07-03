@@ -14,6 +14,7 @@
 }
 .code-line-code {
   padding: 0.3rem;
+  font-style: italic;
 }
 .badge {
   color: white;

@@ -26,3 +26,21 @@
 .info-panel .info-item:first-child .item-label {
   font-size: 1.4em;
 }
+
+.info-edit-save-button {
+  background-color: #26532b;
+  color: white;
+  border-radius: 0.2rem;
+  border: none;
+  padding: 0.3rem 1rem;
+  float: right;
+}
+
+/* Line up the text baselines so that toggling input doesn't push anything. */
+.item-description-oneline {
+  padding: calc(2px + 0.2rem) 2px;
+}
+input.item-description-oneline {
+  padding: 0.2rem 0;
+  width: 100%;
+}
