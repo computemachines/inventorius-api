@@ -102,7 +102,7 @@ export class Bin extends RestEndpoint {
 type BinId = string;
 type SkuId = string;
 type BatchId = string;
-interface SkuLocations {
+export interface SkuLocations {
   kind: "sku-locations";
   state: Record<BinId, Record<SkuId, number>>;
 }

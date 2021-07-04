@@ -4,35 +4,39 @@ import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/SkuItemLocations.css";
 import DataTable, { HeaderSpec } from "./DataTable";
-import { Sku as APISku } from "../api-client/data-models";
+import { Sku as APISku, SkuLocations } from "../api-client/data-models";
 
-function SkuItemLocations({ key = "", sku }: { key?: string; sku?: APISku }) {
-  const [tabularData, setTabularData] = useState(
-    [] as {
+function SkuItemLocations({
+  key = "",
+  sku_bins,
+}: {
+  key?: string;
+  sku_bins: SkuLocations;
+}) {
+  const [tabularData, setTabularData] = useState<
+    Array<{
       Bin: string;
       Identifier: string;
       Type: string;
       Quantity: number;
-    }[]
-  );
-  const [isProblem, setProblem] = useState(false);
+    }>
+  >([]);
+  // const [isProblem, setProblem] = useState(false);
 
   React.useEffect(() => {
     let myTabularData = [];
-    sku?.bins().then((value) => {
-      if (value.kind == "problem") return setProblem(true);
-      for (const binId in value.state) {
-        for (const itemId in value.state[binId]) {
-          myTabularData.push({
-            Bin: binId,
-            Identifier: itemId,
-            Quantity: value.state[binId][itemId],
-          });
-        }
+    // if (sku?.kind == "problem") return;
+    for (const binId in sku_bins.state) {
+      for (const itemId in sku_bins.state[binId]) {
+        myTabularData.push({
+          Bin: binId,
+          Identifier: itemId,
+          Quantity: sku_bins.state[binId][itemId],
+        });
       }
-      setTabularData(myTabularData);
-    });
-  }, [sku]);
+    }
+    setTabularData(myTabularData);
+  }, [sku_bins]);
 
   return (
     <DataTable
