@@ -137,8 +137,21 @@ def sku_get(id):
 def sku_patch(id):
     patch = request.json
     resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
-    sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    resp.headers.add("Cache-Control", "no-cache")
+
+    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    if existing is None:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not delete sku that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
 
     if "owned_codes" in patch:
         db.sku.update_one({"_id": id},
@@ -152,7 +165,12 @@ def sku_patch(id):
     if "props" in patch:
         db.sku.update_one({"_id": id},
                           {"$set": {"props": patch["props"]}})
+
     resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
+        "Id": url_for("sku.sku_get", id=existing.id),
+    })
     return resp
 
 
