@@ -24,7 +24,7 @@ export class InventoryApi {
     this.hostname = hostname;
   }
 
-  hydrate_restendpoint<T extends Sku>(server_rendered: T): T {
+  hydrate<T extends Sku>(server_rendered: T): T {
     if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
       return server_rendered;
     switch (server_rendered.kind) {

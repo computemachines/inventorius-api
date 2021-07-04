@@ -57,12 +57,12 @@ export class CallableRestOperation implements RestOperation {
     json?: unknown;
   } = {}): Promise<Response> {
     if (body) {
-      return fetch(`${this.hostname}/${this.href}`, {
+      return fetch(`${this.hostname}${this.href}`, {
         method: this.method,
         body,
       });
     } else if (json) {
-      return fetch(`${this.hostname}/${this.href}`, {
+      return fetch(`${this.hostname}${this.href}`, {
         method: this.method,
         headers: {
           "Content-Type": "application/json",
@@ -70,7 +70,7 @@ export class CallableRestOperation implements RestOperation {
         body: JSON.stringify(json),
       });
     } else {
-      return fetch(`${this.hostname}/${this.href}`, {
+      return fetch(`${this.hostname}${this.href}`, {
         method: this.method,
       });
     }

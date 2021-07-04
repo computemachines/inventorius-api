@@ -96,7 +96,8 @@ function Sku({ editable = false }: { editable?: boolean }) {
         <button
           onClick={async () => {
             if (data.sku.kind == "problem") throw "impossible";
-            const resp = await api.hydrate_restendpoint(data.sku).delete();
+            const resp = await api.hydrate(data.sku).delete();
+            // setShowModal(false); // this doesn't seem to be necessary?
             if (resp.ok) {
               setAlertContent({ content: <p>Deleted</p>, mode: "success" });
               const updatedSku = await api.getSku(id);
@@ -183,7 +184,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
             onClick={async () => {
               if (data.sku.kind == "problem") throw "impossible";
               setSaveState("saving");
-              const resp = await data.sku.update({
+              const resp = await api.hydrate(data.sku).update({
                 name: unsavedName,
                 owned_codes: unsavedCodes
                   .filter(({ kind }) => kind == "owned")
