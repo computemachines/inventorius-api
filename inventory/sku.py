@@ -109,7 +109,9 @@ def sku_get(id):
             }]})
         return resp
 
-    return {
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({
         "Id": url_for("sku.sku_get", id=id),
         "state": json.loads(sku.to_json()),
         "operations": [{
@@ -130,7 +132,8 @@ def sku_get(id):
             "method": "GET",
             "href": url_for("sku.sku_batches_get", id=id),
         }]
-    }
+    })
+    return resp
 
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
@@ -179,7 +182,7 @@ def sku_delete(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
     resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
+    resp.headers.add("Cache-Control", "no-cache")
 
     if existing is None:
         resp.status_code = 404
