@@ -23,6 +23,27 @@ export class InventoryApi {
   constructor(hostname = "") {
     this.hostname = hostname;
   }
+
+  hydrate_restendpoint<T extends Sku>(server_rendered: T): T {
+    if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
+      return server_rendered;
+    switch (server_rendered.kind) {
+      case "sku":
+        Object.setPrototypeOf(server_rendered, Sku.prototype);
+        break;
+      default:
+        let _exhaustive_check: never;
+    }
+    for (const key in server_rendered.operations) {
+      Object.setPrototypeOf(
+        server_rendered.operations[key],
+        CallableRestOperation.prototype
+      );
+      server_rendered.operations[key].hostname = this.hostname;
+    }
+    return server_rendered;
+  }
+
   async getVersion(): Promise<string> {
     return (await fetch(`${this.hostname}/api/version`)).text();
   }

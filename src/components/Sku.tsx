@@ -2,6 +2,7 @@ import * as React from "react";
 import { useFrontload } from "react-frontload";
 import { generatePath, Prompt, useHistory, useParams } from "react-router-dom";
 import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { Sku as ApiSku } from "../api-client/data-models";
 import ReactModal from "react-modal";
 import { Link } from "react-router-dom";
 
@@ -95,7 +96,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
         <button
           onClick={async () => {
             if (data.sku.kind == "problem") throw "impossible";
-            const resp = await data.sku.delete();
+            const resp = await api.hydrate_restendpoint(data.sku).delete();
             if (resp.ok) {
               setAlertContent({ content: <p>Deleted</p>, mode: "success" });
               const updatedSku = await api.getSku(id);
