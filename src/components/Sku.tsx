@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
-import { generatePath, useHistory, useParams } from "react-router-dom";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { generatePath, Prompt, useHistory, useParams } from "react-router-dom";
+import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 import ReactModal from "react-modal";
 import { Link } from "react-router-dom";
 
@@ -13,26 +13,37 @@ import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 import SkuItemLocations from "./SkuItemLocations";
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 import { AlertContext } from "./Alert";
 
 function Sku({ editable = false }: { editable?: boolean }) {
   const { id } = useParams<{ id: string }>();
-  const { data, frontloadMeta } = useFrontload(
+  const { data, frontloadMeta, setData } = useFrontload(
     "sku-component",
     async ({ api }: FrontloadContext) => ({
       sku: await api.getSku(id),
     })
   );
   const { setAlertContent } = useContext(AlertContext);
-  const [showModal, setShowModal] = React.useState(false);
-  const [unsavedChanges, setUnsavedChanges] = React.useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [saveState, setSaveState] = useState<"live" | "unsaved" | "saving">(
+    "live"
+  );
   const history = useHistory();
-  const [unsavedName, setUnsavedName] = React.useState("");
-  const [unsavedCodes, setUnsavedCodes] = React.useState([]);
+  const [unsavedName, setUnsavedName] = useState("");
+  const [unsavedCodes, setUnsavedCodes] = useState([]);
+  const api = useContext(ApiContext);
 
-  React.useEffect(() => {
-    if (frontloadMeta.done && data.sku.kind != "problem") {
+  useEffect(() => {
+    if (!editable) setSaveState("live");
+  }, [editable]);
+
+  useEffect(() => {
+    if (
+      frontloadMeta.done &&
+      data.sku.kind != "problem" &&
+      saveState == "live"
+    ) {
       setUnsavedName(data.sku.state.name);
       setUnsavedCodes([
         ...data.sku.state.owned_codes.map((code) => ({
@@ -45,7 +56,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
         })),
       ]);
     }
-  }, [frontloadMeta]);
+  }, [frontloadMeta, saveState]);
 
   if (data?.sku.kind == "problem") {
     if (data.sku.type == "missing-resource") return <FourOhFour />;
@@ -57,13 +68,40 @@ function Sku({ editable = false }: { editable?: boolean }) {
 
     return (
       <div className="info-panel">
-        <ReactModal isOpen={showModal} className="warn-modal">
+        <Prompt
+          message="Leave without saving changes?"
+          when={saveState != "live"}
+        />
+        <ReactModal
+          isOpen={showModal}
+          onRequestClose={() => setShowModal(false)}
+          className="warn-modal"
+        >
           <button className="modal-close" onClick={() => setShowModal(false)}>
             X
           </button>
           <h3>Are you sure?</h3>
           <button onClick={() => setShowModal(false)}>Cancel</button>
-          <button className="button-danger">Delete</button>
+          <button
+            onClick={async () => {
+              if (data.sku.kind == "problem") throw "impossible";
+              const resp = await data.sku.delete();
+              if (resp.ok) {
+                setAlertContent({ content: <p>Deleted</p>, mode: "success" });
+                const updatedSku = await api.getSku(id);
+                setData(() => ({ sku: updatedSku }));
+              } else {
+                const json = await resp.json();
+                setAlertContent({
+                  content: <p>{json.title}</p>,
+                  mode: "failure",
+                });
+              }
+            }}
+            className="button-danger"
+          >
+            Delete
+          </button>
         </ReactModal>
         <div className="info-item">
           <div className="info-item-title">Sku Label</div>
@@ -84,7 +122,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
                     className="item-description-oneline"
                     value={unsavedName}
                     onChange={(e) => {
-                      setUnsavedChanges(true);
+                      setSaveState("unsaved");
                       setUnsavedName(e.target.value);
                     }}
                   />
@@ -109,7 +147,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
                 <CodesInput
                   codes={unsavedCodes}
                   setCodes={(codes) => {
-                    setUnsavedChanges(true);
+                    setSaveState("unsaved");
                     setUnsavedCodes(codes);
                   }}
                   editable={editable}
@@ -117,19 +155,51 @@ function Sku({ editable = false }: { editable?: boolean }) {
               </div>
             </div>
             {editable ? (
-              <button
-                className="info-edit-save-button"
-                onClick={() => {
-                  setAlertContent({
-                    content: <div>Saved!</div>,
-                    mode: "success",
-                  });
-                  setUnsavedChanges(false);
-                  history.push(generatePath("/sku/:id", { id }));
-                }}
-              >
-                Save
-              </button>
+              <div className="edit-controls">
+                <button
+                  className="edit-controls-cancel-button"
+                  onClick={(e) => {
+                    history.push(generatePath("/sku/:id", { id }));
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="edit-controls-save-button"
+                  onClick={async () => {
+                    if (data.sku.kind == "problem") throw "impossible";
+                    setSaveState("saving");
+                    const resp = await data.sku.update({
+                      name: unsavedName,
+                      owned_codes: unsavedCodes
+                        .filter(({ kind }) => kind == "owned")
+                        .map(({ value }) => value),
+                      associated_codes: unsavedCodes
+                        .filter(({ kind }) => kind == "associated")
+                        .map(({ value }) => value),
+                    });
+                    const json = await resp.json();
+
+                    if (!resp.ok) {
+                      setSaveState("unsaved");
+                      setAlertContent({
+                        content: <p>{json.title}</p>,
+                        mode: "failure",
+                      });
+                    } else {
+                      setSaveState("live");
+                      setAlertContent({
+                        content: <div>Saved!</div>,
+                        mode: "success",
+                      });
+                      history.push(generatePath("/sku/:id", { id }));
+                    }
+                  }}
+                  disabled={saveState == "saving"}
+                >
+                  {saveState == "saving" ? "Saving..." : "Save"}
+                </button>
+              </div>
             ) : (
               <div className="info-item">
                 <div className="info-item-title">Actions</div>

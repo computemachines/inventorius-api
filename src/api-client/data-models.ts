@@ -128,9 +128,10 @@ export class Sku extends RestEndpoint {
     batches: CallableRestOperation;
   };
   update(patch: {
+    name?: string;
     owned_codes?: string[];
     associated_codes?: string[];
-    props: Props;
+    props?: Props;
   }): Promise<Response> {
     return this.operations.update.perform({ json: patch });
   }
