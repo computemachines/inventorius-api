@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useContext, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import { useFrontload } from "react-frontload";
 import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 
@@ -21,6 +21,7 @@ function NewSku() {
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
   const [codes, setCodes] = useState<Code[]>([{ value: "", kind: "owned" }]);
+  const skuInputRef = useRef(null);
 
   let skuIdPlaceholder;
   if (frontloadMeta.pending) skuIdPlaceholder = "Loading...";
@@ -72,6 +73,7 @@ function NewSku() {
             ),
             mode: "success",
           });
+          skuInputRef.current.focus();
         } else {
           setAlertContent({
             content: <p>{json.title}</p>,
@@ -87,6 +89,7 @@ function NewSku() {
       <div className="flex-row">
         <input
           type="text"
+          ref={skuInputRef}
           name="sku_id"
           id="sku_id"
           placeholder={skuIdPlaceholder}
