@@ -96,9 +96,6 @@ function CodesInput({
   editable?: boolean;
   setCodes?: (codes: Code[]) => void;
 }) {
-  // function specialKeyDownListener(e: React.KeyboardEventHandler<HTMLInputElement>) {
-
-  // }
   if (editable) {
     return (
       <div className="code-lines">

@@ -37,7 +37,9 @@ function Sku({ editable = false }: { editable?: boolean }) {
   );
   const history = useHistory();
   const [unsavedName, setUnsavedName] = useState("");
-  const [unsavedCodes, setUnsavedCodes] = useState([]);
+  const [unsavedCodes, setUnsavedCodes] = useState([
+    { kind: "owned" as "owned" | "associated", value: "default" },
+  ]);
   const api = useContext(ApiContext);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
       saveState == "live"
     ) {
       setUnsavedName(data.sku.state.name);
-      setUnsavedCodes([
+      const newUnsavedCodes = [
         ...data.sku.state.owned_codes.map((code) => ({
           kind: "owned" as "owned",
           value: code,
@@ -60,7 +62,12 @@ function Sku({ editable = false }: { editable?: boolean }) {
           kind: "associated" as "associated",
           value: code,
         })),
-      ]);
+      ];
+      setUnsavedCodes(
+        newUnsavedCodes.length
+          ? newUnsavedCodes
+          : [{ kind: "owned", value: "" }]
+      );
     }
   }, [frontloadMeta, saveState]);
 
@@ -75,8 +82,12 @@ function Sku({ editable = false }: { editable?: boolean }) {
     else return <h2>{data.sku.title}</h2>;
   }
 
-  console.log(data);
-  console.log(frontloadMeta);
+  function isCodesEmpty(
+    codes: { kind: "owned" | "associated"; value: string }[]
+  ): boolean {
+    return codes.length == 0 || codes.every(({ value }) => value == "");
+  }
+
   return (
     <div className="info-panel">
       <Prompt
@@ -159,14 +170,18 @@ function Sku({ editable = false }: { editable?: boolean }) {
       <div className="info-item">
         <div className="info-item-title">Codes</div>
         <div className="info-item-description">
-          <CodesInput
-            codes={unsavedCodes}
-            setCodes={(codes) => {
-              setSaveState("unsaved");
-              setUnsavedCodes(codes);
-            }}
-            editable={editable}
-          />
+          {isCodesEmpty(unsavedCodes) && !editable ? (
+            "None"
+          ) : (
+            <CodesInput
+              codes={unsavedCodes}
+              setCodes={(codes) => {
+                setSaveState("unsaved");
+                setUnsavedCodes(codes);
+              }}
+              editable={editable}
+            />
+          )}
         </div>
       </div>
       {editable ? (
