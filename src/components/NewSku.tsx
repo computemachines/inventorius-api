@@ -10,7 +10,7 @@ import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 
 function NewSku() {
-  const { data, frontloadMeta } = useFrontload(
+  const { data, frontloadMeta, setData } = useFrontload(
     "new-sku-component",
     async ({ api }: FrontloadContext) => ({
       nextSku: await api.getNextSku(),
@@ -73,6 +73,8 @@ function NewSku() {
             ),
             mode: "success",
           });
+          const nextSku = await api.getNextSku();
+          setData(() => ({ nextSku }));
           skuInputRef.current.focus();
         } else {
           setAlertContent({

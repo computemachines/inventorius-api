@@ -145,7 +145,7 @@ function CodesInput({
         {codes
           .filter(({ value }) => value != "")
           .map((code, i) => (
-            <CodeLine code={code} />
+            <CodeLine key={i} code={code} />
           ))}
       </div>
     );
