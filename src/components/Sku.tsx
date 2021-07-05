@@ -69,7 +69,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
           : [{ kind: "owned", value: "" }]
       );
     }
-  }, [frontloadMeta, saveState]);
+  }, [frontloadMeta, saveState, data]);
 
   if (frontloadMeta.pending) {
     return <div>Loading...</div>;
@@ -222,6 +222,11 @@ function Sku({ editable = false }: { editable?: boolean }) {
                   content: <div>Saved!</div>,
                   mode: "success",
                 });
+
+                const updatedSku = await api.getSku(id);
+
+                setData(({ sku, sku_bins }) => ({ sku: updatedSku, sku_bins }));
+
                 history.push(generatePath("/sku/:id", { id }));
               }
             }}
