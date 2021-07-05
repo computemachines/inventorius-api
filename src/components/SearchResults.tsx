@@ -28,9 +28,11 @@ function resultToType(result: SearchResult): "SKU" | "BATCH" | "BIN" {
 function SearchResultsTable({
   searchResults,
   loading,
+  onClickLink,
 }: {
   searchResults: APISearchResults;
   loading?: boolean;
+  onClickLink?: React.MouseEventHandler<HTMLAnchorElement>;
 }) {
   const searchResultToDataRow = (result: SearchResult) => ({
     Identifier: result.id,
@@ -42,6 +44,7 @@ function SearchResultsTable({
     <DataTable
       headers={["Identifier", "Name", "Type"]}
       data={tabularData}
+      onClickLink={onClickLink}
       headerSpecs={{
         Identifier: new HeaderSpec(".ItemLabel"),
         Name: new HeaderSpec(".truncated", {
@@ -138,6 +141,14 @@ function SearchResults({
       <SearchResultsTable
         searchResults={data.searchResults}
         loading={isLoading}
+        onClickLink={(e) =>
+          history.push(
+            stringifyUrl({
+              url: "/search",
+              query: page == 1 ? { query } : { query, page },
+            })
+          )
+        }
       />
       <Pager
         currentPage={page}

@@ -32,12 +32,20 @@ type DataTableType =
   | ".numeric"
   | ".truncated";
 
-function DataCell({ value, type }: { value: unknown; type?: DataTableType }) {
+function DataCell({
+  value,
+  type,
+  onClickLink,
+}: {
+  value: unknown;
+  type?: DataTableType;
+  onClickLink?: React.MouseEventHandler<HTMLAnchorElement>;
+}) {
   switch (type) {
     case ".ItemLabel":
       return (
         <td>
-          <ItemLabel label={value as string} />
+          <ItemLabel onClick={onClickLink} label={value as string} />
         </td>
       );
       break;
@@ -103,11 +111,13 @@ function DataTable({
   data,
   headerSpecs,
   loading,
+  onClickLink,
 }: {
   headers: string[];
   data: Record<string, unknown>[];
   headerSpecs: Record<string, HeaderSpec>;
   loading?: boolean;
+  onClickLink?: React.MouseEventHandler<HTMLAnchorElement>;
 }) {
   const [columnSizes, setColumnSizes] = React.useState(
     headers.map((header) => {
@@ -183,6 +193,7 @@ function DataTable({
                   key={"td-" + col_index}
                   value={row[key]}
                   type={headerSpecs[key]?.headerType}
+                  onClickLink={onClickLink}
                 />
               ))}
             </tr>
