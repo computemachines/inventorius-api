@@ -93,7 +93,14 @@ def next_batch():
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
-        "state": admin_get_next("BAT")
+        "Id": url_for("inventory.next_batch"),
+        "state": admin_get_next("BAT"),
+        "operations": [{
+            "rel": "create",
+            "method": "POST",
+            "href": url_for("batch.batches_post"),
+            "Expects-a": "Batch patch",
+        }]
     })
     return resp
 
