@@ -84,6 +84,7 @@ function CodeLine({ code }: { code: Code }) {
 export interface Code {
   value: string;
   kind: "owned" | "associated";
+  inherited?: boolean;
 }
 function CodesInput({
   id,

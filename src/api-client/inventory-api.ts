@@ -12,6 +12,7 @@ import {
   Sku,
   SearchResults,
   NextSku,
+  NextBatch,
 } from "./data-models";
 
 export interface FrontloadContext {
@@ -58,6 +59,12 @@ export class InventoryApi {
     const json = await resp.json();
     if (!resp.ok) return { ...json, kind: "problem" };
     return new NextSku({ ...json, hosthame: this.hostname });
+  }
+  async getNextBatch(): Promise<NextBatch | Problem> {
+    const resp = await fetch(`${this.hostname}/api/next/batch`);
+    const json = await resp.json();
+    if (!resp.ok) return { ...json, kind: "problem" };
+    return new NextBatch({ ...json, hostname: this.hostname });
   }
   async getSearchResults(params: {
     query: string;

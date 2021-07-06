@@ -182,6 +182,18 @@ export class NextSku extends RestEndpoint {
   }
 }
 
+export class NextBatch extends RestEndpoint {
+  kind: "next-batch" = "next-batch";
+  state: string;
+  operations: {
+    create: CallableRestOperation;
+  };
+
+  create(): Promise<Response> {
+    return this.operations.create.perform({ json: { id: this.state } });
+  }
+}
+
 export type SearchResult = SkuState | BatchState | BinState;
 export class SearchResults extends RestEndpoint {
   kind: "search-results" = "search-results";
