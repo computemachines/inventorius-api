@@ -1,30 +1,30 @@
-import { parse } from "query-string";
+import { parse, stringifyUrl } from "query-string";
 import * as React from "react";
 import { useContext, useState, useRef, useEffect } from "react";
 import { useFrontload } from "react-frontload";
-import { useLocation } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/form.css";
 // import "../styles/NewBatch.css";
 import { AlertContext } from "./Alert";
 import CodesInput, { Code } from "./CodesInput";
+import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 
 function NewBatch() {
   const location = useLocation();
-  const defaultParentSkuId = parse(location.search).parent as string;
-  const { data, frontloadMeta } = useFrontload(
+  const queryParentSkuId = (parse(location.search).parent as string) || "";
+  const { data, frontloadMeta, setData } = useFrontload(
     "new-batch-component",
     async ({ api }: FrontloadContext) => ({
       nextBatch: await api.getNextBatch(),
-      parentSku: defaultParentSkuId
-        ? await api.getSku(defaultParentSkuId)
-        : null,
+      parentSku: queryParentSkuId ? await api.getSku(queryParentSkuId) : null,
     })
   );
   const api = useContext(ApiContext);
   const { setAlertContent } = useContext(AlertContext);
+  const history = useHistory();
 
   const [parentSkuId, setParentSkuId] = useState("");
   const [batchIdValue, setBatchIdValue] = useState("");
@@ -32,15 +32,35 @@ function NewBatch() {
   const [codes, setCodes] = useState<Code[]>([]);
   const batchIdRef = useRef(null);
 
+  useEffect(() => {
+    if (parentSkuId) {
+      api
+        .getSku(parentSkuId)
+        .then((sku) => setData((data) => ({ ...data, parentSku: sku })));
+    } else {
+      setData((data) => ({
+        ...data,
+        parentSku: null,
+      }));
+    }
+  }, [parentSkuId]);
+
+  useEffect(() => {
+    setParentSkuId(queryParentSkuId);
+  }, [queryParentSkuId]);
+
   function clearForm() {
-    setParentSkuId("");
+    // setParentSkuId("");
+    if (parentSkuId != queryParentSkuId) {
+      history.push(
+        stringifyUrl({ url: "/new/batch", query: { parent: parentSkuId } })
+      );
+    }
     setBatchIdValue("");
     setNameValue("");
     setCodes([]);
   }
 
-  console.log(data);
-  console.log(frontloadMeta);
   if (frontloadMeta.pending) return <div>Loading...</div>;
   if (frontloadMeta.error)
     return (
@@ -52,17 +72,70 @@ function NewBatch() {
     );
 
   return (
-    <form className="form">
+    <form
+      className="form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+
+        let ownedCodes = [];
+        let associatedCodes = [];
+        for (const code of codes) {
+          if (code.value == "" || code.inherited) continue;
+          switch (code.kind) {
+            case "owned":
+              ownedCodes.push(code.value);
+              break;
+
+            case "associated":
+              associatedCodes.push(code.value);
+              break;
+
+            default:
+              let _exhaustiveCheck: never;
+          }
+        }
+        const nextBatch =
+          data.nextBatch.kind == "next-batch" ? data.nextBatch.state : "";
+        const resp = await api.newBatch({
+          id: batchIdValue || nextBatch,
+          sku_id: parentSkuId,
+          name: nameValue,
+          owned_codes: ownedCodes,
+          associated_codes: associatedCodes,
+        });
+        const json = await resp.json();
+        if (resp.ok) {
+          clearForm();
+          setAlertContent({
+            content: (
+              <p>
+                Success,{" "}
+                <ItemLabel url={json.Id} onClick={() => setAlertContent({})} />{" "}
+                created.
+              </p>
+            ),
+            mode: "success",
+          });
+          const nextBatch = await api.getNextBatch();
+          setData((data) => ({ ...data, nextBatch }));
+          batchIdRef.current.focus();
+        } else {
+          setAlertContent({
+            content: <p>{json.title}</p>,
+            mode: "failure",
+          });
+        }
+      }}
+    >
       <h2 className="form-title">New Batch</h2>
       <label htmlFor="parent_sku_id" className="form-label">
-        Parent Sku
+        Parent Sku (optional)
       </label>
       <input
         type="text"
         id="parent_sku_id"
         name="parent_sku_id"
         className="form-single-code-input"
-        placeholder={defaultParentSkuId}
         value={parentSkuId}
         onChange={(e) => setParentSkuId(e.target.value)}
       />
@@ -103,6 +176,8 @@ function NewBatch() {
         placeholder={
           data.parentSku?.kind == "sku" ? data.parentSku.state.name : ""
         }
+        value={nameValue}
+        onChange={(e) => setNameValue(e.target.value)}
       ></input>
       <label className="form-label" htmlFor="codes">
         Codes
