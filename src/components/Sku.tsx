@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import "../styles/Sku.css";
 import "../styles/infoPanel.css";
 import "../styles/warnModal.css";
-import CodesInput from "./CodesInput";
+import CodesInput, { Code } from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
@@ -37,9 +37,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
   );
   const history = useHistory();
   const [unsavedName, setUnsavedName] = useState("");
-  const [unsavedCodes, setUnsavedCodes] = useState([
-    { kind: "owned" as "owned" | "associated", value: "default" },
-  ]);
+  const [unsavedCodes, setUnsavedCodes] = useState([]);
   const api = useContext(ApiContext);
 
   useEffect(() => {
@@ -63,11 +61,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
           value: code,
         })),
       ];
-      setUnsavedCodes(
-        newUnsavedCodes.length
-          ? newUnsavedCodes
-          : [{ kind: "owned", value: "" }]
-      );
+      setUnsavedCodes(newUnsavedCodes);
     }
   }, [frontloadMeta, saveState, data]);
 
@@ -82,9 +76,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
     else return <h2>{data.sku.title}</h2>;
   }
 
-  function isCodesEmpty(
-    codes: { kind: "owned" | "associated"; value: string }[]
-  ): boolean {
+  function isCodesEmpty(codes: Code[]): boolean {
     return codes.length == 0 || codes.every(({ value }) => value == "");
   }
 
@@ -202,10 +194,10 @@ function Sku({ editable = false }: { editable?: boolean }) {
               const resp = await api.hydrate(data.sku).update({
                 name: unsavedName,
                 owned_codes: unsavedCodes
-                  .filter(({ kind }) => kind == "owned")
+                  .filter(({ kind, value }) => kind == "owned" && value)
                   .map(({ value }) => value),
                 associated_codes: unsavedCodes
-                  .filter(({ kind }) => kind == "associated")
+                  .filter(({ kind, value }) => kind == "associated" && value)
                   .map(({ value }) => value),
               });
               const json = await resp.json();

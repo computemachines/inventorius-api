@@ -20,7 +20,7 @@ function NewSku() {
   const { setAlertContent } = useContext(AlertContext);
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
-  const [codes, setCodes] = useState<Code[]>([{ value: "", kind: "owned" }]);
+  const [codes, setCodes] = useState<Code[]>([]);
   const skuInputRef = useRef(null);
 
   let skuIdPlaceholder;
@@ -32,7 +32,7 @@ function NewSku() {
   function clearForm() {
     setSkuIdValue("");
     setNameValue("");
-    setCodes([{ value: "", kind: "owned" }]);
+    setCodes([]);
   }
 
   return (

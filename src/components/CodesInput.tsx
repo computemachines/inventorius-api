@@ -97,57 +97,58 @@ function CodesInput({
   editable?: boolean;
   setCodes?: (codes: Code[]) => void;
 }) {
+  function editableCodeLine(code, i, codes) {
+    const isLast = i + 1 == codes.length;
+    return (
+      <CodeInput
+        key={i}
+        code={code}
+        setCode={(code) => {
+          let newCodes = [...codes];
+          newCodes[i] = code;
+          setCodes(newCodes);
+        }}
+        onKeyDown={
+          i == codes.length - 1
+            ? (e) => {
+                if (e.key == "Tab" && code.value) {
+                  setCodes([...codes, { value: "", kind: "owned" }]);
+                }
+              }
+            : null
+        }
+      >
+        {i < codes.length - 1 ? (
+          <Cross
+            className="lnr-cross-circle"
+            onClick={(e) => {
+              let newCodes = [...codes];
+              newCodes.splice(i, 1);
+              setCodes(newCodes);
+            }}
+          />
+        ) : (
+          <PlusCircle
+            className="lnr-plus-circle"
+            onClick={(e) => setCodes([...codes, { value: "", kind: "owned" }])}
+          />
+        )}
+      </CodeInput>
+    );
+  }
+  const defaultCode: Code = { kind: "owned", value: "" };
   if (editable) {
     return (
       <div className="code-lines">
-        {codes.map((code, i) => (
-          <CodeInput
-            key={i}
-            code={code}
-            setCode={(code) => {
-              let newCodes = [...codes];
-              newCodes[i] = code;
-              setCodes(newCodes);
-            }}
-            onKeyDown={
-              i == codes.length - 1
-                ? (e) => {
-                    if (e.key == "Tab" && code.value) {
-                      setCodes([...codes, { value: "", kind: "owned" }]);
-                    }
-                  }
-                : null
-            }
-          >
-            {i < codes.length - 1 ? (
-              <Cross
-                className="lnr-cross-circle"
-                onClick={(e) => {
-                  let newCodes = [...codes];
-                  newCodes.splice(i, 1);
-                  setCodes(newCodes);
-                }}
-              />
-            ) : (
-              <PlusCircle
-                className="lnr-plus-circle"
-                onClick={(e) =>
-                  setCodes([...codes, { value: "", kind: "owned" }])
-                }
-              />
-            )}
-          </CodeInput>
-        ))}
+        {(codes.length == 0 ? [defaultCode] : codes).map(editableCodeLine)}
       </div>
     );
   } else {
     return (
       <div className="code-lines">
-        {codes
-          .filter(({ value }) => value != "")
-          .map((code, i) => (
-            <CodeLine key={i} code={code} />
-          ))}
+        {codes.map((code, i) => (
+          <CodeLine key={i} code={code} />
+        ))}
       </div>
     );
   }
