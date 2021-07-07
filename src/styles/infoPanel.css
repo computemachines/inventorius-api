@@ -44,3 +44,15 @@ input.item-description-oneline {
   padding: 0.2rem 0;
   width: 100%;
 }
+
+.action-link {
+  font-style: italic;
+  border-right: 1px solid black;
+  padding-right: 0.5em;
+  margin-right: 0.5em;
+}
+.action-link:last-child {
+  border-right: unset;
+  padding-right: unset;
+  margin-right: unset;
+}

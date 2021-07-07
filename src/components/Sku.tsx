@@ -6,7 +6,6 @@ import { Sku as ApiSku } from "../api-client/data-models";
 import ReactModal from "react-modal";
 import { Link } from "react-router-dom";
 
-import "../styles/Sku.css";
 import "../styles/infoPanel.css";
 import "../styles/warnModal.css";
 import CodesInput, { Code } from "./CodesInput";
