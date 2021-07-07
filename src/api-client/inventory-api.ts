@@ -116,6 +116,22 @@ export class InventoryApi {
       },
     });
   }
+  newBatch(params: {
+    id: string;
+    sku_id?: string;
+    name?: string;
+    owned_codes?: string[];
+    associated_codes?: string[];
+    props?: unknown;
+  }): Promise<Response> {
+    return fetch(`${this.hostname}/api/batches`, {
+      method: "POST",
+      body: JSON.stringify(params),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
   // async getSku
 }
 
