@@ -187,7 +187,7 @@ def batch_patch(id):
         })
         return resp
 
-    if "sku_id" in patch.keys():
+    if "sku_id" in patch.keys() and patch["sku_id"]:
         existing_sku = db.sku.find_one({"_id": patch['sku_id']})
         if not existing_sku:
             resp.status_code = 409
@@ -232,7 +232,9 @@ def batch_patch(id):
     if "associated_codes" in patch.keys():
         db.batch.update_one({"_id": id},
                             {"$set": {"associated_codes": patch['associated_codes']}})
-    resp.status_code = 204
+    resp.status_code = 200
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({"Id": url_for('batch.batch_get', id=id)})
     return resp
 
 
