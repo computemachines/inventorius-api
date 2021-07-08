@@ -172,7 +172,7 @@ def batch_patch(id):
     patch = request.json
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
     resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
+    resp.headers.add("Cache-Control", "no-cache")
 
     if not existing:
         resp.status_code = 404

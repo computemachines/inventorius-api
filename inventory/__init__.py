@@ -49,4 +49,4 @@ app.after_request(cors_allow_all)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.2.7"
+    return "0.2.8"
