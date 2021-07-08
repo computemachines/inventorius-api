@@ -13,7 +13,7 @@ batch = Blueprint("batch", __name__)
 @batch.route("/api/batches", methods=['POST'])
 def batches_post():
     resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
+    resp.headers.add("Cache-Control", "no-cache")
 
     batch = Batch.from_json(request.json)
 
@@ -121,7 +121,8 @@ def batches_post():
 
     resp.status_code = 201
     # resp.location = url_for("batch.batch_get", id=batch_id)
-
+    resp.mimetype = "application/json"
+    resp.data = json.dumps({"Id": url_for("batch.batch_get", id=batch.id)})
     return resp
 
 
@@ -146,7 +147,22 @@ def batch_get(id):
         resp.status_code = 200
         resp.mimetype = "application/json"
         resp.data = json.dumps({
-            "state": json.loads(existing.to_json())
+            "Id": url_for("batch.batch_get", id=id),
+            "state": json.loads(existing.to_json()),
+            "operations": [{
+                "rel": "update",
+                "method": "PATCH",
+                "href": url_for("batch.batch_patch", id=id),
+                "Expects-a": "Batch patch"
+            }, {
+                "rel": "delete",
+                "method": "DELETE",
+                "href": url_for("batch.batch_delete", id=id),
+            }, {
+                "rel": "bins",
+                "method": "GET",
+                "href": url_for("batch.batch_bins_get", id=id),
+            }]
         })
         return resp
 
@@ -229,7 +245,7 @@ def batch_delete(id):
         pass
     else:
         resp.status_code = 204
-        resp.headers = {"Cache-Control": "no-cache"}
+        resp.headers.add("Cache-Control", "no-cache")
         db.batch.delete_one({"_id": id})
         return resp
 
