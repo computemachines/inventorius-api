@@ -12,7 +12,7 @@ import CodesInput, { Code } from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
-import SkuItemLocations from "./SkuItemLocations";
+import ItemLocations from "./ItemLocations";
 import { useContext, useEffect, useState } from "react";
 import { AlertContext } from "./Alert";
 
@@ -153,7 +153,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
         <div className="info-item-title">Locations</div>
         <div className="info-item-description">
           {data.skuBins.kind == "sku-locations" ? (
-            <SkuItemLocations sku_bins={data.skuBins} />
+            <ItemLocations itemLocations={data.skuBins} />
           ) : (
             "Problem loading locations."
           )}

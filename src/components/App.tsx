@@ -84,11 +84,11 @@ function App() {
                 <Route path="/sku/:id">
                   <Sku />
                 </Route>
-                <Route path="/batch/:id">
-                  <Batch />
-                </Route>
                 <Route path="/batch/:id/edit">
                   <Batch editable />
+                </Route>
+                <Route path="/batch/:id">
+                  <Batch />
                 </Route>
                 <Route path="/search">
                   <SearchForm />

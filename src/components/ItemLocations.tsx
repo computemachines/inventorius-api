@@ -2,16 +2,20 @@ import * as React from "react";
 import { useState } from "react";
 import { FrontloadContext } from "../api-client/inventory-api";
 
-import "../styles/SkuItemLocations.css";
+import "../styles/ItemLocations.css";
 import DataTable, { HeaderSpec } from "./DataTable";
-import { Sku as APISku, SkuLocations } from "../api-client/data-models";
+import {
+  BatchLocations,
+  Sku as APISku,
+  SkuLocations,
+} from "../api-client/data-models";
 
-function SkuItemLocations({
+function ItemLocations({
   key = "",
-  sku_bins,
+  itemLocations: itemLocations,
 }: {
   key?: string;
-  sku_bins: SkuLocations;
+  itemLocations: SkuLocations | BatchLocations;
 }) {
   const [tabularData, setTabularData] = useState<
     Array<{
@@ -26,17 +30,17 @@ function SkuItemLocations({
   React.useEffect(() => {
     let myTabularData = [];
     // if (sku?.kind == "problem") return;
-    for (const binId in sku_bins.state) {
-      for (const itemId in sku_bins.state[binId]) {
+    for (const binId in itemLocations.state) {
+      for (const itemId in itemLocations.state[binId]) {
         myTabularData.push({
           Bin: binId,
           Identifier: itemId,
-          Quantity: sku_bins.state[binId][itemId],
+          Quantity: itemLocations.state[binId][itemId],
         });
       }
     }
     setTabularData(myTabularData);
-  }, [sku_bins]);
+  }, [itemLocations]);
 
   return (
     <DataTable
@@ -50,4 +54,4 @@ function SkuItemLocations({
     />
   );
 }
-export default SkuItemLocations;
+export default ItemLocations;
