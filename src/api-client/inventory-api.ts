@@ -13,6 +13,7 @@ import {
   SearchResults,
   NextSku,
   NextBatch,
+  Batch,
 } from "./data-models";
 
 export interface FrontloadContext {
@@ -25,12 +26,15 @@ export class InventoryApi {
     this.hostname = hostname;
   }
 
-  hydrate<T extends Sku>(server_rendered: T): T {
+  hydrate<T extends Sku | Batch>(server_rendered: T): T {
     if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
       return server_rendered;
     switch (server_rendered.kind) {
       case "sku":
         Object.setPrototypeOf(server_rendered, Sku.prototype);
+        break;
+      case "batch":
+        Object.setPrototypeOf(server_rendered, Batch.prototype);
         break;
       default:
         let _exhaustive_check: never;
@@ -115,6 +119,12 @@ export class InventoryApi {
         "Content-Type": "application/json",
       },
     });
+  }
+  async getBatch(id: string): Promise<Batch | Problem> {
+    const resp = await fetch(`${this.hostname}/api/batch/${id}`);
+    const json = await resp.json();
+    if (resp.ok) return new Batch({ ...json, hostname: this.hostname });
+    else return { ...json, kind: "problem" };
   }
   newBatch(params: {
     id: string;

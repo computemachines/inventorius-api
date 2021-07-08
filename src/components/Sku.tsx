@@ -22,10 +22,10 @@ function Sku({ editable = false }: { editable?: boolean }) {
     "sku-component",
     async ({ api }: FrontloadContext) => {
       const sku = await api.getSku(id);
-      const sku_bins = sku.kind == "sku" ? await sku.bins() : sku;
+      const skuBins = sku.kind == "sku" ? await sku.bins() : sku;
       return {
         sku,
-        sku_bins,
+        skuBins,
       };
     }
   );
@@ -44,6 +44,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
   }, [editable]);
 
   useEffect(() => {
+    // if data loads and not editing
     if (
       frontloadMeta.done &&
       data.sku.kind != "problem" &&
@@ -105,7 +106,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
               const updatedSku = await api.getSku(id);
               const updatedSkuBins =
                 updatedSku.kind == "sku" ? await updatedSku.bins() : updatedSku;
-              setData(() => ({ sku: updatedSku, sku_bins: updatedSkuBins }));
+              setData(() => ({ sku: updatedSku, skuBins: updatedSkuBins }));
             } else {
               const json = await resp.json();
               setAlertContent({
@@ -151,8 +152,8 @@ function Sku({ editable = false }: { editable?: boolean }) {
       <div className="info-item">
         <div className="info-item-title">Locations</div>
         <div className="info-item-description">
-          {data.sku_bins.kind == "sku-locations" ? (
-            <SkuItemLocations sku_bins={data.sku_bins} />
+          {data.skuBins.kind == "sku-locations" ? (
+            <SkuItemLocations sku_bins={data.skuBins} />
           ) : (
             "Problem loading locations."
           )}
@@ -216,7 +217,10 @@ function Sku({ editable = false }: { editable?: boolean }) {
 
                 const updatedSku = await api.getSku(id);
 
-                setData(({ sku, sku_bins }) => ({ sku: updatedSku, sku_bins }));
+                setData(({ sku, skuBins: sku_bins }) => ({
+                  sku: updatedSku,
+                  skuBins: sku_bins,
+                }));
 
                 history.push(generatePath("/sku/:id", { id }));
               }

@@ -110,6 +110,10 @@ interface SkuBatches {
   kind: "sku-batches";
   state: BatchId[];
 }
+export interface BatchLocations {
+  kind: "batch-locations";
+  state: Record<BinId, Record<BatchId, number>>;
+}
 
 export interface SkuState {
   id: string;
@@ -154,9 +158,39 @@ export class Sku extends RestEndpoint {
 
 export interface BatchState {
   id: string;
-  name: string;
+  sku_id?: string;
+  name?: string;
+  owned_codes?: string[];
+  associated_codes?: string[];
+  props?: Props;
 }
-export class Batch extends RestEndpoint {}
+export class Batch extends RestEndpoint {
+  kind: "batch" = "batch";
+  state: BatchState;
+  operations: {
+    update: CallableRestOperation;
+    delete: CallableRestOperation;
+    bins: CallableRestOperation;
+  };
+  update(patch: {
+    sku_id?: string;
+    name?: string;
+    owned_codes?: string[];
+    associated_codes?: string[];
+    props?: Props;
+  }): Promise<Response> {
+    return this.operations.update.perform({ json: patch });
+  }
+  delete(): Promise<Response> {
+    return this.operations.delete.perform();
+  }
+  async bins(): Promise<BatchLocations | Problem> {
+    const resp = await this.operations.bins.perform();
+    const json = resp.json();
+    if (resp.ok) return { ...json, kind: "batch-locations" };
+    else return { ...json, kind: "problem" };
+  }
+}
 
 export class NextBin extends RestEndpoint {
   kind: "next-bin" = "next-bin";

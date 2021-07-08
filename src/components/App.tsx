@@ -23,6 +23,7 @@ import Sku from "./Sku";
 import NewSku from "./NewSku";
 import EULA from "./EULA";
 import NewBatch from "./NewBatch";
+import Batch from "./Batch";
 
 // test change
 
@@ -82,6 +83,12 @@ function App() {
                 </Route>
                 <Route path="/sku/:id">
                   <Sku />
+                </Route>
+                <Route path="/batch/:id">
+                  <Batch />
+                </Route>
+                <Route path="/batch/:id/edit">
+                  <Batch editable />
                 </Route>
                 <Route path="/search">
                   <SearchForm />
