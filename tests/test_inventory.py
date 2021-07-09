@@ -315,7 +315,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(batch_id=a_batch_id, patch=batch_patch)
     def update_batch(self, batch_id, patch):
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
         for key in patch.keys():
             setattr(self.model_batches[batch_id], key, patch[key])
@@ -343,7 +343,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(not self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
         for key in patch.keys():
             setattr(self.model_batches[batch_id], key, patch[key])
