@@ -1,9 +1,21 @@
 import * as React from "react";
+import { generatePath } from "react-router-dom";
 
 import "../styles/PrintButton.css";
 
 function PrintButton({ value }: { value: string }) {
-  return <button className="form-print-button">Print</button>;
+  return (
+    <button
+      className="form-print-button"
+      onClick={(e) => {
+        e.preventDefault();
+
+        fetch(`http://localhost:8899/print/${value}`);
+      }}
+    >
+      Print
+    </button>
+  );
 }
 
 export default PrintButton;
