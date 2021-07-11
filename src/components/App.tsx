@@ -24,6 +24,7 @@ import NewSku from "./NewSku";
 import EULA from "./EULA";
 import NewBatch from "./NewBatch";
 import Batch from "./Batch";
+import Receive from "./Receive";
 
 // test change
 
@@ -89,6 +90,9 @@ function App() {
                 </Route>
                 <Route path="/batch/:id">
                   <Batch />
+                </Route>
+                <Route path="/receive">
+                  <Receive />
                 </Route>
                 <Route path="/search">
                   <SearchForm />

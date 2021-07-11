@@ -142,7 +142,29 @@ export class InventoryApi {
       },
     });
   }
-  // async getSku
+  async receive({
+    into_id,
+    item_id,
+    quantity,
+  }: {
+    into_id: string;
+    item_id: string;
+    quantity: number;
+  }): Promise<Response | Problem> {
+    const resp = await fetch(`${this.hostname}/api/bin/${into_id}/contents`, {
+      method: "POST",
+      body: JSON.stringify({
+        item_id,
+        quantity,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    if (resp.ok) return resp;
+    const json = await resp.json();
+    return { ...json, kind: "problem" };
+  }
 }
 
 // Do not use this on the server side! Use react-frontload.
