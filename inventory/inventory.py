@@ -123,24 +123,24 @@ def next_bin():
     return resp
 
 
-@inventory.route('/api/receive', methods=['POST'])
-def receive_post():
-    form = request.json
-    bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": form['bin_id']}))
-    if not bin:
-        return "Bin not found", 404
-    quantity = int(form.get('quantity', 1))
-    sku_id = form['sku_id']
-    sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": sku_id}))
-    if not sku:
-        return "SKU not found", 404
-    # if unit not in bin already, add to bin with quantity 0
-    db.bin.update_one({"_id": bin.id, "contents": {"$not": {"$elemMatch": {"id": sku.id}}}},
-                      {"$push": {"contents": {"id": sku.id, "quantity": 0}}})
-    db.bin.update_one({"_id": bin.id, "contents.id": sku.id},
-                      {"$inc": {"contents.$.quantity": quantity}})
+# @inventory.route('/api/receive', methods=['POST'])
+# def receive_post():
+#     form = request.json
+#     bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": form['bin_id']}))
+#     if not bin:
+#         return "Bin not found", 404
+#     quantity = int(form.get('quantity', 1))
+#     sku_id = form['sku_id']
+#     sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": sku_id}))
+#     if not sku:
+#         return "SKU not found", 404
+#     # if unit not in bin already, add to bin with quantity 0
+#     db.bin.update_one({"_id": bin.id, "contents": {"$not": {"$elemMatch": {"id": sku.id}}}},
+#                       {"$push": {"contents": {"id": sku.id, "quantity": 0}}})
+#     db.bin.update_one({"_id": bin.id, "contents.id": sku.id},
+#                       {"$inc": {"contents.$.quantity": quantity}})
 
-    return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
+#     return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
 
 
 @inventory.route('/api/bin/<id>/contents', methods=["POST"])
