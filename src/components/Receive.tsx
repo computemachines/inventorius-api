@@ -49,14 +49,14 @@ function Receive() {
           setAlertContent({
             content: (
               <div>
-                Success. {quantityValue} count{" "}
+                Success. Added {quantityValue} count,{" "}
                 <ItemLabel
-                  url={itemIdValue}
+                  label={itemIdValue}
                   onClick={(e) => setAlertContent({})}
                 />
-                , added to{" "}
+                , to{" "}
                 <ItemLabel
-                  url={intoIdValue}
+                  label={intoIdValue}
                   onClick={(e) => setAlertContent({})}
                 />
               </div>
