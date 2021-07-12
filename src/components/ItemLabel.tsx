@@ -18,11 +18,14 @@ const ItemLabel = ({
 }) => {
   if (url) {
     const match = url.match(/^(\/api)?\/(?<unit>bin|sku|batch)\/(?<label>.+)/);
+    if (!match) return <span>{url}</span>;
     label = match.groups.label;
   }
   const match = label.match(
     /^(?<prefix>BIN|SKU|BAT)(?<leadingZeroes>0*)(?<number>\d+)$/
   );
+  if (!match) return <span>{label}</span>;
+
   const { prefix, number } = match.groups;
   const leadingZeros = match.groups.leadingZeroes || "";
 
