@@ -154,7 +154,7 @@ export class InventoryApi {
     const resp = await fetch(`${this.hostname}/api/bin/${into_id}/contents`, {
       method: "POST",
       body: JSON.stringify({
-        item_id,
+        id: item_id,
         quantity,
       }),
       headers: {
