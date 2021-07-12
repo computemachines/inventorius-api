@@ -150,7 +150,7 @@ export class InventoryApi {
     into_id: string;
     item_id: string;
     quantity: number;
-  }): Promise<Response | Problem> {
+  }): Promise<{ kind: "ok"; resp: Response } | Problem> {
     const resp = await fetch(`${this.hostname}/api/bin/${into_id}/contents`, {
       method: "POST",
       body: JSON.stringify({
@@ -161,7 +161,7 @@ export class InventoryApi {
         "Content-Type": "application/json",
       },
     });
-    if (resp.ok) return resp;
+    if (resp.ok) return { kind: "ok", resp };
     const json = await resp.json();
     return { ...json, kind: "problem" };
   }
