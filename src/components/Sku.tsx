@@ -15,6 +15,7 @@ import PrintButton from "./PrintButton";
 import ItemLocations from "./ItemLocations";
 import { useContext, useEffect, useState } from "react";
 import { AlertContext } from "./Alert";
+import { stringifyUrl } from "query-string";
 
 function Sku({ editable = false }: { editable?: boolean }) {
   const { id } = useParams<{ id: string }>();
@@ -240,7 +241,10 @@ function Sku({ editable = false }: { editable?: boolean }) {
             >
               Edit
             </Link>
-            <Link to="#" className="action-link">
+            <Link
+              to={stringifyUrl({ url: "/receive", query: { item: id } })}
+              className="action-link"
+            >
               Receive
             </Link>
             <Link
