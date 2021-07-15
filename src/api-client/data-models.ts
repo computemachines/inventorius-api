@@ -186,7 +186,7 @@ export class Batch extends RestEndpoint {
   }
   async bins(): Promise<BatchLocations | Problem> {
     const resp = await this.operations.bins.perform();
-    const json = resp.json();
+    const json = await resp.json();
     if (resp.ok) return { ...json, kind: "batch-locations" };
     else return { ...json, kind: "problem" };
   }
