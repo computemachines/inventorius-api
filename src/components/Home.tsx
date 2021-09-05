@@ -8,17 +8,18 @@ function Home() {
     "home-component",
     async ({ api }) => ({ version: await api.getVersion() })
   );
-  if (frontloadMeta.pending) return <div>Loading</div>;
-  if (frontloadMeta.error) return <div>API Error</div>;
-
   const api = React.useContext(ApiContext);
-  console.log(api);
 
   React.useEffect(() => {
     setData((data) => ({
       version: "client clobber",
     }));
   }, []);
+
+  if (frontloadMeta.pending) return <div>Loading</div>;
+  if (frontloadMeta.error) return <div>API Error</div>;
+
+  console.log(api);
 
   return (
     <div>
