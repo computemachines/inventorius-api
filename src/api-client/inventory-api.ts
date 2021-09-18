@@ -62,7 +62,7 @@ export class InventoryApi {
     const resp = await fetch(`${this.hostname}/api/next/sku`);
     const json = await resp.json();
     if (!resp.ok) return { ...json, kind: "problem" };
-    return new NextSku({ ...json, hosthame: this.hostname });
+    return new NextSku({ ...json, hostname: this.hostname });
   }
   async getNextBatch(): Promise<NextBatch | Problem> {
     const resp = await fetch(`${this.hostname}/api/next/batch`);
