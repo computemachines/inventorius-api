@@ -1,3 +1,4 @@
+/** Main entry for node server. */
 import * as React from "react";
 import { renderToString } from "react-dom/server";
 import * as express from "express";
@@ -33,6 +34,14 @@ const port = parseInt(args["--port"] || 80);
 const dev: boolean = args["--dev"];
 const noclient: boolean = args["--noclient"];
 
+/**
+ * Generate HTML from template.
+ * @param app - The complete server-side-rendered app.
+ * @param frontloadServerData - The cached data for frontload.
+ * @param dev - Development flag
+ * @param noclient - Disable all client side js for testing server rendering.
+ * @returns {string} The complete HTML page.
+ */
 function htmlTemplate(
   app: string,
   frontloadServerData: any,

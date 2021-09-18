@@ -26,16 +26,6 @@ import NewBatch from "./NewBatch";
 import Batch from "./Batch";
 import Receive from "./Receive";
 
-// test change
-
-// second change
-
-// third change
-
-// fourth change
-
-// prerelease change
-
 function App() {
   const [alertContent, setAlertContent] = useState<{
     content?: ReactNode;

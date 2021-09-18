@@ -2,7 +2,13 @@ import fetch from "cross-fetch";
 
 type Props = unknown;
 
+/**
+ * JSON representation of a 'application/problem+json' response.
+ */
 export interface Problem {
+  /**
+   * Discriminator
+   */
   kind: "problem";
   type: string;
   title: string;

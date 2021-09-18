@@ -125,6 +125,8 @@ function SearchResults({
     return () => clearTimeout(timer);
   });
 
+  // -------- branching --------
+
   if (frontloadMeta.pending) return <div>Loading ...</div>;
   if (frontloadMeta.error || data.searchResults.kind == "problem")
     return <div>API error!</div>;

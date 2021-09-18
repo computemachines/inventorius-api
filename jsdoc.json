@@ -1,0 +1,27 @@
+{
+  "recurseDepth": 10,
+  "opts": {
+    "destination": "docs",
+    "recurse": true,
+    "readme": "README.md",
+    "template": "node_modules/better-docs"
+  },
+  "tags": {
+    "allowUnknownTags": ["optional", "component", "category"],
+    "dictionaries": ["jsdoc", "closure"]
+  },
+  "templates": {
+    "better-docs": {
+      "name": "Inventory Frontend"
+    }
+  },
+  "plugins": [
+    "node_modules/better-docs/typescript",
+    "node_modules/better-docs/component",
+    "node_modules/better-docs/category"
+  ],
+  "source": {
+    "includePattern": "\\.(jsx|js|ts|tsx)$",
+    "excludePattern": "(^|\\/|\\\\)_"
+  }
+}

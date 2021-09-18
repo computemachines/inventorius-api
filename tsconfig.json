@@ -12,5 +12,12 @@
     },
     "include": [
         "src"
-    ]
+    ],
+    "typedocOptions": {
+        "entryPoints": [
+            "src"
+        ],
+        "entryPointStrategy": "expand",
+        "out": "docs"
+    },
 }
