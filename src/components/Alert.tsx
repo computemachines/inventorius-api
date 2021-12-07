@@ -14,6 +14,8 @@ type SetAlertContent = ({
 export const AlertContext =
   React.createContext<{ setAlertContent: SetAlertContent }>(null);
 
+// render alert component
+// Is rendered as closed/inactive when children is falsy
 export const Alert = ({
   onClose,
   children,

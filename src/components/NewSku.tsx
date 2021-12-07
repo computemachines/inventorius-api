@@ -24,12 +24,15 @@ function NewSku() {
   const skuInputRef = useRef(null);
 
   let skuIdPlaceholder;
-  if (frontloadMeta.pending) skuIdPlaceholder = "Loading...";
-  else if (frontloadMeta.error || data.nextSku.kind == "problem")
+  if (frontloadMeta.pending) {
+    skuIdPlaceholder = "Loading...";
+  } else if (frontloadMeta.error || data.nextSku.kind == "problem") {
     skuIdPlaceholder = "API Error";
-  else skuIdPlaceholder = data.nextSku.state;
+  } else {
+    skuIdPlaceholder = data.nextSku.state;
+  }
 
-  function clearForm() {
+  function setClearForm() {
     setSkuIdValue("");
     setNameValue("");
     setCodes([]);
@@ -62,7 +65,7 @@ function NewSku() {
         });
         const json = await resp.json();
         if (resp.ok) {
-          clearForm();
+          setClearForm();
           setAlertContent({
             content: (
               <p>

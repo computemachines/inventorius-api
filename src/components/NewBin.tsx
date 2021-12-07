@@ -9,10 +9,9 @@ import { AlertContext } from "./Alert";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 
-function handleSubmit() {}
-
 function NewBin() {
   const { setAlertContent } = useContext(AlertContext);
+  const api = useContext(ApiContext);
   const [binIdValue, setBinIdValue] = useState("");
   let binIdPlaceholder = "Loading";
 
@@ -22,8 +21,6 @@ function NewBin() {
       nextBin: await api.getNextBin(),
     })
   );
-
-  const api = useContext(ApiContext);
 
   if (frontloadMeta.error) binIdPlaceholder = "API Error";
   if (frontloadMeta.done && data.nextBin.kind != "problem")
@@ -35,10 +32,10 @@ function NewBin() {
       onSubmit={async (e) => {
         e.preventDefault();
 
-        let binId = binIdPlaceholder;
-        if (binIdValue) binId = binIdValue;
-
-        const resp = await api.newBin({ id: binId, props: null });
+        const resp = await api.newBin({
+          id: binIdValue || binIdPlaceholder,
+          props: null,
+        });
         const json = await resp.json();
         if (resp.ok) {
           setBinIdValue("");

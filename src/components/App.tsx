@@ -26,6 +26,7 @@ import NewBatch from "./NewBatch";
 import Batch from "./Batch";
 import Receive from "./Receive";
 
+// Main app component
 function App() {
   const [alertContent, setAlertContent] = useState<{
     content?: ReactNode;

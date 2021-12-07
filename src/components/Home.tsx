@@ -10,16 +10,8 @@ function Home() {
   );
   const api = React.useContext(ApiContext);
 
-  React.useEffect(() => {
-    setData((data) => ({
-      version: "client clobber",
-    }));
-  }, []);
-
   if (frontloadMeta.pending) return <div>Loading</div>;
   if (frontloadMeta.error) return <div>API Error</div>;
-
-  console.log(api);
 
   return (
     <div>

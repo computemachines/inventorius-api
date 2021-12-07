@@ -104,8 +104,16 @@ function Bin(): JSX.Element {
           <FilterWidget />
         </div>
         <div className="info-item-description">
+          {/* <DataTable>
+            <DataTableHeaders>
+              <Header></Header>
+            </DataTableHeaders>
+            <DataTableRow>
+
+            </DataTableRow>
+          </DataTable> */}
           {frontloadMeta.done && data.bin.kind != "problem" ? (
-            <BinContentsTable contents={data.bin.state.contents} />
+            <BinContentsTable key={id} contents={data.bin.state.contents} />
           ) : null}
         </div>
       </div>
