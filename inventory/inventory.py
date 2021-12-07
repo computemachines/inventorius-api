@@ -149,7 +149,7 @@ def bin_contents_post(id):
     item_id = request.json['id']
     quantity = request.json['quantity']
     resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
+    resp.headers.add("Cache-Control", "no-cache")
 
     if not into_bin:
         resp.status_code = 404
