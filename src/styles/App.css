@@ -1,3 +1,11 @@
+/* .app-wrapper
+ *   TopBar
+ *   NavBar
+ *   .main-container
+ *     .main-content
+ *     Footer
+ */
+
 * {
   box-sizing: border-box;
 }
@@ -5,9 +13,8 @@
 .app-wrapper {
   background-color: #cdd2d6; /* colors.abyss */
   font-family: Roboto, Helvetica, sans-serif;
-  /* display: flex; */
-  /* flex-flow: column nowrap; */
-  /* display: grid; */
+  display: flex;
+  flex-flow: column nowrap;
 }
 
 .main-container {
@@ -32,4 +39,10 @@
 
 button:active {
   outline: 2px solid black;
+}
+
+@media (min-width: 600px) {
+  .app-wrapper {
+    flex-direction: row;
+  }
 }

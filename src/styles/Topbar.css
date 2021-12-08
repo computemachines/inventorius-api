@@ -2,6 +2,7 @@
   background: #04151f; /* colors.dark1 */
   color: #ecebe4ff;
   display: flex;
+  /* flex-flow: row nowrap; */
   align-items: center;
   width: 100%;
   padding: 0.5rem;
@@ -65,4 +66,10 @@
   vertical-align: middle;
   text-transform: uppercase;
   padding-right: 0.5rem;
+}
+
+@media (min-width: 600px) {
+  .top-bar {
+    flex-direction: column;
+  }
 }
