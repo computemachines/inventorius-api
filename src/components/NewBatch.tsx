@@ -77,8 +77,8 @@ function NewBatch() {
       onSubmit={async (e) => {
         e.preventDefault();
 
-        let ownedCodes = [];
-        let associatedCodes = [];
+        const ownedCodes = [];
+        const associatedCodes = [];
         for (const code of codes) {
           if (code.value == "" || code.inherited) continue;
           switch (code.kind) {

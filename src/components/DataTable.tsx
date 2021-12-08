@@ -71,7 +71,7 @@ function ResizableHeader({
   children: React.ReactNode;
   onResize?: (width: number) => void;
 }) {
-  let headerElement = useRef(null);
+  const headerElement = useRef(null);
 
   const mouseUpListener = () => {
     // console.log("window#mouseup");
@@ -169,7 +169,7 @@ function DataTable({
                 key={"th-" + index}
                 onResize={(width) => {
                   const newColumnSizes = [...columnSizes];
-                  let widthSpec = headerSpecs[header]?.width;
+                  const widthSpec = headerSpecs[header]?.width;
                   if (widthSpec?.kind == "min-max-width") {
                     if (typeof widthSpec.minWidth == "number")
                       width = Math.max(width, widthSpec.minWidth);

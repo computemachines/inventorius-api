@@ -44,8 +44,8 @@ function NewSku() {
       onSubmit={async (e) => {
         e.preventDefault();
 
-        let ownedCodes = [];
-        let associatedCodes = [];
+        const ownedCodes = [];
+        const associatedCodes = [];
         for (const code of codes) {
           if (code.value === "") continue;
           switch (code.kind) {

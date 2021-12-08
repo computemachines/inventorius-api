@@ -61,11 +61,11 @@ function Batch({ editable = false }: { editable?: boolean }) {
       setUnsavedCodes([
         ...data.batch.state.owned_codes.map((value) => ({
           value,
-          kind: "owned" as "owned",
+          kind: "owned" as const,
         })),
         ...data.batch.state.associated_codes.map((value) => ({
           value,
-          kind: "associated" as "associated",
+          kind: "associated" as const,
         })),
       ]);
     }

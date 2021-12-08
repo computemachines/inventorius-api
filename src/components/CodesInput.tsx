@@ -104,7 +104,7 @@ function CodesInput({
         key={i}
         code={code}
         setCode={(code) => {
-          let newCodes = [...codes];
+          const newCodes = [...codes];
           newCodes[i] = code;
           setCodes(newCodes);
         }}
@@ -122,7 +122,7 @@ function CodesInput({
           <Cross
             className="lnr-cross-circle"
             onClick={(e) => {
-              let newCodes = [...codes];
+              const newCodes = [...codes];
               newCodes.splice(i, 1);
               setCodes(newCodes);
             }}

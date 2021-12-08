@@ -9,7 +9,7 @@ export function Pager({
   linkHref,
   scrollToTop = true,
 }) {
-  var onClick;
+  let onClick;
   const shownPageLinks = [page - 2, page - 1, page, page + 1, page + 2].filter(
     (p) => p >= 1 && p <= numPages
   );

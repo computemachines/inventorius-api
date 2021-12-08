@@ -28,7 +28,7 @@ function ItemLocations({
   // const [isProblem, setProblem] = useState(false);
 
   React.useEffect(() => {
-    let myTabularData = [];
+    const myTabularData = [];
     // if (sku?.kind == "problem") return;
     for (const binId in itemLocations.state) {
       for (const itemId in itemLocations.state[binId]) {

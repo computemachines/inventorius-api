@@ -29,7 +29,7 @@ const ItemLabel = ({
   const { prefix, number } = match.groups;
   const leadingZeros = match.groups.leadingZeroes || "";
 
-  var unitUrl;
+  let unitUrl;
   switch (prefix) {
     case "BIN":
       unitUrl = "/bin/";

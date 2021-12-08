@@ -54,11 +54,11 @@ function Sku({ editable = false }: { editable?: boolean }) {
       setUnsavedName(data.sku.state.name);
       const newUnsavedCodes = [
         ...data.sku.state.owned_codes.map((code) => ({
-          kind: "owned" as "owned",
+          kind: "owned" as const,
           value: code,
         })),
         ...data.sku.state.associated_codes.map((code) => ({
-          kind: "associated" as "associated",
+          kind: "associated" as const,
           value: code,
         })),
       ];
