@@ -31,15 +31,15 @@ const ItemLabel = ({
 
   let unitUrl;
   switch (prefix) {
-    case "BIN":
-      unitUrl = "/bin/";
-      break;
-    case "SKU":
-      unitUrl = "/sku/";
-      break;
-    case "BAT":
-      unitUrl = "/batch/";
-      break;
+  case "BIN":
+    unitUrl = "/bin/";
+    break;
+  case "SKU":
+    unitUrl = "/sku/";
+    break;
+  case "BAT":
+    unitUrl = "/batch/";
+    break;
   }
 
   if (link) {

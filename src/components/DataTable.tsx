@@ -42,21 +42,21 @@ function DataCell({
   onClickLink?: React.MouseEventHandler<HTMLAnchorElement>;
 }) {
   switch (type) {
-    case ".ItemLabel":
-      return (
-        <td>
-          <ItemLabel onClick={onClickLink} label={value as string} />
-        </td>
-      );
-      break;
+  case ".ItemLabel":
+    return (
+      <td>
+        <ItemLabel onClick={onClickLink} label={value as string} />
+      </td>
+    );
+    break;
 
-    case ".truncated":
-      return <td className="truncated">{value}</td>;
-      break;
+  case ".truncated":
+    return <td className="truncated">{value}</td>;
+    break;
 
-    default:
-      return <td>{value}</td>;
-      break;
+  default:
+    return <td>{value}</td>;
+    break;
   }
 }
 
@@ -123,14 +123,14 @@ function DataTable({
     headers.map((header) => {
       const width: WidthSpec = (headerSpecs[header] || new HeaderSpec()).width;
       switch (width.kind) {
-        case "min-max-width":
-          return `minmax(${width.minWidth}px, ${width.maxWidth})`;
-        case "fixed-width":
-          return typeof width.width == "string"
-            ? width.width
-            : `${width.width}px`;
-        default:
-          const _: never = width;
+      case "min-max-width":
+        return `minmax(${width.minWidth}px, ${width.maxWidth})`;
+      case "fixed-width":
+        return typeof width.width == "string"
+          ? width.width
+          : `${width.width}px`;
+      default:
+        const _: never = width;
       }
     })
   );

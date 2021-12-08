@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import ReactModal from "react-modal";
+// import ReactModal from "react-modal";
 import {
   createFrontloadState,
   FrontloadState,
@@ -16,11 +16,11 @@ declare global {
     __DEV_MODE?: boolean;
   }
   interface NodeModule {
-    hot?: any;
+    hot?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 }
 
-const ClientApp = ({ frontloadState }) => (
+const ClientApp = ({ frontloadState }: {frontloadState: FrontloadState}) => (
   <BrowserRouter>
     <FrontloadProvider initialState={frontloadState}>
       <ApiContext.Provider value={frontloadState.context.api}>

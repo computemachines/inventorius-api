@@ -4,7 +4,7 @@ import {  } from "react";
 import "hamburgers/dist/hamburgers.css";
 import "../styles/Topbar.css"; // must load after hamburgers.css
 
-function Topbar({ isActive, setActive }): JSX.Element {
+function Topbar({ isActive, setActive }: {isActive: boolean, setActive: (isActive: boolean) => void}): JSX.Element {
   return (
     <div className="top-bar">
       <div className="logo" />

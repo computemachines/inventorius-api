@@ -63,8 +63,8 @@ function htmlTemplate(
               // WARNING: See the following for security issues around embedding JSON in HTML:
               // http://redux.js.org/recipes/ServerRendering.html#security-considerations
             window.__FRONTLOAD_SERVER_STATE = ${JSON.stringify(
-              frontloadServerData
-            ).replace(/</g, "\\u003c")}
+    frontloadServerData
+  ).replace(/</g, "\\u003c")}
         </script>
         ${!noclient ? '<script src="/assets/client.bundle.js"></script>' : ""}
     </body>
