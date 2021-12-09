@@ -79,7 +79,7 @@
   padding-right: 0.5rem;
 }
 
-@media (min-width: 600px) {
+@media (min-width: 800px) {
   .top-bar {
     /* display: block; */
     flex-direction: column;

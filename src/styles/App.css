@@ -24,9 +24,8 @@
 
 .main-container { /* gray background (no-content) */
   background-color: #cdd2d6; /* colors.abyss */
-  height: 100vh;
+  min-height: 100vh;
   flex-grow: 1;
-  width: 100%;
 }
 
 .main-content { /* Card containing all content except footer */
@@ -39,8 +38,12 @@
   padding-bottom: 2.5rem;
   margin: 0 auto;
 }
+.main-container .footer-wrapper {
+  padding: 1rem;
+  margin: 0 auto;
+}
 
-.main-content::after {
+.main-content::after, .main-container::after {
   content: "";
   clear: both;
   display: table;
@@ -50,11 +53,24 @@ button:active {
   outline: 2px solid black;
 }
 
-@media (min-width: 600px) {
+@media (min-width: 800px) {
   .app-wrapper {
     flex-direction: row;
   }
   .app-wrapper .header-wrapper {
   }
   .app-wrapper .main-container {}
+}
+
+@media (min-width: 1024px) {
+  .app-wrapper .main-container {
+    padding: 1rem 2rem;
+  }
+  .app-wrapper .main-container .main-content {
+    max-width: 40rem;
+    border-radius: 0.5rem;
+  }
+  .app-wrapper .main-container .footer-wrapper {
+    max-width: 40rem;
+  }
 }

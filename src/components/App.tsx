@@ -100,7 +100,9 @@ function App() {
             </AlertContext.Provider>
           </ErrorBoundary>
         </div>
-        <Link to="/legal">Legal</Link>
+        <div className="footer-wrapper">
+          <Link to="/legal">Legal</Link>
+        </div>
       </div>
     </div>
   );
