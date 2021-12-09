@@ -25,7 +25,7 @@ function Navbar({
         // console.log("nav onClick");
         setActive(false);
       }}
-      className={`navbar screen-reader${isActive ? "screen-reader-show" : ""}`}
+      className={`navbar screen-reader ${isActive ? "screen-reader-show" : ""}`}
     >
       <NavLink className="navlink" to="/">
         Home

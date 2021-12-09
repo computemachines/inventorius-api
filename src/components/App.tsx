@@ -42,8 +42,10 @@ function App() {
 
   return (
     <div className="app-wrapper">
-      <Topbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
-      <Navbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
+      <div className="header-wrapper">
+        <Topbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
+        <Navbar isActive={dropdownIsActive} setActive={setDropdownIsActive} />
+      </div>
       <div className="main-container">
         <div className="main-content" id="main">
           <ErrorBoundary>

@@ -14,17 +14,26 @@
   background-color: #cdd2d6; /* colors.abyss */
   font-family: Roboto, Helvetica, sans-serif;
   display: flex;
-  flex-flow: column nowrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
 }
 
-.main-container {
+.header-wrapper {
+  background: #04151f; /* colors.dark1 */
+}
+
+.main-container { /* gray background (no-content) */
   background-color: #cdd2d6; /* colors.abyss */
   height: 100vh;
+  flex-grow: 1;
+  width: 100%;
 }
 
-.main-content {
+.main-content { /* Card containing all content except footer */
   background-color: #ecebe4; /* colors.foreground */
+  /* background-color: red; */
   min-height: 10em;
+  width: 100%;
   box-shadow: 0 25px 50px -12px rgba(29, 26, 26, 0.25);
   padding: 12px;
   padding-bottom: 2.5rem;
@@ -45,4 +54,7 @@ button:active {
   .app-wrapper {
     flex-direction: row;
   }
+  .app-wrapper .header-wrapper {
+  }
+  .app-wrapper .main-container {}
 }

@@ -29,3 +29,15 @@
   background-color: #0c3764;
   color: white;
 }
+
+@media (min-width: 600px) {
+  .navbar.screen-reader {
+    clip: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
+  }
+}
