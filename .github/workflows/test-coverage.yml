@@ -25,6 +25,7 @@ jobs:
           mongodb-version: ${{ matrix.mongodb-version }}
       - name: Install deps
         run: |
+          apt install libmagickwand-dev
           python -m pip install --upgrade pip
           pip install -r requirements.txt 
       - name: Run Tests

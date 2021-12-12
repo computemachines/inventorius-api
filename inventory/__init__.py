@@ -19,6 +19,7 @@ from inventory.bin import bin
 from inventory.batch import batch
 from inventory.inventory import inventory
 from inventory.sku import sku
+from inventory.file_upload import file_upload
 
 # from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 
@@ -29,6 +30,7 @@ app.register_blueprint(bin)
 app.register_blueprint(batch)
 app.register_blueprint(inventory)
 app.register_blueprint(sku)
+app.register_blueprint(file_upload)
 
 
 def cors_allow_all(response):
@@ -49,4 +51,4 @@ app.after_request(cors_allow_all)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.2.11"
+    return "0.2.12-0"
