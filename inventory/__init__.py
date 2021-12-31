@@ -19,18 +19,43 @@ from inventory.bin import bin
 from inventory.batch import batch
 from inventory.inventory import inventory
 from inventory.sku import sku
-from inventory.file_upload import file_upload
-
+# from inventory.file_upload import file_upload
 # from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
+# from inventory.user import user
+
+import os
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+
+
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    print("setup sentry.io integration")
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration()],
+
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production.
+        traces_sample_rate=1.0
+    )
+
 
 app = Flask('inventory')
 BAD_REQUEST = ('Bad Request', 400)
+
 
 app.register_blueprint(bin)
 app.register_blueprint(batch)
 app.register_blueprint(inventory)
 app.register_blueprint(sku)
-app.register_blueprint(file_upload)
+# app.register_blueprint(file_upload)
+# app.register_blueprint(user)
+
+if app.debug:
+    print("!!! ENVIROMENT SETTING SECRET KEY FOR SESSIONS !!!")
+    app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
 
 def cors_allow_all(response):
@@ -51,4 +76,8 @@ app.after_request(cors_allow_all)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.2.12-0"
+    return "0.2.13-0"
+
+@app.route('/api/debug-sentry')
+def trigger_error():
+    division_by_zero = 1 / 0

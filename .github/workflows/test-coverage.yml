@@ -25,7 +25,7 @@ jobs:
           mongodb-version: ${{ matrix.mongodb-version }}
       - name: Install deps
         run: |
-          apt install libmagickwand-dev
+          sudo apt install libmagickwand-dev
           python -m pip install --upgrade pip
           pip install -r requirements.txt 
       - name: Run Tests
@@ -94,6 +94,13 @@ jobs:
         run: |
           gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
           chmod 600 github_id_rsa
+      - name: unpack secrets.ini
+        env:
+          PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_SECRETS_INI_GPG_PASSWORD }}
+        run: gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output secrets.ini secrets.ini.gpg
+      - name: upload secrets.ini
+        run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts secrets.ini root@computemachines.com:secrets.ini
+
       - name: Run deployment commands on production server
         run: |
           ssh -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com \

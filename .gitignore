@@ -9,3 +9,5 @@
 test-results
 htmlcov
 .pytest_cache
+secrets.ini
+github_id_rsa
