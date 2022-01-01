@@ -1,9 +1,11 @@
 from flask import request
+from flask_login import LoginManager
 import re
 from string import ascii_letters
 
 from inventory.db import db
 
+login_manager = LoginManager()
 
 def getIntArgs(args, name, default):
     str_value = args.get(name, default)

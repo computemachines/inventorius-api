@@ -166,7 +166,7 @@ def bin_delete(id):
         resp.status_code = 204
         return resp
     else:
-        resp.status_code = 403
+        resp.status_code = 405
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
             "type": "dangerous-operation",

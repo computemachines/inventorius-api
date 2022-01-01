@@ -142,6 +142,12 @@ class DataModel():
 
 # -------- Data models for db
 
+class UserData(DataModel):
+    id = DataField("_id", required=True)
+    active = DataField("active", default=False)
+    # role = DataField("role")
+    name = DataField("name")
+    # email = DataField("email")
 
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""

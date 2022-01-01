@@ -1,6 +1,7 @@
 from flask import g
 from pymongo import MongoClient, TEXT
 from werkzeug.local import LocalProxy
+from gridfs import GridFS
 
 # memoize mongo_client
 _mongo_client = None
@@ -22,5 +23,10 @@ def get_db():
         g.db = get_mongo_client().inventorydb
     return g.db
 
+def get_gridfs():
+    if 'fs' not in g:
+        g.fs = GridFS(get_mongo_client().gridfsdb)
+    return g.fs
 
 db = LocalProxy(get_db)
+fs = LocalProxy(get_gridfs)
