@@ -14,12 +14,12 @@ gpg -c secrets.txt
 200 - Ok
 201 - Created (success, show created resource)
 204 - No Content (success, don't change view)
-400 - Bad Request
+400 - Bad Request (Client's fault)
 401 - Unauthorized (Unauthenticated)
 403 - Forbidden (Authenticated, but no permissions)
 404 - Not Found
 405 - Method Not Allowed (resource exists but can't delete, change, etc...)
-409 - Conflict (Constraint violation)
+409 - Conflict (With state of target resource)
 500 - Internal Server Error (Server crashed, unexpected error, etc...)
 
 ## System Dependencies
