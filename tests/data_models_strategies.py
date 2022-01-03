@@ -1,9 +1,14 @@
-from inventory.data_models import Bin, Sku, Batch
+from inventory.data_models import Bin, Sku, Batch, UserData
 
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
 
 from string import printable, ascii_lowercase
+
+import os
+import time
+import hashlib
+import base64
 
 fieldNames = text(ascii_lowercase + '_')
 simpleTypes = one_of(none(),
@@ -27,7 +32,7 @@ def label_(draw, prefix, length=9):
 def bins_(draw, id=None, props=None, contents=None):
     id = id or draw(label_("BIN"))  # f"BIN{draw(integers(0, 6)):06d}"
     props = props or draw(json)
-    return Bin(id=id, props=props)
+    return Bin(id=id, props=props, contents=contents)
 
 
 @composite
@@ -41,7 +46,7 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
 
 
 @composite
-def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_codes=None, props=None):
+def batches_(draw: DrawFn, id=None, sku_id=0, name=None, owned_codes=None, associated_codes=None, props=None):
     id = id or draw(label_("BAT"))
     if sku_id == 0:
         sku_id = draw(none(), label_("SKU"))
@@ -50,6 +55,35 @@ def batches_(draw, id=None, sku_id=0, name=None, owned_codes=None, associated_co
     associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     props = props or draw(json)
     return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
+
+
+@composite
+def users_(draw, id=None, name=None, password=None):
+    id = id or draw(text(min_size=1))
+    name = name or draw(text())
+    password = draw(text(min_size=8))
+    # salt = os.urandom(64)
+    # derived_shadow_id = hashlib.sha256((str(time.time()) + str(id)).encode("utf-8"),
+    #                                    usedforsecurity=False)
+    # clipped_shadow_id = base64.encodebytes(
+    #     derived_shadow_id.digest()).decode("ascii")[:16]
+
+    # user_data = UserData(
+    #     fixed_id=id,
+    #     shadow_id=clipped_shadow_id,
+    #     password_hash=hashlib.pbkdf2_hmac(
+    #         "sha256",
+    #         str(password).encode("utf-8"),
+    #         salt,
+    #         100000),
+    #     password_salt=salt,
+    #     name=name,
+    # )
+    return {
+        "id": id,
+        "name": name,
+        "password": password,
+    }
 
 
 search_query = one_of(text(), text("abc", min_size=1), text(

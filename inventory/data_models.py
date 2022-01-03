@@ -58,11 +58,10 @@ class DataModel():
             #   is none. Don't treat this special. Don't use default. If I take the time
             #   to write field=None, assume I really want None.
 
-            if field in kwargs:
+            if kwargs.get(field) != None:
                 setattr(self, field, kwargs[field])
             #
             # elif class_variable.default is set: then self.<field> = field.default.copy()
-
             #
             # elif field.required: raise exception
             #
@@ -70,9 +69,10 @@ class DataModel():
             elif class_variable.required:
                 raise KeyError("'{}' is a required field in class '{}'".format(
                     field, self.__class__.__name__))
-
-            elif class_variable.default is not None:
+            elif class_variable.default != None and type(class_variable.default) == list:
                 setattr(self, field, class_variable.default.copy())
+            elif class_variable.default != None:
+                setattr(self, field, class_variable.default)
             else:
                 setattr(self, field, None)
 
@@ -143,7 +143,10 @@ class DataModel():
 # -------- Data models for db
 
 class UserData(DataModel):
-    id = DataField("_id", required=True)
+    fixed_id = DataField("_id", required=True)
+    shadow_id = DataField("shadow_id", required=True)
+    password_hash = DataField("password_hash", required=True)
+    password_salt = DataField("password_salt", required=True)
     active = DataField("active", default=False)
     # role = DataField("role")
     name = DataField("name")

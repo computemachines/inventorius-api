@@ -12,6 +12,9 @@ def test_batch_default_values():
     batch = Batch(id="BAT1")
     assert batch.sku_id == None
 
+def test_bin_default_contents():
+    bin = Bin(contents=None, id='BIN000000', props=None)
+    assert json.loads(bin.to_json()).get('contents') == {}
 
 @given(dst.bins_())
 def test_bin(bin):
