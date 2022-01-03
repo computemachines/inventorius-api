@@ -21,10 +21,52 @@ class InventoryStateMachine(RuleBasedStateMachine):
             self.model_skus = {}
             self.model_bins = {}
             self.model_batches = {}
+            self.model_users = {}
 
     a_bin_id = Bundle("bin_id")
     a_sku_id = Bundle("sku_id")
     a_batch_id = Bundle("batch_id")
+    a_user_id = Bundle("user_id")
+
+    @rule(target=a_user_id, user=dst.users_())
+    def new_user(self, user):
+        resp = self.client.post("/api/users", json=user)
+        if user.id in self.model_users.keys():
+            assert resp.status_code == 400
+        else:
+            assert resp.status_code == 201
+
+    @rule(user_id=consumes(a_user_id))
+    def delete_existing_user(self, user_id):
+        resp = self.client.delete(f"/api/user/{user_id}")
+        del self.model_users[user_id]
+        assert resp.status_code == 204
+
+    @rule(user_id=a_user_id)
+    def get_existing_user(self, user_id):
+        resp = self.client.get(f"/api/user/{user_id}")
+        assert resp.status_code == 200
+        assert resp.is_json
+        found_user = resp.json["state"]
+        model_user = self.model_users[user_id]
+        assert model_user.id == found_user.id
+        assert model_user.name == found_user.name
+
+    @rule(user_id=dst.ids)
+    def get_missing_user(self, user_id):
+        assume(user_id not in self.model_users.keys())
+        resp = self.client.get(f"/api/user/{user_id}")
+        assert resp.status_code == 404
+        assert resp.is_json
+        assert resp.json['type'] == 'missing-resource'
+    
+    @rule(user_id=dst.ids)
+    def delete_missing_user(self, user_id):
+        assume(user_id not in self.model_users.keys())
+        resp = self.client.delete(f"/api/user/{user_id}")
+        assert resp.status_code == 404
+        assert resp.is_json
+        assert resp.json['type'] == "missing-resource"
 
     @rule(target=a_bin_id, bin=dst.bins_())
     def new_bin(self, bin):
@@ -84,7 +126,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def delete_nonempty_bin_noforce(self, bin_id):
         assume(self.model_bins[bin_id].contents != {})
         rp = self.client.delete(f'/api/bin/{bin_id}')
-        assert rp.status_code == 403
+        assert rp.status_code == 405
         assert rp.is_json
         assert rp.json['type'] == 'dangerous-operation'
 

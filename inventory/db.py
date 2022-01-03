@@ -14,6 +14,7 @@ def get_mongo_client():
         _mongo_client = MongoClient(db_host, 27017)
         _mongo_client.inventorydb.sku.create_index([('name', TEXT)])
         _mongo_client.inventorydb.batch.create_index([('name', TEXT)])
+        _mongo_client.inventorydb.user.create_index([('name', TEXT)])
 
     return _mongo_client
 
@@ -23,10 +24,10 @@ def get_db():
         g.db = get_mongo_client().inventorydb
     return g.db
 
-def get_gridfs():
+def get_gridfs_db():
     if 'fs' not in g:
         g.fs = GridFS(get_mongo_client().gridfsdb)
     return g.fs
 
 db = LocalProxy(get_db)
-fs = LocalProxy(get_gridfs)
+fs = LocalProxy(get_gridfs_db)

@@ -35,4 +35,5 @@ def clientContext():
     get_mongo_client().testing.batch.drop()
     get_mongo_client().testing.bin.drop()
     get_mongo_client().testing.sku.drop()
+    get_mongo_client().testing.user.drop()
     yield inventory_flask_app.test_client()

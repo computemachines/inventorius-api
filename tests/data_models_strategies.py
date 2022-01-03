@@ -3,12 +3,14 @@ from inventory.data_models import Bin, Sku, Batch, UserData
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
 
-from string import printable, ascii_lowercase
+from string import ascii_letters, printable, ascii_lowercase
 
 import os
 import time
 import hashlib
 import base64
+
+ids = text(printable.translate(str.maketrans({"/": None})), min_size=1)
 
 fieldNames = text(ascii_lowercase + '_')
 simpleTypes = one_of(none(),
@@ -59,7 +61,7 @@ def batches_(draw: DrawFn, id=None, sku_id=0, name=None, owned_codes=None, assoc
 
 @composite
 def users_(draw, id=None, name=None, password=None):
-    id = id or draw(text(min_size=1))
+    id = id or draw(ids)
     name = name or draw(text())
     password = draw(text(min_size=8))
     # salt = os.urandom(64)

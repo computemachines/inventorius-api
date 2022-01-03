@@ -178,3 +178,13 @@ def test_receive_batch():
 #                                    'a'], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
 #     state.search(query='a')
 #     state.teardown()
+
+def test_get_missing_user():
+    state = InventoryStateMachine()
+    state.get_missing_user(user_id='0')
+    state.teardown()
+
+def test_delete_missing_user():
+    state = InventoryStateMachine()
+    state.delete_missing_user(user_id='0')
+    state.teardown()
