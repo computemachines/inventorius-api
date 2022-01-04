@@ -1,3 +1,4 @@
+from os import stat
 from flask import Response
 from json import dumps
 from flask.helpers import url_for
@@ -10,6 +11,7 @@ problem_titles = {
     "validation-error": "Input did not validate.",
     "duplicate-resource": "Attempt to create resource that already exists.",
     "missing-resource": "Resource does not exist.",
+    "invalid-credentials": "Identity not authorized."
 }
 
 
@@ -34,12 +36,12 @@ def problem_invalid_params_response(error: MultipleInvalid, type="validation-err
     })
 
 
-def problem_duplicate_resource_response(key, reason="must not already exist"):
+def problem_duplicate_resource_response(key, reason="must not already exist", status_code=409):
     return problem_response(json={
         "type": "duplicate-resource",
         "title": problem_titles["duplicate-resource"],
         "invalid-params": [{"name": key, "reason": reason}],
-    })
+    }, status_code=status_code)
 
 
 def problem_missing_resource_response(uri, create_operation=None):
@@ -56,6 +58,19 @@ def problem_missing_user_response(id):
         url_for("user.user_get", id=id), 
         operation("create", "POST", url_for("user.users_post"), "User Patch"))
 
+def problem_bad_username_password_response(name, reason=None):
+    if name == "id" and reason == None:
+        reason = "Id does not exist"
+    if name == "password" and reason == None:
+        reason = "Incorrect password"
+    return problem_response(
+        status_code=401,
+        json={
+            "type": "invalid-credentials",
+            "title": problem_titles["invalid-credentials"],
+            "invalid-params": [{"name": name, reason: reason or ""}]
+        }
+    )
 
 new_user_schema = Schema({
     Required("id"): All(Length(1), str),

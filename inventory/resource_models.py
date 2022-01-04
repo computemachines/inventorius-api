@@ -22,6 +22,26 @@ def operation(rel, method, href, expects_a=None):
       ret["Expects-a"] = expects_a
     return ret
 
+def logout_operation():
+    return operation("logout", "POST", url_for("user.logout"))
+
+
+class HypermediaEndpoint:
+    def __init__(self, resourceUri, state, operations):
+        self.resourceUri = resourceUri
+        self.state = state
+        self.operations = operations
+    def response(self, status_code=200, mimetype="application/json"):
+        resp = Response()
+        resp.status_code = status_code
+        resp.mimetype = mimetype
+        resp.data = json.dumps({
+            "Id": self.resourceUri,
+            "state": self.state,
+            "operations": self.operations
+        })
+        return resp
+
 class PublicProfile:
     @classmethod
     def retrieve_from_id(cls, id):
@@ -30,7 +50,7 @@ class PublicProfile:
         profile.resourceUri = url_for("user.user_get", id=id)
 
         private_user_data = UserData.from_mongodb_doc(
-            db.users.find_one({"_id": id}))
+            db.user.find_one({"_id": id}))
         if not private_user_data:
           return None
         profile.state = {
@@ -60,7 +80,7 @@ class PrivateProfile:
         profile.resourceUri = url_for("user.user_get", id=id)
 
         private_user_data = UserData.from_mongodb_doc(
-            db.users.find_one({"_id": id}))
+            db.user.find_one({"_id": id}))
         profile.state = {
             "id": private_user_data.fixed_id,
             "name": private_user_data.name,
