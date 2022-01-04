@@ -31,6 +31,7 @@ def client():
 @contextlib.contextmanager
 def clientContext():
     inventory_flask_app.testing = True
+    inventory_flask_app.secret_key = "1234"
     get_mongo_client().testing.admin.drop()
     get_mongo_client().testing.batch.drop()
     get_mongo_client().testing.bin.drop()

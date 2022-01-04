@@ -1,18 +1,22 @@
 from flask import Blueprint, request, Response, url_for, session, make_response
+from flask.ctx import after_this_request
 from flask_login import current_user, login_user
 from flask_login.utils import login_required, logout_user
-import json
+from json import dumps
 import os
 import hashlib
 import random
 import time
 import base64
 from voluptuous import MultipleInvalid
+from werkzeug.wrappers import response
 
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder, UserData
 from inventory.db import db
 from inventory.util import admin_increment_code, check_code_list, login_manager, principals, admin_permission
-from inventory.validation import new_user_schema, problem_duplicate_resource_response, problem_invalid_params_response, problem_missing_user_response
+import inventory.util_error_responses as problem
+import inventory.util_success_responses as success
+from inventory.validation import new_user_schema, user_patch_schema, login_request_schema
 from inventory.resource_models import PublicProfile
 
 user = Blueprint("user", __name__)
@@ -51,42 +55,77 @@ def load_user(shadow_id):
         return None
 
 
+def set_password_dangerous(id, password):
+    """Set the password for any user. Does not check permissions. Also changes shadow_id, forcing all sessions to reauthenticate."""
+
+    derived_shadow_id = hashlib.sha256((str(time.time()) + id).encode("utf-8"),
+                                       usedforsecurity=False)
+    clipped_shadow_id = base64.encodebytes(
+        derived_shadow_id.digest()).decode("ascii")[:16]
+
+    salt = os.urandom(64)
+    db.user.update_one({"_id": id}, {
+        "$set": {
+            "shadow_id": clipped_shadow_id,
+            "password_hash": hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                salt,
+                100000),
+            "password_salt": salt,
+        }
+    })
+
+
 # @user.route("/api/admin-secret")
 # @admin_permission.require(http_exception=403)
 # def admin_secret():
 #     return Response("admin secrets")
 
 
-@user.route("/api/login", methods=["POST"])
+@ user.route("/api/login", methods=["POST"])
 def login_post():
-    resp = Response()
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
 
-    json = request.get_json()
+    try:
+        json = login_request_schema(request.get_json())
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
 
     requested_user_data = UserData.from_mongodb_doc(
         db.user.find_one({"_id": json['id']}))
     if requested_user_data is None:
-        resp.status_code = 401
-        resp.data = "bad username"
-        return resp
+        return problem.bad_username_password_response("id")
 
     request_hashed_password = hashlib.pbkdf2_hmac("sha256", str(
         json['password']).encode("utf-8"), requested_user_data.password_salt, 100000)
     if requested_user_data.password_hash != request_hashed_password:
-        resp.status_code = 401
-        resp.data = "bad password"
-        return resp
+        return problem.bad_username_password_response("password")
 
     user = User.from_user_data(requested_user_data)
     if login_user(user):
-        resp.status_code = 201
-        resp.data = "logged in"
-        return resp
+        return success.login_response(user.user_data.fixed_id)
     else:
-        resp.status_code = 401
-        resp.data = "user is inactive"
+        return problem.deactivated_account(user.user_data.fixed_id)
+
+
+@ user.route("/api/whoami", methods=["GET"])
+def whoami():
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
         return resp
 
+    resp = Response()
+    resp.mimetype = "application/json"
+    if current_user.is_authenticated:
+        resp.data = dumps({"id": current_user.user_data.fixed_id})
+    else:
+        resp.data = dumps({"id": None})
+    return resp
 
 # @user.route("/api/profile", methods=["GET"])
 # def profile_get():
@@ -103,22 +142,28 @@ def login_post():
 #     return resp
 
 
-@user.route("/api/users", methods=["POST"])
+@ user.route("/api/users", methods=["POST"])
 def users_post():
-    resp = Response()
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+
     try:
         json = new_user_schema(request.get_json())
     except MultipleInvalid as e:
-        return problem_invalid_params_response(e)
+        return problem.invalid_params_response(e)
 
     existing_user = db.user.find_one({"_id": json["id"]})
     if existing_user:
-        return problem_duplicate_resource_response("id")
+        return problem.duplicate_resource_response("id")
+
+    derived_shadow_id = hashlib.sha256((str(time.time()) + str(json['id'])).encode("utf-8"),
+                                       usedforsecurity=False)
+    clipped_shadow_id = base64.encodebytes(
+        derived_shadow_id.digest()).decode("ascii")[:16]
 
     salt = os.urandom(64)
-    derived_shadow_id = hashlib.sha256((str(time.time()) + str(json['id'])).encode("utf-8"),
-                               usedforsecurity=False)
-    clipped_shadow_id = base64.encodebytes(derived_shadow_id.digest()).decode("ascii")[:16]
     user_data = UserData(
         fixed_id=json['id'],
         shadow_id=clipped_shadow_id,
@@ -129,42 +174,61 @@ def users_post():
             100000),
         password_salt=salt,
         name=json['name'],
+        active=True,
     )
     db.user.insert_one(user_data.to_mongodb_doc())
-    resp.status_code = 201
-    resp.data = "user created"
-    return resp
+    return success.user_created_response(user_data.fixed_id)
 
 
-@user.route("/api/user/<id>", methods=["GET"])
+@ user.route("/api/user/<id>", methods=["PATCH"])
+def user_patch(id):
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+
+    try:
+        patch = user_patch_schema(request.get_json())
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
+
+    existing = UserData.from_mongodb_doc(db.user.find_one({"_id": id}))
+    if not existing:
+        return problem.invalid_params_response(problem.missing_resource_param_error("id", "user does not exist"), status_code=404)
+
+    if "name" in patch:
+        db.user.update_one({"_id": id}, {"$set": {"name": patch["name"]}})
+    if "password" in patch:
+        set_password_dangerous(id, patch["password"])
+
+    return success.user_updated_response(id)
+
+
+@ user.route("/api/user/<id>", methods=["GET"])
 def user_get(id):
     public_profile = PublicProfile.retrieve_from_id(id)
     if public_profile:
         return public_profile.hypermedia_response()
     else:
-        resp = problem_missing_user_response(id)
+        resp = problem.missing_user_response(id)
         return resp
 
-# @user.route("/api/user/<user_id>/activate", methods=["POST"])
-# def user_activate_post(user_id):
-#     resp = Response()
-#     db.user.update_one({"_id": user_id}, {"$set": {"active": True}})
-#     resp.status_code = 201
-#     resp.data = "activated user"
-#     return resp
 
-
-@user.route("/api/user/<id>", methods=["DELETE"])
+@ user.route("/api/user/<id>", methods=["DELETE"])
 def user_delete(id):
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+
     resp = Response()
     if current_user.is_authenticated and current_user.userdata.id == id:
         logout_user()
     if not db.user.find_one({"_id": id}):
-        return problem_missing_user_response(id)
+        return problem.missing_user_response(id)
     db.user.delete_one({"_id": id})
     resp.status_code = 204
     return resp
-
 
 # @user.route("/api/private-report", methods=["GET"])
 # @login_required
@@ -172,8 +236,13 @@ def user_delete(id):
 #     return {"secret": "information", "userId": current_user.user_data.fixed_id}
 
 
-@user.route('/api/logout', methods=["GET"])
-def logout_get():
+@ user.route('/api/logout', methods=["POST"])
+def logout_post():
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+
     if current_user.is_authenticated:
         return "Logged out"
     else:

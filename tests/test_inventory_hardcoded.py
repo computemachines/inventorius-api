@@ -24,6 +24,7 @@ def test_update_bin():
 def test_recreate_bin():
     state = InventoryStateMachine()
     v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
+    print(state)
     state.delete_empty_bin(bin_id=v1)
     state.new_bin(bin=Bin(id='BIN000000', props=None))
     state.teardown()
@@ -187,4 +188,46 @@ def test_get_missing_user():
 def test_delete_missing_user():
     state = InventoryStateMachine()
     state.delete_missing_user(user_id='0')
+    state.teardown()
+
+def test_new_user():
+    state = InventoryStateMachine()
+    state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.teardown()
+
+def test_get_existing_user():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.get_existing_user(user_id=v1)
+    state.teardown()
+
+@given(data=st.data())
+def test_create_existing_user(data):
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.create_existing_user(user_id=v1, data=data)
+    state.teardown()
+
+def test_whoami():
+    state = InventoryStateMachine()
+    state.whoami()
+    state.teardown()
+
+def test_simple_login():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={"id": 'tparker', "name": "tyler parker", "password": "12345678"})
+    state.login_as(v1)
+    state.whoami()
+    state.teardown()
+
+def test_update_existing_user():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.update_existing_user(user_id=v1, user_patch={'password': '00000000'})
+    state.teardown()
+
+def test_change_password():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.update_existing_user(user_id=v1, user_patch={'password': '00000010'})
     state.teardown()

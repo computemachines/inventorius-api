@@ -148,7 +148,7 @@ def sku_patch(id):
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
             "type": "missing-resource",
-            "title": "Can not delete sku that does not exist.",
+            "title": "Can not edit sku that does not exist.",
             "invalid-params": [{
                 "name": "id",
                 "reason": "must be an exisiting sku id"

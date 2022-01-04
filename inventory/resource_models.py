@@ -23,11 +23,12 @@ def operation(rel, method, href, expects_a=None):
     return ret
 
 def logout_operation():
-    return operation("logout", "POST", url_for("user.logout"))
+    return operation("logout", "POST", url_for("user.logout_post"))
+
 
 
 class HypermediaEndpoint:
-    def __init__(self, resourceUri, state, operations):
+    def __init__(self, resourceUri, state=None, operations=None):
         self.resourceUri = resourceUri
         self.state = state
         self.operations = operations
@@ -35,11 +36,14 @@ class HypermediaEndpoint:
         resp = Response()
         resp.status_code = status_code
         resp.mimetype = mimetype
-        resp.data = json.dumps({
-            "Id": self.resourceUri,
-            "state": self.state,
-            "operations": self.operations
-        })
+
+        data = {"Id": self.resourceUri}
+        if self.state is not None:
+            data["state"] = self.state
+        if self.operations is not None:
+            data["operations"] = self.operations
+        
+        resp.data = json.dumps(data)
         return resp
 
 class PublicProfile:

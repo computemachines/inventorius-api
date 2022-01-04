@@ -22,6 +22,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
             self.model_bins = {}
             self.model_batches = {}
             self.model_users = {}
+            self.logged_in_as = None
 
     a_bin_id = Bundle("bin_id")
     a_sku_id = Bundle("sku_id")
@@ -31,10 +32,15 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(target=a_user_id, user=dst.users_())
     def new_user(self, user):
         resp = self.client.post("/api/users", json=user)
-        if user.id in self.model_users.keys():
+        if user["id"] in self.model_users.keys():
             assert resp.status_code == 400
+            assert resp.is_json
+            assert resp.json['type'] == "duplicate-resource"
+            return multiple()
         else:
             assert resp.status_code == 201
+            self.model_users[user["id"]] = user
+            return user["id"]
 
     @rule(user_id=consumes(a_user_id))
     def delete_existing_user(self, user_id):
@@ -49,8 +55,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert resp.is_json
         found_user = resp.json["state"]
         model_user = self.model_users[user_id]
-        assert model_user.id == found_user.id
-        assert model_user.name == found_user.name
+        assert model_user["id"] == found_user["id"]
+        assert model_user["name"] == found_user["name"]
 
     @rule(user_id=dst.ids)
     def get_missing_user(self, user_id):
@@ -59,7 +65,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert resp.status_code == 404
         assert resp.is_json
         assert resp.json['type'] == 'missing-resource'
-    
+
     @rule(user_id=dst.ids)
     def delete_missing_user(self, user_id):
         assume(user_id not in self.model_users.keys())
@@ -67,6 +73,65 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert resp.status_code == 404
         assert resp.is_json
         assert resp.json['type'] == "missing-resource"
+
+    @rule(user_id=a_user_id, data=st.data())
+    def create_existing_user(self, user_id, data):
+        user = data.draw(dst.users_(id=user_id))
+        resp = self.client.post("/api/users", json=user)
+        assert resp.status_code == 409
+        assert resp.is_json
+        assert resp.json["type"] == "duplicate-resource"
+
+    user_patch = st.builds(lambda user, use_keys: {k: v for k, v in user.items() if k in use_keys},
+                           dst.users_(),
+                           st.sets(st.sampled_from([
+                               "name",
+                               "password",
+                           ])))
+
+    @rule(user_id=a_user_id, user_patch=user_patch)
+    def update_existing_user(self, user_id, user_patch):
+        rp = self.client.patch(f'/api/user/{user_id}', json=user_patch)
+        assert rp.status_code == 200
+        assert rp.cache_control.no_cache
+        for key in user_patch.keys():
+            setattr(self.model_users[user_id], key, user_patch[key])
+    
+    @rule(user_id=a_user_id)
+    def login_as(self, user_id):
+        rp = self.client.post("/api/login", json={"id": user_id, "password": self.model_users[user_id]["password"]})
+        assert rp.cache_control.no_cache
+        self.logged_in_as = user_id
+    
+    @rule(user_id=a_user_id, password=st.text())
+    def login_bad_password(self, user_id, password):
+        assume(password != self.model_users[user_id])
+        rp = self.client.post("/api/login", json={"id": user_id, "password": self.model_users[user_id]["password"]})
+        assert rp.status_code == 409
+        assert rp.cache_control.no_cache
+        assert rp.is_json
+    
+    @rule(user=dst.users_())
+    def login_bad_username(self, user):
+        assume(user['id'] not in self.model_users)
+        rp = self.client.post("/api/login", json={"id": user["id"], "password": user["password"]})
+        assert rp.status_code == 409
+        assert rp.cache_control.no_cache
+        assert rp.is_json
+
+
+        
+
+    @rule()
+    def whoami(self):
+        rp = self.client.get("/api/whoami")
+        assert rp.status_code == 200
+        assert rp.is_json
+        if self.logged_in_as:
+            assert rp.json["id"] == self.logged_in_as
+        else:
+            assert rp.json["id"] == None
+    
 
     @rule(target=a_bin_id, bin=dst.bins_())
     def new_bin(self, bin):

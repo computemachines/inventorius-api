@@ -10,7 +10,8 @@ import time
 import hashlib
 import base64
 
-ids = text(printable.translate(str.maketrans({"/": None})), min_size=1)
+ids = text(printable.translate(str.maketrans(
+    {"/": None, "?": None, "&": None, "#": None})), min_size=1)
 
 fieldNames = text(ascii_lowercase + '_')
 simpleTypes = one_of(none(),
@@ -34,6 +35,7 @@ def label_(draw, prefix, length=9):
 def bins_(draw, id=None, props=None, contents=None):
     id = id or draw(label_("BIN"))  # f"BIN{draw(integers(0, 6)):06d}"
     props = props or draw(json)
+    contents = contents or {}
     return Bin(id=id, props=props, contents=contents)
 
 
