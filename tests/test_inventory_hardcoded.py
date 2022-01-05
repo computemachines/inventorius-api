@@ -231,3 +231,24 @@ def test_change_password():
     v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.update_existing_user(user_id=v1, user_patch={'password': '00000010'})
     state.teardown()
+
+def test_login_empty_password():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.login_bad_password(password='', user_id=v1)
+    state.teardown()
+
+def test_delete_user():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.login_as(user_id=v1)
+    state.delete_existing_user(user_id=v1)
+    state.teardown()
+
+def test_login_delete_missing_bin():
+    state = InventoryStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.login_as(user_id=v1)
+    state.logout()
+    state.delete_missing_bin(bin_id='BIN000000')
+    state.teardown()

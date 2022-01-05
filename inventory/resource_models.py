@@ -28,7 +28,7 @@ def logout_operation():
 
 
 class HypermediaEndpoint:
-    def __init__(self, resourceUri, state=None, operations=None):
+    def __init__(self, resourceUri=None, state=None, operations=None):
         self.resourceUri = resourceUri
         self.state = state
         self.operations = operations
@@ -37,7 +37,9 @@ class HypermediaEndpoint:
         resp.status_code = status_code
         resp.mimetype = mimetype
 
-        data = {"Id": self.resourceUri}
+        data = {}
+        if self.resourceUri is not None:
+            data["Id"] = self.resourceUri
         if self.state is not None:
             data["state"] = self.state
         if self.operations is not None:

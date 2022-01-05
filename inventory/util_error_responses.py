@@ -9,6 +9,7 @@ problem_titles = {
     "missing-resource": "Resource does not exist.",
     "invalid-credentials": "Identity not authorized.",
     "account-deactivated": "Account is deactivated.",
+    "dangerous-operation": "This operation requires force=true."
 }
 
 
@@ -68,6 +69,11 @@ def missing_user_response(id):
         url_for("user.user_get", id=id),
         operation("create", "POST", url_for("user.users_post"), "User Patch"))
 
+def missing_bin_response(id):
+    return missing_resource_response(
+        url_for("bin.bin_get", id=id),
+        operation("create", "POST", url_for("bin.bins_post"), "Bin Patch")
+    )
 
 def bad_username_password_response(name, reason=None):
     if name == "id" and reason == None:
@@ -92,3 +98,32 @@ def deactivated_account(id):
             "title": problem_titles["account-deactivated"],
             "Id": url_for("user.user_get", id=id)
         })
+
+def dangerous_operation_unforced_response(name=None, reason=""):
+    """
+    name <== the param that requires force=True
+    reason <== human readable explanation of why force=True is necessary
+    """
+    force_reason = "force must be set to true"
+    if name:
+        force_reason = force_reason + ", or invalid parameter "+name+" must be resolved"
+
+    invalid_params = [{
+        "name": "force",
+        "reason": force_reason
+    }]
+    
+    if name:
+        invalid_params.append({
+            "name": name,
+            "reason": reason
+        })
+
+    return problem_response(
+        status_code=405,
+        json={
+            "type": "dangerous-operation",
+            "title": problem_titles["dangerous-operation"],
+            "invalid-params": invalid_params
+        }
+    )

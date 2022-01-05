@@ -46,7 +46,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def delete_existing_user(self, user_id):
         resp = self.client.delete(f"/api/user/{user_id}")
         del self.model_users[user_id]
-        assert resp.status_code == 204
+        assert resp.status_code == 200
 
     @rule(user_id=a_user_id)
     def get_existing_user(self, user_id):
@@ -95,7 +95,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
         for key in user_patch.keys():
-            setattr(self.model_users[user_id], key, user_patch[key])
+            self.model_users[user_id][key] = user_patch[key]
     
     @rule(user_id=a_user_id)
     def login_as(self, user_id):
@@ -106,8 +106,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(user_id=a_user_id, password=st.text())
     def login_bad_password(self, user_id, password):
         assume(password != self.model_users[user_id])
-        rp = self.client.post("/api/login", json={"id": user_id, "password": self.model_users[user_id]["password"]})
-        assert rp.status_code == 409
+        rp = self.client.post("/api/login", json={"id": user_id, "password": password})
+        assert rp.status_code == 401
         assert rp.cache_control.no_cache
         assert rp.is_json
     
@@ -115,11 +115,17 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def login_bad_username(self, user):
         assume(user['id'] not in self.model_users)
         rp = self.client.post("/api/login", json={"id": user["id"], "password": user["password"]})
-        assert rp.status_code == 409
+        assert rp.status_code == 401
         assert rp.cache_control.no_cache
         assert rp.is_json
 
-
+    @rule()
+    def logout(self):
+        rp = self.client.post("/api/logout")
+        assert rp.status_code == 200
+        assert rp.cache_control.no_cache
+        assert rp.is_json
+        self.logged_in_as = None
         
 
     @rule()
@@ -184,7 +190,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(self.model_bins[bin_id].contents == {})
         rp = self.client.delete(f'/api/bin/{bin_id}')
         del self.model_bins[bin_id]
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
 
     @rule(bin_id=a_bin_id)
@@ -201,7 +207,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         rp = self.client.delete(
             f'/api/bin/{bin_id}', query_string={"force": "true"})
         del self.model_bins[bin_id]
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
 
     @rule(bin_id=dst.label_("BIN"))

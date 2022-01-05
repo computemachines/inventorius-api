@@ -1,7 +1,8 @@
-from flask import Blueprint, request, Response, url_for, session, make_response
+from flask import Blueprint, request, Response, url_for, session, make_response, current_app, app
 from flask.ctx import after_this_request
-from flask_login import current_user, login_user
-from flask_login.utils import login_required, logout_user
+import flask_login
+from flask_login import current_user
+from flask_principal import identity_changed, Identity, AnonymousIdentity
 from json import dumps
 import os
 import hashlib
@@ -35,6 +36,7 @@ class User:
         user.is_anonymous = False
         return user
 
+
     def __init__(self) -> None:
         # sensible defaults
         self.is_authenticated = False
@@ -54,6 +56,24 @@ def load_user(shadow_id):
     else:
         return None
 
+@identity_changed.connect_via(app)
+def on_identity_loaded(sender, identity):
+    pass
+    # identity.user = current_user.get_id()
+
+def login_dangerous(user, remember=False):
+    if flask_login.login_user(user, remember=remember):
+        identity_changed.send(current_app._get_current_object(), identity=Identity(user.user_data.fixed_id))
+        return True
+    else:
+        return False
+    
+
+def logout_dangerous():
+    session.pop("identity.name", None)
+    session.pop("identity.auth_type", None)
+    flask_login.logout_user()
+    # identity_changed.send(current_app._get_current_object(), identity=AnonymousIdentity())
 
 def set_password_dangerous(id, password):
     """Set the password for any user. Does not check permissions. Also changes shadow_id, forcing all sessions to reauthenticate."""
@@ -85,6 +105,8 @@ def set_password_dangerous(id, password):
 
 @ user.route("/api/login", methods=["POST"])
 def login_post():
+
+
     @ after_this_request
     def no_cache(resp):
         resp.headers.add("Cache-Control", "no-cache")
@@ -93,7 +115,7 @@ def login_post():
     try:
         json = login_request_schema(request.get_json())
     except MultipleInvalid as e:
-        return problem.invalid_params_response(e)
+        return problem.invalid_params_response(e, status_code=401)
 
     requested_user_data = UserData.from_mongodb_doc(
         db.user.find_one({"_id": json['id']}))
@@ -106,7 +128,7 @@ def login_post():
         return problem.bad_username_password_response("password")
 
     user = User.from_user_data(requested_user_data)
-    if login_user(user):
+    if login_dangerous(user):
         return success.login_response(user.user_data.fixed_id)
     else:
         return problem.deactivated_account(user.user_data.fixed_id)
@@ -121,10 +143,12 @@ def whoami():
 
     resp = Response()
     resp.mimetype = "application/json"
+
+    data = {"id": None}
+
     if current_user.is_authenticated:
-        resp.data = dumps({"id": current_user.user_data.fixed_id})
-    else:
-        resp.data = dumps({"id": None})
+        data["id"] = current_user.user_data.fixed_id
+    resp.data = dumps(data)
     return resp
 
 # @user.route("/api/profile", methods=["GET"])
@@ -221,14 +245,13 @@ def user_delete(id):
         resp.headers.add("Cache-Control", "no-cache")
         return resp
 
-    resp = Response()
-    if current_user.is_authenticated and current_user.userdata.id == id:
-        logout_user()
+    if current_user.is_authenticated and current_user.user_data.fixed_id == id:
+        
+        logout_dangerous()
     if not db.user.find_one({"_id": id}):
         return problem.missing_user_response(id)
     db.user.delete_one({"_id": id})
-    resp.status_code = 204
-    return resp
+    return success.user_deleted_response(id)
 
 # @user.route("/api/private-report", methods=["GET"])
 # @login_required
@@ -244,9 +267,10 @@ def logout_post():
         return resp
 
     if current_user.is_authenticated:
-        return "Logged out"
+        logout_dangerous()
+        return success.logged_out_response()
     else:
-        return "Already logged out"
+        return success.already_logged_out()
 
 
 # @user.route("/api/users", methods=["GET"])

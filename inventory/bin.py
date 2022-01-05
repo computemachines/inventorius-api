@@ -1,7 +1,9 @@
-from flask import Blueprint, request, Response, url_for
+from flask import Blueprint, request, Response, url_for, after_this_request
 from inventory.data_models import Bin, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import get_body_type, admin_increment_code
+import inventory.util_error_responses as problem
+import inventory.util_success_responses as success
 
 import json
 
@@ -145,38 +147,18 @@ def bin_patch(id):
 
 @bin.route('/api/bin/<id>', methods=['DELETE'])
 def bin_delete(id):
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
-    resp = Response()
-    resp.headers = {"Cache-Control": "no-cache"}
 
     if existing is None:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "Can not delete bin that does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an exisiting bin id"
-            }]
-        })
-        return resp
+        return problem.missing_bin_response(id)
+        
     if request.args.get('force', 'false') == 'true' or len(existing.contents.keys()) == 0:
         db.bin.delete_one({"_id": id})
-        resp.status_code = 204
-        return resp
+        return success.bin_deleted_response(id)
     else:
-        resp.status_code = 405
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "dangerous-operation",
-            "title": "Can not delete nonempty bin without force=true.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an empty bin id"
-            }, {
-                "name": "force",
-                "reason": "must be set to true if bin is empty"
-            }]
-        })
-        return resp
+        return problem.dangerous_operation_unforced_response("id", "bin must be empty")

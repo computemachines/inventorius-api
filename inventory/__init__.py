@@ -60,11 +60,11 @@ if app.debug:
 
 
 def cors_allow_all(response):
-    if app.debug:
+    # if app.debug:
         # print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
+        # response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
+        # response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        # response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
 
     return response
 
