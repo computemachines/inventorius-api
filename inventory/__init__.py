@@ -60,11 +60,11 @@ if app.debug:
 
 
 def cors_allow_all(response):
-    # if app.debug:
-        # print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
-        # response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
-        # response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-        # response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
+    if app.debug:
+        print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
 
     return response
 
@@ -75,7 +75,7 @@ principals.init_app(app)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.2.15-0"
+    return "0.3.0-0"
 
 @app.route('/api/debug-sentry')
 def trigger_error():
