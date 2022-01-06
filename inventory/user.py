@@ -2,7 +2,7 @@ from flask import Blueprint, request, Response, url_for, session, make_response,
 from flask.ctx import after_this_request
 import flask_login
 from flask_login import current_user
-from flask_principal import identity_changed, Identity, AnonymousIdentity
+from flask_principal import Permission, UserNeed, identity_changed, Identity, AnonymousIdentity, identity_loaded
 from json import dumps
 import os
 import hashlib
@@ -18,7 +18,7 @@ from inventory.util import admin_increment_code, check_code_list, login_manager,
 import inventory.util_error_responses as problem
 import inventory.util_success_responses as success
 from inventory.validation import new_user_schema, user_patch_schema, login_request_schema
-from inventory.resource_models import PublicProfile
+from inventory.resource_models import PrivateProfile, PublicProfile
 
 user = Blueprint("user", __name__)
 
@@ -36,7 +36,6 @@ class User:
         user.is_anonymous = False
         return user
 
-
     def __init__(self) -> None:
         # sensible defaults
         self.is_authenticated = False
@@ -49,37 +48,46 @@ class User:
 
 @login_manager.user_loader
 def load_user(shadow_id):
+    print(f"load user: {shadow_id}")
     user_data = UserData.from_mongodb_doc(
         db.user.find_one({"shadow_id": shadow_id}))
     if user_data:
+        identity_changed.send(current_app._get_current_object(),
+                              identity=Identity(user_data.fixed_id))
         return User.from_user_data(user_data)
     else:
+        session.pop("identity.name", None)
+        session.pop("identity.auth_type", None)
+        identity_changed.send(current_app._get_current_object(), identity=AnonymousIdentity())
+
         return None
 
-@identity_changed.connect_via(app)
+
 def on_identity_loaded(sender, identity):
-    pass
-    # identity.user = current_user.get_id()
+    if identity.id:
+        identity.provides.add(UserNeed(identity.id))
+identity_loaded.connect(on_identity_loaded)
 
 def login_dangerous(user, remember=False):
     if flask_login.login_user(user, remember=remember):
-        identity_changed.send(current_app._get_current_object(), identity=Identity(user.user_data.fixed_id))
+        identity_changed.send(current_app._get_current_object(),
+                              identity=Identity(user.user_data.fixed_id))
         return True
     else:
         return False
-    
+
 
 def logout_dangerous():
     session.pop("identity.name", None)
     session.pop("identity.auth_type", None)
     flask_login.logout_user()
-    # identity_changed.send(current_app._get_current_object(), identity=AnonymousIdentity())
+    identity_changed.send(current_app._get_current_object(), identity=AnonymousIdentity())
+
 
 def set_password_dangerous(id, password):
     """Set the password for any user. Does not check permissions. Also changes shadow_id, forcing all sessions to reauthenticate."""
 
-    derived_shadow_id = hashlib.sha256((str(time.time()) + id).encode("utf-8"),
-                                       usedforsecurity=False)
+    derived_shadow_id = hashlib.sha256((str(time.time()) + id).encode("utf-8"))
     clipped_shadow_id = base64.encodebytes(
         derived_shadow_id.digest()).decode("ascii")[:16]
 
@@ -105,7 +113,6 @@ def set_password_dangerous(id, password):
 
 @ user.route("/api/login", methods=["POST"])
 def login_post():
-
 
     @ after_this_request
     def no_cache(resp):
@@ -182,8 +189,7 @@ def users_post():
     if existing_user:
         return problem.duplicate_resource_response("id")
 
-    derived_shadow_id = hashlib.sha256((str(time.time()) + str(json['id'])).encode("utf-8"),
-                                       usedforsecurity=False)
+    derived_shadow_id = hashlib.sha256((str(time.time()) + str(json['id'])).encode("utf-8"))
     clipped_shadow_id = base64.encodebytes(
         derived_shadow_id.digest()).decode("ascii")[:16]
 
@@ -230,9 +236,16 @@ def user_patch(id):
 
 @ user.route("/api/user/<id>", methods=["GET"])
 def user_get(id):
+
+    UserPermission = Permission(UserNeed(id))
+
     public_profile = PublicProfile.retrieve_from_id(id)
+    private_profile = PrivateProfile.retrieve_from_id(id)
     if public_profile:
-        return public_profile.hypermedia_response()
+        if UserPermission.can():
+            return private_profile.hypermedia_response()
+        else:
+            return public_profile.hypermedia_response()
     else:
         resp = problem.missing_user_response(id)
         return resp
@@ -246,7 +259,7 @@ def user_delete(id):
         return resp
 
     if current_user.is_authenticated and current_user.user_data.fixed_id == id:
-        
+
         logout_dangerous()
     if not db.user.find_one({"_id": id}):
         return problem.missing_user_response(id)

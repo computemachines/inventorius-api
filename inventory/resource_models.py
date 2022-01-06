@@ -87,9 +87,12 @@ class PrivateProfile:
 
         private_user_data = UserData.from_mongodb_doc(
             db.user.find_one({"_id": id}))
+        if not private_user_data:
+            return None
         profile.state = {
             "id": private_user_data.fixed_id,
             "name": private_user_data.name,
+            "secret": "info",
         }
         profile.operations = [
           operation("delete", "DELETE", url_for("user.user_delete", id=id))
