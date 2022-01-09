@@ -21,7 +21,7 @@ def get_fields(cls):
 
 class DataModelJSONEncoder(json.JSONEncoder):
     def default(self, o):
-        return {k: v for k, v in o.__dict__.items()}
+        return {k: v for k, v in o.__dict__.items() if k != None}
 
 
 class DataField():
@@ -88,7 +88,7 @@ class DataModel():
         return json.dumps(self, cls=DataModelJSONEncoder)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({", ".join("=".join((k, v.__repr__())) for k, v in self.__dict__.items())})'
+        return f'{self.__class__.__name__}({", ".join("=".join((k, v.__repr__())) for k, v in self.__dict__.items() if k!=None)})'
 
     @classmethod
     def from_json(cls, json_str):
@@ -137,10 +137,14 @@ class DataModel():
                 transformed_dict[db_key] = model_value
         return transformed_dict
 
-    def to_dict(self):
-        return self.__dict__
+    def to_dict(self, mask_none=False):
+        if mask_none:
+            return {k: v for k, v in self.items() if k != None}
+        else:
+            return self.__dict__
 
 # -------- Data models for db
+
 
 class UserData(DataModel):
     fixed_id = DataField("_id", required=True)
@@ -151,6 +155,7 @@ class UserData(DataModel):
     # role = DataField("role")
     name = DataField("name")
     # email = DataField("email")
+
 
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""

@@ -3,7 +3,7 @@
 .hypothesis
 .vscode/launch.json
 .venv
-.delete_me.py
+.deleteme.*
 .vscode
 .coverage
 test-results

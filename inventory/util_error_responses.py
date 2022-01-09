@@ -16,9 +16,10 @@ problem_titles = {
 def problem_response(status_code=400, json=None):
     resp = Response()
     resp.status_code = status_code
-    resp.mimetype = "application/problem+json"
     if json:
+        resp.mimetype = "application/problem+json"
         resp.data = dumps(json)
+
     return resp
 
 
@@ -36,7 +37,10 @@ def missing_resource_param_error(name, reason=None):
 def invalid_params_response(error: MultipleInvalid, type="validation-error", status_code=400):
     invalid_params = []
     for invalid in error.errors:
-        invalid_params.append({"name": invalid.path, "reason": invalid.msg})
+        name = invalid.path
+        if isinstance(name, list):
+            name = name[0]
+        invalid_params.append({"name": name, "reason": invalid.msg})
 
     return problem_response(
         json={

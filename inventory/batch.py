@@ -1,7 +1,11 @@
-from flask import Blueprint, request, Response, url_for
+from flask import Blueprint, request, Response, url_for, after_this_request
+from voluptuous.error import MultipleInvalid
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import admin_increment_code, check_code_list
+from inventory.validation import new_batch_schema
+import inventory.util_error_responses as problem
+import inventory.util_success_responses as success
 
 from pymongo import TEXT
 
@@ -12,103 +16,36 @@ batch = Blueprint("batch", __name__)
 
 @batch.route("/api/batches", methods=['POST'])
 def batches_post():
-    resp = Response()
-    resp.headers.add("Cache-Control", "no-cache")
-
-    batch = Batch.from_json(request.json)
-
-    # batch_id = request.json.get('id', None)
-
-    if not batch.id:
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-required-field",
-            "title": "Batch Id is a required field.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be filled in"
-            }]
-        })
+    @ after_this_request
+    def no_cache(resp):
+        resp.headers.add("Cache-Control", "no-cache")
         return resp
 
-    if not batch.id.startswith("BAT"):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-id-format",
-            "title": "Batch Ids must start with 'BAT'.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must start with 'BAT'"
-            }]
-        })
-        return resp
+    try:
+        json = new_batch_schema(request.json)
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
 
-    # sku_id = request.json.get('sku_id', None)
+    batch = Batch.from_json(json)
 
     existing_batch = db.batch.find_one({"_id": batch.id})
     if existing_batch:
-        resp.status_code = 409
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "duplicate-resource",
-            "title": "Cannot create duplicate batch.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must not be an existing batch id",
-            }]})
-        return resp
-
+        return problem.duplicate_resource_response("id")
+  
     if batch.sku_id:
         existing_sku = db.sku.find_one({"_id": batch.sku_id})
         if not existing_sku:
-            resp.status_code = 409
-            resp.mimetype = "application/problem+json"
-            resp.data = json.dumps({
-                "type": "missing-resource",
-                "title": "Cannot create a batch for non existing sku.",
-                "invalid-params": [{
-                    "name": "sku_id",
-                    "reason": "must be an existing sku id"
-                }]
-            })
-            return resp
+            return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
+       
 
-    # batch = Batch.from_json({
-    #     "id": batch_id,
-    #     "sku_id": sku_id,
-    #     "name": request.json.get("name", None),
-    #     "owned_codes": request.json.get("owned_codes", None),
-    #     "associated_codes": request.json.get("associated_codes", None),
-    #     "props": request.json.get("props", None)
-    # })
-
-    if check_code_list(batch.owned_codes):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-input-format",
-            "title": "Codes must not contain whitespace.",
-            "invalid-params": [{
-                "name": "owned_codes",
-                "reason": "must be list of nonempty strings containing no whitespace characters"
-            }]
-        })
-        return resp
-
-    if check_code_list(batch.associated_codes):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-input-format",
-            "title": "Codes must not contain whitespace.",
-            "invalid-params": [{
-                "name": "owned_codes",
-                "reason": "must be list of nonempty strings containing no whitespace characters"
-            }]
-        })
-        return resp
+    batch = Batch.from_json({
+        "id": json["id"],
+        "sku_id": json["id"],
+        "name": request.json.get("name", None),
+        "owned_codes": request.json.get("owned_codes", None),
+        "associated_codes": request.json.get("associated_codes", None),
+        "props": request.json.get("props", None)
+    })
 
     admin_increment_code("BAT", batch.id)
     db.batch.insert_one(batch.to_mongodb_doc())
@@ -116,15 +53,9 @@ def batches_post():
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.batch.index_information().keys():
-        # print("Creating text index for batch#name") # was too noisy
         db.sku.create_index([("name", TEXT)])
 
-    resp.status_code = 201
-    # resp.location = url_for("batch.batch_get", id=batch_id)
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({"Id": url_for("batch.batch_get", id=batch.id)})
-    return resp
-
+    return success.batch_created_response(batch.id)
 
 @batch.route("/api/batch/<id>", methods=["GET"])
 def batch_get(id):
