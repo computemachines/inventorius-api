@@ -3,7 +3,8 @@ import json
 from flask_login import current_user
 
 from inventory.db import db
-from inventory.data_models import UserData
+from inventory.data_models import UserData, Batch
+import inventory.resource_operations as operations
 
 # operation = {
 #   "rel": operation name (resource method),
@@ -12,53 +13,41 @@ from inventory.data_models import UserData
 #   (Expects-a): type or schema
 # }
 
-def operation(rel, method, href, expects_a=None):
-    ret = {
-      "rel": rel,
-      "method": method, 
-      "href": href,
-    }
-    if expects_a:
-      ret["Expects-a"] = expects_a
-    return ret
-
-def logout_operation():
-    return operation("logout", "POST", url_for("user.logout_post"))
-
-
 
 class HypermediaEndpoint:
-    def __init__(self, resourceUri=None, state=None, operations=None):
-        self.resourceUri = resourceUri
+    def __init__(self, resource_uri=None, state=None, operations=None):
+        self.resource_uri = resource_uri
         self.state = state
         self.operations = operations
+
     def response(self, status_code=200, mimetype="application/json"):
         resp = Response()
         resp.status_code = status_code
         resp.mimetype = mimetype
 
         data = {}
-        if self.resourceUri is not None:
-            data["Id"] = self.resourceUri
+        if self.resource_uri is not None:
+            data["Id"] = self.resource_uri
         if self.state is not None:
             data["state"] = self.state
         if self.operations is not None:
             data["operations"] = self.operations
-        
+
         resp.data = json.dumps(data)
         return resp
+
 
 class PublicProfile:
     @classmethod
     def retrieve_from_id(cls, id):
         profile = PublicProfile()
         profile.id = id
-        profile.resourceUri = url_for("user.user_get", id=id)
+        profile.resource_uri = url_for("user.user_get", id=id)
 
         private_user_data = UserData.from_mongodb_doc(
             db.user.find_one({"_id": id}))
         if not private_user_data:
-          return None
+            return None
         profile.state = {
             "id": private_user_data.fixed_id,
             "name": private_user_data.name,
@@ -71,7 +60,7 @@ class PublicProfile:
         resp.status_code = status_code
         resp.mimetype = "application/json"
         resp.data = json.dumps({
-            "Id": self.resourceUri,
+            "Id": self.resource_uri,
             "state": self.state,
             "operations": self.operations,
         })
@@ -83,7 +72,7 @@ class PrivateProfile:
     def retrieve_from_id(cls, id):
         profile = PublicProfile()
         profile.id = id
-        profile.resourceUri = url_for("user.user_get", id=id)
+        profile.resource_uri = url_for("user.user_get", id=id)
 
         private_user_data = UserData.from_mongodb_doc(
             db.user.find_one({"_id": id}))
@@ -95,7 +84,7 @@ class PrivateProfile:
             "secret": "info",
         }
         profile.operations = [
-          operation("delete", "DELETE", url_for("user.user_delete", id=id))
+            operations.logout("delete", "DELETE", url_for("user.user_delete", id=id))
         ]
         return profile
 
@@ -104,8 +93,32 @@ class PrivateProfile:
         resp.status_code = status_code
         resp.mimetype = "application/json"
         resp.data = json.dumps({
-            "Id": self.resourceUri,
+            "Id": self.resource_uri,
             "state": self.state,
             "operations": self.operations,
         })
         return resp
+
+
+class BatchEndpoint(HypermediaEndpoint):
+    def __init__(self, data_batch: Batch):
+        self.data_batch = data_batch
+        super().__init__(
+            resource_uri=url_for("batch.batch_get", id=data_batch.id),
+            state=data_batch.to_dict(),
+            operations=[{
+                "rel": "update",
+                "method": "PATCH",
+                "href": url_for("batch.batch_patch", id=id),
+                "Expects-a": "Batch patch"
+            }, {
+                "rel": "delete",
+                "method": "DELETE",
+                "href": url_for("batch.batch_delete", id=id),
+            }, {
+                "rel": "bins",
+                "method": "GET",
+                "href": url_for("batch.batch_bins_get", id=id),
+            }
+            ],
+        )

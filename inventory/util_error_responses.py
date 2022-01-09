@@ -1,7 +1,7 @@
 from flask import Response, url_for
 from json import dumps
 from voluptuous import MultipleInvalid, Invalid
-from inventory.resource_models import operation
+from inventory.resource_operations import operation
 
 problem_titles = {
     "validation-error": "Input did not validate.",

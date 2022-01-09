@@ -2,6 +2,7 @@ from flask import Blueprint, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
+import inventory.resource_operations as operation
 from inventory.util import admin_increment_code, check_code_list
 from inventory.validation import new_batch_schema
 import inventory.util_error_responses as problem
@@ -31,12 +32,12 @@ def batches_post():
     existing_batch = db.batch.find_one({"_id": batch.id})
     if existing_batch:
         return problem.duplicate_resource_response("id")
-  
+
     if batch.sku_id:
         existing_sku = db.sku.find_one({"_id": batch.sku_id})
         if not existing_sku:
             return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
-       
+
     admin_increment_code("BAT", batch.id)
     db.batch.insert_one(batch.to_mongodb_doc())
 
@@ -47,44 +48,25 @@ def batches_post():
 
     return success.batch_created_response(batch.id)
 
+
 @batch.route("/api/batch/<id>", methods=["GET"])
 def batch_get(id):
     resp = Response()
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
 
     if not existing:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "This batch does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an existing batch id"
-            }]
-        })
-        return resp
+        return problem.invalid_params_response(problem.missing_resource_param_error("id", "must be an existing sku id"))
     else:
         resp.status_code = 200
         resp.mimetype = "application/json"
         resp.data = json.dumps({
             "Id": url_for("batch.batch_get", id=id),
             "state": json.loads(existing.to_json()),
-            "operations": [{
-                "rel": "update",
-                "method": "PATCH",
-                "href": url_for("batch.batch_patch", id=id),
-                "Expects-a": "Batch patch"
-            }, {
-                "rel": "delete",
-                "method": "DELETE",
-                "href": url_for("batch.batch_delete", id=id),
-            }, {
-                "rel": "bins",
-                "method": "GET",
-                "href": url_for("batch.batch_bins_get", id=id),
-            }]
-        })
+            "operations": [
+                operation.batch_update(id),
+                operation.batch_delete(id),
+                operation.batch_bins(id),
+            ]})
         return resp
 
 

@@ -5,8 +5,8 @@ from flask.helpers import url_for
 from voluptuous import Schema, Required, All, Length, Range
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
+import re
 
-from inventory.resource_models import operation
 
 def prefixed_id(prefix=""):
     def must_have_prefix(id):

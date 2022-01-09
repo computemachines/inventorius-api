@@ -1,12 +1,14 @@
 from flask.helpers import url_for
-from inventory.resource_models import HypermediaEndpoint, logout_operation, operation
+from inventory.resource_models import HypermediaEndpoint
+from inventory.resource_operations import operation
+import inventory.resource_operations as operations
 
 
 def login_response(id):
     return HypermediaEndpoint(
         url_for("user.user_get", id=id),
         state={"status": "logged in"},
-        operations=[logout_operation()]
+        operations=[operation.logout()]
     ).response(status_code=200)
 
 
