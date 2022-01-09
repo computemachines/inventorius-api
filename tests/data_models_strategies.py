@@ -24,6 +24,7 @@ json = recursive(simpleTypes,
                      lists(children)),
                  max_leaves=1)
 
+propertyDicts = dictionaries(fieldNames, json)
 
 @composite
 def label_(draw, prefix, length=9):
@@ -34,7 +35,7 @@ def label_(draw, prefix, length=9):
 @composite
 def bins_(draw, id=None, props=None, contents=None):
     id = id or draw(label_("BIN"))  # f"BIN{draw(integers(0, 6)):06d}"
-    props = props or draw(json)
+    props = props or draw(propertyDicts)
     contents = contents or {}
     return Bin(id=id, props=props, contents=contents)
 
@@ -45,7 +46,7 @@ def skus_(draw, id=None, owned_codes=None, name=None, associated_codes=None, pro
     owned_codes = owned_codes or draw(lists(text("abc", min_size=1)))
     associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
     name = name or draw(text("ABC"))
-    props = props or draw(json)
+    props = props or draw(propertyDicts)
     return Sku(id=id, owned_codes=owned_codes, name=name, associated_codes=associated_codes, props=props)
 
 
@@ -57,7 +58,7 @@ def batches_(draw: DrawFn, id=None, sku_id=0, name=None, owned_codes=None, assoc
     name = name or draw(text("ABC"))
     owned_codes = owned_codes or draw(lists(text("abc", min_size=1)))
     associated_codes = associated_codes or draw(lists(text("abc", min_size=1)))
-    props = props or draw(json)
+    props = props or draw(propertyDicts)
     return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
 
 

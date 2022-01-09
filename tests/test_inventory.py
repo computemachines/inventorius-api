@@ -159,7 +159,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         rp = self.client.get(f'/api/bin/{bin_id}')
         assert rp.status_code == 200
         assert rp.is_json
-        assert self.model_bins[bin_id].props == rp.json['state']['props']
+        assert self.model_bins[bin_id].props == rp.json['state'].get('props')
         found_bin = Bin.from_json(rp.json['state'])
         assert found_bin == self.model_bins[bin_id]
 
@@ -344,7 +344,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         # assume(self.model_skus != {})  # TODO: check if this is necessary
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
-        rp = self.client.post('/api/batches', json=batch.to_dict())
+        rp = self.client.post('/api/batches', json=batch.to_dict(mask_none=True))
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -388,7 +388,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(target=a_batch_id, batch=dst.batches_(sku_id=None))
     def new_anonymous_batch(self, batch):
         assert not batch.sku_id
-        rp = self.client.post("/api/batches", json=batch.to_dict())
+        rp = self.client.post("/api/batches", json=batch.to_dict(mask_none=True))
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -396,6 +396,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert rp.is_json
             return multiple()
         else:
+            assert rp.json.get('type') is None
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
             return batch.id

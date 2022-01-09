@@ -37,16 +37,6 @@ def batches_post():
         if not existing_sku:
             return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
        
-
-    batch = Batch.from_json({
-        "id": json["id"],
-        "sku_id": json["id"],
-        "name": request.json.get("name", None),
-        "owned_codes": request.json.get("owned_codes", None),
-        "associated_codes": request.json.get("associated_codes", None),
-        "props": request.json.get("props", None)
-    })
-
     admin_increment_code("BAT", batch.id)
     db.batch.insert_one(batch.to_mongodb_doc())
 

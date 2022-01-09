@@ -121,7 +121,7 @@ def test_update_sku_batch():
                                id='SKU000002', name='', owned_codes=[], props=None))
     # state.delete_missing_sku(sku_id='SKU000000')
     data = dst.DataProxy(Batch(associated_codes=[], id='BAT000000',
-                               owned_codes=[], props=0, sku_id='SKU000001'))
+                               owned_codes=[], props={0: 0}, sku_id='SKU000001'))
     v2 = state.new_batch_existing_sku(data=data, sku_id=v1)
     state.attempt_update_nonanonymous_batch_sku_id(
         batch_id=v2, patch={}, sku_id='SKU000002')
