@@ -2,7 +2,7 @@ from flask import Blueprint, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
-from inventory.resource_models import BatchEndpoint
+from inventory.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventory.resource_operations as operation
 from inventory.util import admin_increment_code, check_code_list, no_cache
 from inventory.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema
@@ -80,7 +80,7 @@ def batch_patch(id):
     if (existing_batch.sku_id
         and "sku_id" in json
         and existing_batch.sku_id != json["sku_id"]
-        and not forced):
+            and not forced):
         return problem.dangerous_operation_unforced_response("sku_id", "The sku of this batch has already been set. Can not change without force=true.")
 
     if "props" in json.keys():
@@ -122,29 +122,5 @@ def batch_bins_get(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
 
     if not existing:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "This batch does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an existing batch id"
-            }]
-        })
-        return resp
-
-    resp.status_code = 200
-    resp.mimetype = "application/json"
-
-    contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
-        {f"contents.{id}": {"$exists": True}})]
-    locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
-
-    resp.status_code = 200
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({
-        "state": locations
-    })
-
-    return resp
+        return problem.missing_batch_response(id)
+    return BatchBinsEndpoint.from_id(id, retrieve=True).get_response()

@@ -4,7 +4,7 @@ from flask_login import current_user
 from flask_login.utils import encode_cookie
 
 from inventory.db import db
-from inventory.data_models import UserData, Batch
+from inventory.data_models import UserData, Batch, Bin
 import inventory.resource_operations as operations
 
 # operation = {
@@ -150,6 +150,7 @@ class BatchEndpoint(HypermediaEndpoint):
                 operations.batch_bins(id),
             ],
         )
+        return endpoint
 
     def created_success_response(self):
         return self.status_response("batch created", status_code=201)
@@ -159,3 +160,24 @@ class BatchEndpoint(HypermediaEndpoint):
 
     def deleted_success_response(self):
         return self.status_response("batch deleted")
+
+
+class BatchBinsEndpoint(HypermediaEndpoint):
+    @classmethod
+    def from_id(cls, batch_id, retrieve=False):
+        if not retrieve:
+            raise NotImplementedError()
+
+        contained_by_bins = [
+            Bin.from_mongodb_doc(bson)
+            for bson in db.bin.find({
+                f"contents.{batch_id}": {"$exists": True}
+            })]
+        locations = {bin.id: {id: bin.contents[id]}
+                     for bin in contained_by_bins}
+
+        endpoint = BatchBinsEndpoint(
+            resource_uri=url_for("batch.batch_bins_get", id=batch_id),
+            state=locations
+        )
+        return endpoint

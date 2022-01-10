@@ -307,3 +307,4 @@ def test_update_batch_existing_sku():
     v2 = state.new_batch_existing_sku(data=data, sku_id=v1)
     state.update_batch(batch_id=v2, patch={})
     state.teardown()
+
