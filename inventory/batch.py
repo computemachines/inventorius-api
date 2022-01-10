@@ -44,7 +44,7 @@ def batches_post():
     if "name_text" not in db.batch.index_information().keys():
         db.sku.create_index([("name", TEXT)])
 
-    return success.batch_created_response(batch.id)
+    return BatchEndpoint.from_batch(batch).created_success_response()
 
 
 @batch.route("/api/batch/<id>", methods=["GET"])
@@ -54,7 +54,7 @@ def batch_get(id):
     if not existing:
         return problem.missing_batch_response(id)
     else:
-        return BatchEndpoint(existing).get_response()
+        return BatchEndpoint.from_batch(existing).get_response()
 
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
@@ -102,21 +102,18 @@ def batch_patch(id):
                             {"$set": {"associated_codes": json['associated_codes']}})
 
     updated_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
-    return BatchEndpoint(updated_batch).redirect_response(False)
+    return BatchEndpoint.from_batch(updated_batch).redirect_response(False)
 
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])
+@no_cache
 def batch_delete(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
-    resp = Response()
-
     if not existing:
-        pass
+        return problem.missing_batch_response(id)
     else:
-        resp.status_code = 204
-        resp.headers.add("Cache-Control", "no-cache")
         db.batch.delete_one({"_id": id})
-        return resp
+        return BatchEndpoint.from_batch(existing).deleted_success_response()
 
 
 @batch.route("/api/batch/<id>/bins", methods=["GET"])

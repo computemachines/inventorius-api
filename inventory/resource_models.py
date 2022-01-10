@@ -1,6 +1,7 @@
 from flask import Response, url_for
 import json
 from flask_login import current_user
+from flask_login.utils import encode_cookie
 
 from inventory.db import db
 from inventory.data_models import UserData, Batch
@@ -35,7 +36,7 @@ class HypermediaEndpoint:
 
         resp.data = json.dumps(data)
         return resp
-    
+
     def redirect_response(self, redirect=True):
         if redirect:
             raise NotImplementedError()
@@ -45,73 +46,86 @@ class HypermediaEndpoint:
         resp.data = json.dumps({"Id": self.resource_uri})
         return resp
 
-class PublicProfile:
-    @classmethod
-    def retrieve_from_id(cls, id):
-        profile = PublicProfile()
-        profile.id = id
-        profile.resource_uri = url_for("user.user_get", id=id)
-
-        private_user_data = UserData.from_mongodb_doc(
-            db.user.find_one({"_id": id}))
-        if not private_user_data:
-            return None
-        profile.state = {
-            "id": private_user_data.fixed_id,
-            "name": private_user_data.name,
-        }
-        profile.operations = []
-        return profile
-
-    def hypermedia_response(self, status_code=200):
+    def status_response(self, status_message="ok", status_code=200):
         resp = Response()
         resp.status_code = status_code
         resp.mimetype = "application/json"
-        resp.data = json.dumps({
-            "Id": self.resource_uri,
-            "state": self.state,
-            "operations": self.operations,
-        })
+        resp.data = json.dumps(
+            {"Id": self.resource_uri, "status": status_message})
         return resp
 
 
-class PrivateProfile:
+class Profile(HypermediaEndpoint):
     @classmethod
-    def retrieve_from_id(cls, id):
-        profile = PublicProfile()
-        profile.id = id
-        profile.resource_uri = url_for("user.user_get", id=id)
-
-        private_user_data = UserData.from_mongodb_doc(
-            db.user.find_one({"_id": id}))
-        if not private_user_data:
+    def from_user_data(cls, user_data: UserData):
+        if not user_data:
             return None
-        profile.state = {
-            "id": private_user_data.fixed_id,
-            "name": private_user_data.name,
-            "secret": "info",
-        }
+        profile = Profile(
+            resource_uri=url_for("user.user_get", id=user_data.fixed_id),
+            state={
+                "id": user_data.fixed_id,
+                "name": user_data.name,
+            },
+            operations=[]
+        )
+        profile.user_id = user_data.fixed_id
+        profile.user_data = user_data
+        return profile
+
+    @classmethod
+    def from_id(cls, user_id: str, retrieve=False):
+        if retrieve:
+            return cls.from_user_data(cls._retrieve(user_id))
+        else:
+            profile = Profile(
+                resource_uri=url_for("user.user_get", id=user_id),
+                operations=[]
+            )
+            profile.user_id = user_id
+            return profile
+
+    @classmethod
+    def _retrieve(cls, user_id):
+        return UserData.from_mongodb_doc(
+            db.user.find_one({"_id": user_id}))
+
+    def login_success_response(self):
+        return self.status_response("logged in")
+
+    def created_success_response(self):
+        return self.status_response("user created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("user updated")
+
+    def deleted_success_response(self):
+        return self.status_response("user deleted")
+
+
+class PrivateProfile(Profile):
+    @classmethod
+    def from_user_data(cls, user_data: UserData):
+        profile = super().from_user_data(user_data)
+        if not profile:
+            return None
+        profile.state['secret'] = profile.user_data.shadow_id
+        return profile
+
+    @classmethod
+    def from_id(cls, user_id: str, retrieve=False):
+        profile = super().from_id(user_id, retrieve=retrieve)
+        if not profile:
+            return None
         profile.operations = [
             operations.user_delete(id)
         ]
         return profile
 
-    def hypermedia_response(self, status_code=200):
-        resp = Response()
-        resp.status_code = status_code
-        resp.mimetype = "application/json"
-        resp.data = json.dumps({
-            "Id": self.resource_uri,
-            "state": self.state,
-            "operations": self.operations,
-        })
-        return resp
-
 
 class BatchEndpoint(HypermediaEndpoint):
-    def __init__(self, data_batch: Batch):
-        self.data_batch = data_batch
-        super().__init__(
+    @classmethod
+    def from_batch(cls, data_batch: Batch):
+        endpoint = BatchEndpoint(
             resource_uri=url_for("batch.batch_get", id=data_batch.id),
             state=data_batch.to_dict(),
             operations=[
@@ -120,3 +134,28 @@ class BatchEndpoint(HypermediaEndpoint):
                 operations.batch_bins(id),
             ],
         )
+        endpoint.data_batch = data_batch
+        return endpoint
+
+    @classmethod
+    def from_id(cls, batch_id: str, retrieve=False):
+        if retrieve:
+            raise NotImplementedError()
+
+        endpoint = BatchEndpoint(
+            resource_uri=url_for("batch.batch_get", id=id),
+            operations=[
+                operations.batch_update(id),
+                operations.batch_delete(id),
+                operations.batch_bins(id),
+            ],
+        )
+
+    def created_success_response(self):
+        return self.status_response("batch created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("batch updated")
+
+    def deleted_success_response(self):
+        return self.status_response("batch deleted")

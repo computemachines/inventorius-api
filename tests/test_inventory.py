@@ -479,7 +479,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
                         for bin in self.model_bins.values()]))
         rp = self.client.delete(f"/api/batch/{batch_id}")
         del self.model_batches[batch_id]
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
 
     @rule(batch_id=a_batch_id)
