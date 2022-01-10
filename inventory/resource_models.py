@@ -84,7 +84,7 @@ class PrivateProfile:
             "secret": "info",
         }
         profile.operations = [
-            operations.logout("delete", "DELETE", url_for("user.user_delete", id=id))
+            operations.user_delete(id)
         ]
         return profile
 
@@ -106,19 +106,9 @@ class BatchEndpoint(HypermediaEndpoint):
         super().__init__(
             resource_uri=url_for("batch.batch_get", id=data_batch.id),
             state=data_batch.to_dict(),
-            operations=[{
-                "rel": "update",
-                "method": "PATCH",
-                "href": url_for("batch.batch_patch", id=id),
-                "Expects-a": "Batch patch"
-            }, {
-                "rel": "delete",
-                "method": "DELETE",
-                "href": url_for("batch.batch_delete", id=id),
-            }, {
-                "rel": "bins",
-                "method": "GET",
-                "href": url_for("batch.batch_bins_get", id=id),
-            }
+            operations=[
+                operations.batch_update(id),
+                operations.batch_delete(id),
+                operations.batch_bins(id),
             ],
         )
