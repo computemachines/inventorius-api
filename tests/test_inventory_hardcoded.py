@@ -185,21 +185,25 @@ def test_get_missing_user():
     state.get_missing_user(user_id='0')
     state.teardown()
 
+
 def test_delete_missing_user():
     state = InventoryStateMachine()
     state.delete_missing_user(user_id='0')
     state.teardown()
+
 
 def test_new_user():
     state = InventoryStateMachine()
     state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.teardown()
 
+
 def test_get_existing_user():
     state = InventoryStateMachine()
     v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.get_existing_user(user_id=v1)
     state.teardown()
+
 
 @given(data=st.data())
 def test_create_existing_user(data):
@@ -208,17 +212,21 @@ def test_create_existing_user(data):
     state.create_existing_user(user_id=v1, data=data)
     state.teardown()
 
+
 def test_whoami():
     state = InventoryStateMachine()
     state.whoami()
     state.teardown()
 
+
 def test_simple_login():
     state = InventoryStateMachine()
-    v1 = state.new_user(user={"id": 'tparker', "name": "tyler parker", "password": "12345678"})
+    v1 = state.new_user(
+        user={"id": 'tparker', "name": "tyler parker", "password": "12345678"})
     state.login_as(v1)
     state.whoami()
     state.teardown()
+
 
 def test_update_existing_user():
     state = InventoryStateMachine()
@@ -226,17 +234,20 @@ def test_update_existing_user():
     state.update_existing_user(user_id=v1, user_patch={'password': '00000000'})
     state.teardown()
 
+
 def test_change_password():
     state = InventoryStateMachine()
     v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.update_existing_user(user_id=v1, user_patch={'password': '00000010'})
     state.teardown()
 
+
 def test_login_empty_password():
     state = InventoryStateMachine()
     v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.login_bad_password(password='', user_id=v1)
     state.teardown()
+
 
 def test_delete_user():
     state = InventoryStateMachine()
@@ -245,10 +256,28 @@ def test_delete_user():
     state.delete_existing_user(user_id=v1)
     state.teardown()
 
+
 def test_login_delete_missing_bin():
     state = InventoryStateMachine()
     v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
     state.login_as(user_id=v1)
     state.logout()
     state.delete_missing_bin(bin_id='BIN000000')
+    state.teardown()
+
+
+def test_get_missing_batch():
+    state = InventoryStateMachine()
+    state.get_missing_batch(batch_id='BAT000000')
+    state.teardown()
+
+
+@pytest.mark.filterwarnings("ignore:.*example().*")
+def test_new_batch_bad_format_owned_codes():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                       id='SKU000000', name='', owned_codes=[], props={}))
+    data = dst.DataProxy(Batch(associated_codes=[], id='BAT000000',
+                         name='', owned_codes=[], props={}, sku_id='SKU000000'))
+    state.new_batch_bad_format_owned_codes(bad_code='', data=data, sku_id=v1)
     state.teardown()

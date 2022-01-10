@@ -366,14 +366,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
         resp = self.client.post('/api/batches', json=temp_batch.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
-        assert resp.json['type'] == 'bad-input-format'
+        assert resp.json['type'] == 'validation-error'
 
         temp_batch = Batch.from_json(batch.to_json())
         temp_batch.associated_codes.append(bad_code)
         resp = self.client.post('/api/batches', json=temp_batch.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
-        assert resp.json['type'] == 'bad-input-format'
+        assert resp.json['type'] == 'validation-error'
 
     @rule(batch=dst.batches_())
     def new_batch_new_sku(self, batch):
