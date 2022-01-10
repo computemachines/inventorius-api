@@ -2,6 +2,7 @@ from flask import Response, url_for
 from json import dumps
 from voluptuous import MultipleInvalid, Invalid
 from inventory.resource_operations import operation
+import inventory.resource_operations as operations
 
 problem_titles = {
     "validation-error": "Input did not validate.",
@@ -24,12 +25,18 @@ def problem_response(status_code=400, json=None):
 
 
 def missing_resource_param_error(name, reason=None):
+    if isinstance(name, list) or isinstance(reason, list):
+        if not (isinstance(name, list) and isinstance(reason, list)):
+            raise AssertionError("name and reason must have same type")
+        if len(name) != len(reason):
+            raise AssertionError(
+                "name and reason must have the same list length")
     if type(name) is not list:
         name = [name]
+    if not isinstance(reason, list):
+        reason = [reason]
     if reason == None:
         reason = ["Resource does not exist" for _ in name]
-    if len(name) != len(reason):
-        raise AssertionError("name and reason must have the same shape")
     errors = [Invalid(reason[i], name[i]) for i in range(len(name))]
     return MultipleInvalid(errors)
 
@@ -73,11 +80,20 @@ def missing_user_response(id):
         url_for("user.user_get", id=id),
         operation("create", "POST", url_for("user.users_post"), "User Patch"))
 
+
 def missing_bin_response(id):
     return missing_resource_response(
         url_for("bin.bin_get", id=id),
         operation("create", "POST", url_for("bin.bins_post"), "Bin Patch")
     )
+
+
+def missing_batch_response(id):
+    return missing_resource_response(
+        url_for("batch.batch_get", id=id),
+        operations.batch_create(),
+    )
+
 
 def bad_username_password_response(name, reason=None):
     if name == "id" and reason == None:
@@ -103,6 +119,7 @@ def deactivated_account(id):
             "Id": url_for("user.user_get", id=id)
         })
 
+
 def dangerous_operation_unforced_response(name=None, reason=""):
     """
     name <== the param that requires force=True
@@ -110,13 +127,13 @@ def dangerous_operation_unforced_response(name=None, reason=""):
     """
     force_reason = "force must be set to true"
     if name:
-        force_reason = force_reason + ", or invalid parameter "+name+" must be resolved"
+        force_reason = force_reason + ", or invalid parameter " + name + " must be resolved"
 
     invalid_params = [{
         "name": "force",
         "reason": force_reason
     }]
-    
+
     if name:
         invalid_params.append({
             "name": name,
