@@ -8,6 +8,10 @@ from voluptuous.validators import Any
 import re
 
 
+def NoneOr(Else):
+    return Any(None, Else)
+
+
 def prefixed_id(prefix=""):
     def must_have_prefix(id):
         if not id.startswith(prefix):
@@ -15,18 +19,22 @@ def prefixed_id(prefix=""):
         return id
     return All(Length(1), str, must_have_prefix)
 
+
 id_schema = prefixed_id()
 password_schema = All(Length(8), str)
+
 
 def non_empty_string(s):
     if s == "":
         raise Invalid("must not be empty string")
     return s
 
+
 def non_whitespace(s):
     if re.search('\\s', s):
         raise Invalid(f"must not contain whitespace characters")
     return s
+
 
 code_list_schema = [All(non_empty_string, non_whitespace)]
 
@@ -57,4 +65,13 @@ new_batch_schema = Schema({
     "name": str,
     "props": dict,
     "sku_id": prefixed_id("SKU")
+})
+
+batch_patch_schema = Schema({
+    Required("id"): prefixed_id("BAT"),
+    "owned_codes": NoneOr(code_list_schema),
+    "associated_codes": NoneOr(code_list_schema),
+    "name": NoneOr(str),
+    "props": NoneOr(dict),
+    "sku_id": NoneOr(prefixed_id("SKU")),
 })
