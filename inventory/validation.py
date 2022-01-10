@@ -42,6 +42,10 @@ code_list_schema = [All(non_empty_string, non_whitespace)]
 #     if any(re.search('\\s', code) or code == '' for code in codes):
 #         raise Invalid(f"")
 
+forced_schema = Schema({
+    "force": "true"
+})
+
 new_user_schema = Schema({
     Required("id"): id_schema,
     Required("password"): password_schema,

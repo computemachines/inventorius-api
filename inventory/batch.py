@@ -2,9 +2,11 @@ from flask import Blueprint, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventory.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventory.db import db
+from inventory.resource_models import BatchEndpoint
 import inventory.resource_operations as operation
-from inventory.util import admin_increment_code, check_code_list
-from inventory.validation import new_batch_schema
+from inventory.util import admin_increment_code, check_code_list, no_cache
+from inventory.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema
+from voluptuous import All
 import inventory.util_error_responses as problem
 import inventory.util_success_responses as success
 
@@ -16,12 +18,8 @@ batch = Blueprint("batch", __name__)
 
 
 @batch.route("/api/batches", methods=['POST'])
+@no_cache
 def batches_post():
-    @ after_this_request
-    def no_cache(resp):
-        resp.headers.add("Cache-Control", "no-cache")
-        return resp
-
     try:
         json = new_batch_schema(request.json)
     except MultipleInvalid as e:
@@ -51,94 +49,60 @@ def batches_post():
 
 @batch.route("/api/batch/<id>", methods=["GET"])
 def batch_get(id):
-    resp = Response()
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
 
     if not existing:
-        return problem.invalid_params_response(problem.missing_resource_param_error("id", "must be an existing sku id"))
+        return problem.missing_batch_response(id)
     else:
-        resp.status_code = 200
-        resp.mimetype = "application/json"
-        resp.data = json.dumps({
-            "Id": url_for("batch.batch_get", id=id),
-            "state": json.loads(existing.to_json()),
-            "operations": [
-                operation.batch_update(id),
-                operation.batch_delete(id),
-                operation.batch_bins(id),
-            ]})
-        return resp
+        return BatchEndpoint(existing).get_response()
 
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
+@no_cache
 def batch_patch(id):
-    patch = request.json
-    existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
-    resp = Response()
-    resp.headers.add("Cache-Control", "no-cache")
+    try:
+        # must be batch patch, where json["id"] is prefixed and equals id
+        json = batch_patch_schema.extend(
+            {"id": All(prefixed_id("BAT"), id)})(request.json)
+        forced = forced_schema(request.args).get("force")
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
 
-    if not existing:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "Can not update nonexisting batch.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an existing batch id"
-            }]
-        })
-        return resp
+    existing_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    if not existing_batch:
+        return problem.missing_batch_response(id)
 
-    if "sku_id" in patch.keys() and patch["sku_id"]:
-        existing_sku = db.sku.find_one({"_id": patch['sku_id']})
+    if json.get("sku_id"):
+        existing_sku = db.sku.find_one({"_id": json['sku_id']})
         if not existing_sku:
-            resp.status_code = 409
-            resp.mimetype = "application/problem+json"
-            resp.data = json.dumps({
-                "type": "missing-resource",
-                "title": "Cannot create a batch for non existing sku.",
-                "invalid-params": [{
-                    "name": "sku_id",
-                    "reason": "must be an existing sku id"
-                }]
-            })
-            return resp
+            return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
 
-    if existing.sku_id and "sku_id" in patch.keys() and patch["sku_id"] != existing.sku_id:
-        resp.status_code = 409
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "dangerous-operation",
-            "title": "Can not change the sku of a batch once set.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be a batch without sku_id set"
-            }]
-        })
-        return resp
+    if (existing_batch.sku_id
+        and "sku_id" in json
+        and existing_batch.sku_id != json["sku_id"]
+        and not forced):
+        return problem.dangerous_operation_unforced_response("sku_id", "The sku of this batch has already been set. Can not change without force=true.")
 
-    if "props" in patch.keys():
+    if "props" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"props": patch['props']}})
-    if "name" in patch.keys():
+                            {"$set": {"props": json['props']}})
+    if "name" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"name": patch['name']}})
+                            {"$set": {"name": json['name']}})
 
-    if "sku_id" in patch.keys():
+    if "sku_id" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"sku_id": patch['sku_id']}})
+                            {"$set": {"sku_id": json['sku_id']}})
 
-    if "owned_codes" in patch.keys():
+    if "owned_codes" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"owned_codes": patch['owned_codes']}})
-    if "associated_codes" in patch.keys():
+                            {"$set": {"owned_codes": json['owned_codes']}})
+    if "associated_codes" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"associated_codes": patch['associated_codes']}})
-    resp.status_code = 200
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({"Id": url_for('batch.batch_get', id=id)})
-    return resp
+                            {"$set": {"associated_codes": json['associated_codes']}})
+
+    updated_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    return BatchEndpoint(updated_batch).redirect_response(False)
 
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])

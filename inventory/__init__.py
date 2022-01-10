@@ -28,6 +28,7 @@ import os
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
+import platform
 
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
@@ -61,7 +62,10 @@ if app.debug:
 
 def cors_allow_all(response):
     if app.debug:
-        print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
+        if platform.system() == "Linux":
+            # warn if running on production server. 
+            # TODO: this is a little embarassing, but it will work for now
+            print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
         response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'

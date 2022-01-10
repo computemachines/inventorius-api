@@ -20,7 +20,7 @@ class HypermediaEndpoint:
         self.state = state
         self.operations = operations
 
-    def response(self, status_code=200, mimetype="application/json"):
+    def get_response(self, status_code=200, mimetype="application/json"):
         resp = Response()
         resp.status_code = status_code
         resp.mimetype = mimetype
@@ -35,7 +35,15 @@ class HypermediaEndpoint:
 
         resp.data = json.dumps(data)
         return resp
-
+    
+    def redirect_response(self, redirect=True):
+        if redirect:
+            raise NotImplementedError()
+        resp = Response()
+        resp.status_code = 200
+        resp.mimetype = "application/json"
+        resp.data = json.dumps({"Id": self.resource_uri})
+        return resp
 
 class PublicProfile:
     @classmethod

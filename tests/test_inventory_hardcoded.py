@@ -281,3 +281,29 @@ def test_new_batch_bad_format_owned_codes():
                          name='', owned_codes=[], props={}, sku_id='SKU000000'))
     state.new_batch_bad_format_owned_codes(bad_code='', data=data, sku_id=v1)
     state.teardown()
+
+
+def test_update_batch_missing_sku():
+    state = InventoryStateMachine()
+    state.delete_missing_user(user_id='00')
+    state.delete_missing_user(user_id=';')
+    v1 = state.new_user(user={'id': '1', 'name': '', 'password': '00000000'})
+    state.delete_missing_sku(sku_id='SKU066304')
+    state.delete_missing_sku(sku_id='SKU000256')
+    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+    ], id='BAT000000', name='', owned_codes=[], props={'a': [None]}, sku_id=None))
+    state.attempt_update_anonymous_batch_missing_sku_id(
+        batch_id=v2, patch={}, sku_id='SKU000000')
+    state.teardown()
+
+
+@pytest.mark.filterwarnings("ignore:.*example().*")
+def test_update_batch_existing_sku():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                       id='SKU000000', name='', owned_codes=[], props={}))
+    data = dst.DataProxy(Batch(associated_codes=[], id='BAT000000',
+                         name='', owned_codes=[], props={}, sku_id='SKU000000'))
+    v2 = state.new_batch_existing_sku(data=data, sku_id=v1)
+    state.update_batch(batch_id=v2, patch={})
+    state.teardown()

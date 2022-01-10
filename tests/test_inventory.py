@@ -428,6 +428,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, patch=batch_patch)
     def update_batch(self, batch_id, patch):
+        patch['id'] = batch_id
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
@@ -448,7 +449,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(sku_id != self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
-        assert rp.status_code == 409
+        assert rp.status_code == 405
         assert rp.is_json
         assert rp.json['type'] == "dangerous-operation"
 
@@ -467,9 +468,10 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assume(sku_id not in self.model_skus.keys())
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
-        assert rp.status_code == 409
+        assert rp.status_code == 400
         assert rp.is_json
-        assert rp.json['type'] == "missing-resource"
+        assert rp.json['type'] == "validation-error"
+        assert {'name': 'sku_id', 'reason': 'must be an existing sku id'} in rp.json['invalid-params']
 
     @rule(batch_id=consumes(a_batch_id))
     def delete_unused_batch(self, batch_id):
