@@ -75,8 +75,4 @@ principals.init_app(app)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.3.0-0"
-
-@app.route('/api/debug-sentry')
-def trigger_error():
-    division_by_zero = 1 / 0
+    return "0.3.0-1"

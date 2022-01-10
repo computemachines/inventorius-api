@@ -1,4 +1,6 @@
+import functools
 from flask import request
+from flask.helpers import make_response
 from flask_login import LoginManager
 from flask_principal import Principal, Permission, RoleNeed
 import re
@@ -87,3 +89,11 @@ def admin_get_next(prefix):
 
 def check_code_list(codes):
     return any(re.search('\\s', code) or code == '' for code in codes)
+
+def no_cache(view):
+    @functools.wraps(view)
+    def no_cache_(*args, **kwargs):
+        resp = make_response(view(*args, **kwargs))
+        resp.headers.add("Cache-Control", "no-cache")
+        return resp
+    return no_cache_
