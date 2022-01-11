@@ -3,15 +3,19 @@ from inventory.data_models import Bin, Sku, Batch, UserData
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
 
-from string import ascii_letters, printable, ascii_lowercase
+from string import ascii_letters, printable, ascii_lowercase, whitespace
 
 import os
 import time
 import hashlib
 import base64
 
-ids = text(printable.translate(str.maketrans(
-    {"/": None, "?": None, "&": None, "#": None})), min_size=1)
+ids = text(
+    printable.translate(str.maketrans(
+        {"/": None, "?": None, "&": None, "#": None}
+    )).translate(str.maketrans(
+        {c: None for c in whitespace}
+    )), min_size=1)
 
 fieldNames = text(ascii_lowercase + '_')
 simpleTypes = one_of(none(),
@@ -25,6 +29,7 @@ json = recursive(simpleTypes,
                  max_leaves=1)
 
 propertyDicts = dictionaries(fieldNames, json)
+
 
 @composite
 def label_(draw, prefix, length=9):

@@ -12,16 +12,26 @@ def NoneOr(Else):
     return Any(None, Else)
 
 
-def prefixed_id(prefix=""):
-    def must_have_prefix(id):
-        if not id.startswith(prefix):
-            raise Invalid(f"must start with '{prefix}'")
+def prefixed_id(prefix="", matching=None):
+    def numeric_with_prefix(id):
+        if not re.match(f"^{prefix}[0-9]+$", id):
+            raise Invalid(f"must start with '{prefix}' followed by digits")
         return id
-    return All(Length(1), str, must_have_prefix)
 
+    # def must_have_prefix(id):
+    #     if not id.startswith(prefix):
+    #         raise Invalid(f"must start with '{prefix}'")
+    #     return id,
 
-id_schema = prefixed_id()
-password_schema = All(Length(8), str)
+    # def numeric_suffix(id):
+    #     if id[len(prefix):].isdigit():
+    #         return id
+    #     raise Invalid(f"must have numeric suffix")
+    if matching:
+        return All(str, numeric_with_prefix, matching)
+    else:
+        return All(str, numeric_with_prefix)
+
 
 
 def non_empty_string(s):
@@ -36,6 +46,9 @@ def non_whitespace(s):
     return s
 
 
+
+id_schema = All(Length(1), str, non_empty_string, non_whitespace)
+password_schema = All(Length(8), str)
 code_list_schema = [All(non_empty_string, non_whitespace)]
 
 # def code_list(codes):
@@ -78,4 +91,15 @@ batch_patch_schema = Schema({
     "name": NoneOr(str),
     "props": NoneOr(dict),
     "sku_id": NoneOr(prefixed_id("SKU")),
+})
+
+new_bin_schema = Schema({
+    Required("id"): prefixed_id("BIN"),
+    "props": dict,
+})
+
+
+bin_patch_schema = Schema({
+    Required("id"): prefixed_id("BIN"),
+    "props": NoneOr(dict),
 })

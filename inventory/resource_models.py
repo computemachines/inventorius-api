@@ -181,3 +181,26 @@ class BatchBinsEndpoint(HypermediaEndpoint):
             state=locations
         )
         return endpoint
+
+
+class BinEndpoint(HypermediaEndpoint):
+    @classmethod
+    def from_bin(cls, bin):
+        endpoint = BinEndpoint(
+            resource_uri=url_for("bin.bin_get", id=bin.id),
+            state=bin.to_dict(True),
+            operations=[
+                operations.bin_update(bin.id),
+                operations.bin_delete(bin.id),
+            ]
+        )
+        return endpoint
+
+    def created_success_response(self):
+        return self.status_response("bin created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("bin updated")
+
+    def deleted_success_response(self):
+        return self.status_response("bin deleted")

@@ -17,7 +17,7 @@ def test_bin():
 def test_update_bin():
     state = InventoryStateMachine()
     v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
-    state.update_bin(bin_id=v1, newProps="New props")
+    state.update_bin(bin_id=v1, newProps={"1": "New props"})
     state.get_existing_bin(bin_id=v1)
 
 
@@ -308,3 +308,7 @@ def test_update_batch_existing_sku():
     state.update_batch(batch_id=v2, patch={})
     state.teardown()
 
+# def test_new_user_x0c():
+#     state = InventoryStateMachine()
+#     state.new_user(user={'id': '\x0c', 'name': '', 'password': '00000000'})
+#     state.teardown()

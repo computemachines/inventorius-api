@@ -16,14 +16,14 @@ def test_get_attr():
 
 def test_bin_default_contents():
     bin = Bin(contents=None, id='BIN000000', props=None)
-    assert json.loads(bin.to_json()).get('contents') == {}
+    assert json.loads(bin.to_json(mask_default=False)).get('contents') == {}
 
 
 @given(dst.bins_())
 def test_bin(bin):
     assert json.loads(bin.to_json())['id'] == bin.id
-    assert json.loads(bin.to_json()).get('props') == bin.props
-    assert json.loads(bin.to_json()).get('contents') == {}
+    assert json.loads(bin.to_json(mask_default=False)).get('props') == bin.props
+    assert json.loads(bin.to_json(mask_default=False)).get('contents') == {}
 
     bin_jsoned = Bin.from_json(bin.to_json())
     assert bin_jsoned == bin

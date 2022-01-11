@@ -96,25 +96,28 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.cache_control.no_cache
         for key in user_patch.keys():
             self.model_users[user_id][key] = user_patch[key]
-    
+
     @rule(user_id=a_user_id)
     def login_as(self, user_id):
-        rp = self.client.post("/api/login", json={"id": user_id, "password": self.model_users[user_id]["password"]})
+        rp = self.client.post(
+            "/api/login", json={"id": user_id, "password": self.model_users[user_id]["password"]})
         assert rp.cache_control.no_cache
         self.logged_in_as = user_id
-    
+
     @rule(user_id=a_user_id, password=st.text())
     def login_bad_password(self, user_id, password):
         assume(password != self.model_users[user_id])
-        rp = self.client.post("/api/login", json={"id": user_id, "password": password})
+        rp = self.client.post(
+            "/api/login", json={"id": user_id, "password": password})
         assert rp.status_code == 401
         assert rp.cache_control.no_cache
         assert rp.is_json
-    
+
     @rule(user=dst.users_())
     def login_bad_username(self, user):
         assume(user['id'] not in self.model_users)
-        rp = self.client.post("/api/login", json={"id": user["id"], "password": user["password"]})
+        rp = self.client.post(
+            "/api/login", json={"id": user["id"], "password": user["password"]})
         assert rp.status_code == 401
         assert rp.cache_control.no_cache
         assert rp.is_json
@@ -126,7 +129,6 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.cache_control.no_cache
         assert rp.is_json
         self.logged_in_as = None
-        
 
     @rule()
     def whoami(self):
@@ -137,11 +139,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
             assert rp.json["id"] == self.logged_in_as
         else:
             assert rp.json["id"] == None
-    
 
     @rule(target=a_bin_id, bin=dst.bins_())
     def new_bin(self, bin):
-        resp = self.client.post('/api/bins', json=bin.to_json())
+        resp = self.client.post(
+            '/api/bins', json=bin.to_dict(mask_default=True))
         if bin.id in self.model_bins.keys():
             assert resp.status_code == 409
             assert resp.is_json
@@ -170,10 +172,11 @@ class InventoryStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 404
         assert rp.json['type'] == 'missing-resource'
 
-    @rule(bin_id=a_bin_id, newProps=dst.json)
+    @rule(bin_id=a_bin_id, newProps=dst.propertyDicts)
     def update_bin(self, bin_id, newProps):
         # assume(self.model_bins[bin_id].props != newProps)
-        rp = self.client.patch(f'/api/bin/{bin_id}', json={"props": newProps})
+        rp = self.client.patch(
+            f'/api/bin/{bin_id}', json={"id": bin_id, "props": newProps})
         self.model_bins[bin_id].props = newProps
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
@@ -344,7 +347,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
         # assume(self.model_skus != {})  # TODO: check if this is necessary
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
-        rp = self.client.post('/api/batches', json=batch.to_dict(mask_none=True))
+        rp = self.client.post(
+            '/api/batches', json=batch.to_dict(mask_default=True))
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -388,7 +392,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
     @rule(target=a_batch_id, batch=dst.batches_(sku_id=None))
     def new_anonymous_batch(self, batch):
         assert not batch.sku_id
-        rp = self.client.post("/api/batches", json=batch.to_dict(mask_none=True))
+        rp = self.client.post(
+            "/api/batches", json=batch.to_dict(mask_default=True))
 
         if batch.id in self.model_batches.keys():
             assert rp.status_code == 409
@@ -437,6 +442,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=dst.label_("BAT"), patch=batch_patch)
     def update_nonexisting_batch(self, batch_id, patch):
+        patch['id'] = batch_id
+
         assume(batch_id not in self.model_batches.keys())
         rp = self.client.patch(f'/api/batch/{batch_id}', json=patch)
         assert rp.status_code == 404
@@ -445,6 +452,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def attempt_update_nonanonymous_batch_sku_id(self, batch_id, sku_id, patch):
+        patch['id'] = batch_id
+
         assume(self.model_batches[batch_id].sku_id)
         assume(sku_id != self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
@@ -455,6 +464,8 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=a_sku_id, patch=batch_patch)
     def update_anonymous_batch_existing_sku_id(self, batch_id, sku_id, patch):
+        patch['id'] = batch_id
+
         assume(not self.model_batches[batch_id].sku_id)
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
@@ -465,13 +476,16 @@ class InventoryStateMachine(RuleBasedStateMachine):
 
     @rule(batch_id=a_batch_id, sku_id=dst.label_("SKU"), patch=batch_patch)
     def attempt_update_anonymous_batch_missing_sku_id(self, batch_id, sku_id, patch):
+        patch['id'] = batch_id
+
         assume(sku_id not in self.model_skus.keys())
         patch['sku_id'] = sku_id
         rp = self.client.patch(f"/api/batch/{batch_id}", json=patch)
         assert rp.status_code == 400
         assert rp.is_json
         assert rp.json['type'] == "validation-error"
-        assert {'name': 'sku_id', 'reason': 'must be an existing sku id'} in rp.json['invalid-params']
+        assert {'name': 'sku_id',
+                'reason': 'must be an existing sku id'} in rp.json['invalid-params']
 
     @rule(batch_id=consumes(a_batch_id))
     def delete_unused_batch(self, batch_id):
@@ -705,6 +719,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
                 if sku_type:
                     assert sku_type not in sku_types  # each sku type should only appear once
                     sku_types.append(sku_type)
+
 
 import os
 

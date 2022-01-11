@@ -84,7 +84,7 @@ def missing_user_response(id):
 def missing_bin_response(id):
     return missing_resource_response(
         url_for("bin.bin_get", id=id),
-        operation("create", "POST", url_for("bin.bins_post"), "Bin Patch")
+        operations.bin_create()
     )
 
 

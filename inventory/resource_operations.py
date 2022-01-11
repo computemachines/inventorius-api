@@ -43,3 +43,12 @@ def batch_delete(id):
 
 def batch_bins(id):
     return operation("bins", GET, url_for("batch.batch_bins_get", id=id))
+
+def bin_create():
+    return operation("create", POST, url_for("bin.bins_post"), "Bin patch")
+
+def bin_update(id):
+    return operation("update", PATCH, url_for("bin.bin_patch", id=id), "Bin patch")
+
+def bin_delete(id):
+    return operation("delete", DELETE, url_for("bin.bin_delete", id=id))
