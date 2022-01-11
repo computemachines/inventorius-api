@@ -33,7 +33,7 @@ class InventoryStateMachine(RuleBasedStateMachine):
     def new_user(self, user):
         resp = self.client.post("/api/users", json=user)
         if user["id"] in self.model_users.keys():
-            assert resp.status_code == 400
+            assert resp.status_code == 409
             assert resp.is_json
             assert resp.json['type'] == "duplicate-resource"
             return multiple()
@@ -706,10 +706,19 @@ class InventoryStateMachine(RuleBasedStateMachine):
                     assert sku_type not in sku_types  # each sku type should only appear once
                     sku_types.append(sku_type)
 
+import os
+
 
 TestInventory = InventoryStateMachine.TestCase
-TestInventory.settings = settings(
-    max_examples=1000,
-    stateful_step_count=10,
-    deadline=timedelta(milliseconds=1000),
-)
+if os.getenv("HYPOTHESIS_SLOW") == "true":
+    TestInventory.settings = settings(
+        max_examples=10000,
+        stateful_step_count=10,
+        deadline=timedelta(seconds=10)
+    )
+else:
+    TestInventory.settings = settings(
+        max_examples=1000,
+        stateful_step_count=10,
+        deadline=timedelta(milliseconds=1000),
+    )
