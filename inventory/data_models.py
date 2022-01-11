@@ -84,8 +84,8 @@ class DataModel():
                 return False
         return True
 
-    def to_json(self, mask_none=True):
-        return json.dumps(self.to_dict(mask_none), cls=DataModelJSONEncoder)
+    def to_json(self, mask_default=True):
+        return json.dumps(self.to_dict(mask_default), cls=DataModelJSONEncoder)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({", ".join("=".join((k, v.__repr__())) for k, v in self.__dict__.items() if k!=None)})'
@@ -137,9 +137,9 @@ class DataModel():
                 transformed_dict[db_key] = model_value
         return transformed_dict
 
-    def to_dict(self, mask_none=False):
-        if mask_none:
-            return {k: v for k, v in self.__dict__.items() if v != None}
+    def to_dict(self, mask_default=False):
+        if mask_default:
+            return {k: v for k, v in self.__dict__.items() if v != getattr(type(self), k).default}
         else:
             return self.__dict__
 
