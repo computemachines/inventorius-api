@@ -173,7 +173,7 @@ class BatchBinsEndpoint(HypermediaEndpoint):
             for bson in db.bin.find({
                 f"contents.{batch_id}": {"$exists": True}
             })]
-        locations = {bin.id: {id: bin.contents[id]}
+        locations = {bin.id: {id: bin.contents[batch_id]}
                      for bin in contained_by_bins}
 
         endpoint = BatchBinsEndpoint(
@@ -204,3 +204,25 @@ class BinEndpoint(HypermediaEndpoint):
 
     def deleted_success_response(self):
         return self.status_response("bin deleted")
+
+class SkuEndpoint(HypermediaEndpoint):
+    @classmethod
+    def from_sku(cls, sku):
+        endpoint = SkuEndpoint(
+            resource_uri=url_for("sku.sku_get", id=sku.id),
+            state=sku.to_dict(True),
+            operations=[
+                operations.sku_update(sku.id),
+                operations.sku_delete(sku.id),
+            ]
+        )
+        return endpoint
+    
+    def created_success_response(self):
+        return self.status_response("sku created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("sku updated")
+
+    def deleted_success_response(self):
+        return self.status_response("sku deleted")
