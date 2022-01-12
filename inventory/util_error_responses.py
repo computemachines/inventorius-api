@@ -95,6 +95,13 @@ def missing_batch_response(id):
     )
 
 
+def missing_sku_response(id):
+    return missing_resource_response(
+        url_for("sku.sku_get", id=id),
+        operations.sku_create()
+    )
+
+
 def bad_username_password_response(name, reason=None):
     if name == "id" and reason == None:
         reason = "Id does not exist"

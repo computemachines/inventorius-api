@@ -52,3 +52,12 @@ def bin_update(id):
 
 def bin_delete(id):
     return operation("delete", DELETE, url_for("bin.bin_delete", id=id))
+
+def sku_create():
+    return operation("create", POST, url_for("sku.skus_post"), "Sku patch")
+
+def sku_update(id):
+    return operation("update", PATCH, url_for("sku.sku_patch", id=id), "Sku patch")
+
+def sku_delete(id):
+    return operation("delete", DELETE, url_for("sku.sku_delete", id=id))

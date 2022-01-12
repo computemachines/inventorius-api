@@ -312,3 +312,12 @@ def test_update_batch_existing_sku():
 #     state = InventoryStateMachine()
 #     state.new_user(user={'id': '\x0c', 'name': '', 'password': '00000000'})
 #     state.teardown()
+
+def test_was_undefined_key_error_01():
+    state = InventoryStateMachine()
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={'_': None}))
+    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT575165', name='A', owned_codes=[], props={'': None}, sku_id=None))
+    state.batch_locations(batch_id=v2)
+    state.receive_batch(batch_id=v2, bin_id=v1, quantity=1)
+    state.batch_locations(batch_id=v2)
+    state.teardown()

@@ -173,7 +173,7 @@ class BatchBinsEndpoint(HypermediaEndpoint):
             for bson in db.bin.find({
                 f"contents.{batch_id}": {"$exists": True}
             })]
-        locations = {bin.id: {id: bin.contents[batch_id]}
+        locations = {bin.id: {batch_id: bin.contents[batch_id]}
                      for bin in contained_by_bins}
 
         endpoint = BatchBinsEndpoint(

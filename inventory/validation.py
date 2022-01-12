@@ -103,3 +103,19 @@ bin_patch_schema = Schema({
     Required("id"): prefixed_id("BIN"),
     "props": NoneOr(dict),
 })
+
+new_sku_schema = Schema({
+    Required("id"): prefixed_id("SKU"),
+    "owned_codes": code_list_schema,
+    "associated_codes": code_list_schema,
+    "name": str,
+    "props": dict,
+})
+
+sku_patch_schema = Schema({
+    Required("id"): prefixed_id("SKU"),
+    "owned_codes": NoneOr(code_list_schema),
+    "associated_codes": NoneOr(code_list_schema),
+    "name": NoneOr(str),
+    "props": NoneOr(dict),
+})

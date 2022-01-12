@@ -1,7 +1,11 @@
 from flask import Blueprint, request, Response, url_for
+from voluptuous.error import MultipleInvalid
 from inventory.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
-from inventory.util import admin_increment_code, check_code_list
+from inventory.util import admin_increment_code, check_code_list, no_cache
+from inventory.validation import new_sku_schema, sku_patch_schema
+import inventory.util_error_responses as problem
+from inventory.resource_models import SkuEndpoint
 
 from pymongo import TEXT
 
@@ -11,63 +15,17 @@ sku = Blueprint("sku", __name__)
 
 
 @ sku.route('/api/skus', methods=['POST'])
+@no_cache
 def skus_post():
-    resp = Response()
+    try:
+        json = new_sku_schema(request.json)
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
 
-    sku = Sku.from_json(request.json)
+    if db.sku.find_one({'_id': json['id']}):
+        return problem.duplicate_resource_response("id")
 
-    if not sku.id.startswith('SKU'):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-id-format",
-            "title": "Sku Ids must start with 'SKU'.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must start with string 'SKU'"
-            }]})
-        return resp
-
-    if db.sku.find_one({'_id': sku.id}):
-        resp.status_code = 409
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "duplicate-resource",
-            "title": "A Sku with this Id already exists.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must not be an existing sku id"
-            }]
-        })
-        # resp.headers['Location'] = url_for('sku.sku_get', id=sku.id)
-        return resp
-
-    if check_code_list(sku.owned_codes):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-input-format",
-            "title": "Codes must not contain whitespace.",
-            "invalid-params": [{
-                "name": "owned_codes",
-                "reason": "must be list of nonempty strings containing no whitespace characters"
-            }]
-        })
-        return resp
-
-    if check_code_list(sku.associated_codes):
-        resp.status_code = 400
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-input-format",
-            "title": "Codes must not contain whitespace.",
-            "invalid-params": [{
-                "name": "owned_codes",
-                "reason": "must be list of nonempty strings containing no whitespace characters"
-            }]
-        })
-        return resp
-
+    sku = Sku.from_json(json)
     admin_increment_code("SKU", sku.id)
     db.sku.insert_one(sku.to_mongodb_doc())
     # dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
@@ -77,16 +35,8 @@ def skus_post():
     if "name_text" not in db.sku.index_information().keys():
         # print("Creating text index for sku#name") # was too noisy
         db.sku.create_index([("name", TEXT)])
+    return SkuEndpoint.from_sku(sku).created_success_response()
 
-    resp.status_code = 201
-    # resp.headers = {'Location': url_for('sku.sku_get', id=sku.id)}
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({
-        "Id": url_for("sku.sku_get", id=sku.id),
-    })
-    return resp
-
-# api v2.0.0
 
 
 @sku.route('/api/sku/<id>', methods=['GET'])
@@ -94,54 +44,14 @@ def sku_get(id):
     # detailed = request.args.get("details") == "true"
 
     sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
-
-    resp = Response()
-
     if sku is None:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "Sku with id does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an existing sku id"
-            }]})
-        return resp
-
-    resp.status_code = 200
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({
-        "Id": url_for("sku.sku_get", id=id),
-        "state": json.loads(sku.to_json()),
-        "operations": [{
-            "rel": "update",
-            "method": "PATCH",
-            "href": url_for("sku.sku_patch", id=id),
-            "Expects-a": "Sku patch"
-        }, {
-            "rel": "delete",
-            "method": "DELETE",
-            "href": url_for("sku.sku_delete", id=id),
-        }, {
-            "rel": "bins",
-            "method": "GET",
-            "href": url_for("sku.sku_bins_get", id=id),
-        }, {
-            "rel": "batches",
-            "method": "GET",
-            "href": url_for("sku.sku_batches_get", id=id),
-        }]
-    })
-    return resp
+        return problem.missing_bin_response(id)
+    return SkuEndpoint.from_sku(sku).get_response()
 
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
+@no_cache
 def sku_patch(id):
-    patch = request.json
-    resp = Response()
-    resp.headers.add("Cache-Control", "no-cache")
-
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
     if existing is None:
         resp.status_code = 404
