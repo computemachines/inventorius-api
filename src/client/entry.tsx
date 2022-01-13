@@ -7,8 +7,20 @@ import {
   FrontloadProvider,
 } from "react-frontload";
 import App from "../components/App";
+import * as Sentry from "@sentry/react";
+import { Integrations } from "@sentry/tracing";
 import { BrowserRouter } from "react-router-dom";
 import { ApiContext, InventoryApi } from "../api-client/inventory-api";
+
+
+Sentry.init({
+  dsn: "https://8a8c648e7a5d46a6b2bc2181f19bbcf0@o1103275.ingest.sentry.io/6129950",
+  integrations: [new Integrations.BrowserTracing()],
+
+  // We recommend adjusting this value in production, or using tracesSampler
+  // for finer control
+  tracesSampleRate: 1.0,
+});
 
 declare global {
   interface Window {

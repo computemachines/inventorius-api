@@ -30,14 +30,14 @@ export class InventoryApi {
     if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
       return server_rendered;
     switch (server_rendered.kind) {
-      case "sku":
-        Object.setPrototypeOf(server_rendered, Sku.prototype);
-        break;
-      case "batch":
-        Object.setPrototypeOf(server_rendered, Batch.prototype);
-        break;
-      default:
-        let _exhaustive_check: never;
+    case "sku":
+      Object.setPrototypeOf(server_rendered, Sku.prototype);
+      break;
+    case "batch":
+      Object.setPrototypeOf(server_rendered, Batch.prototype);
+      break;
+    default:
+      let _exhaustive_check: never; // eslint-disable-line
     }
     for (const key in server_rendered.operations) {
       Object.setPrototypeOf(

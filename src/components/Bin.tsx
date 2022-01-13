@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
-import { RouteComponentProps, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { FrontloadContext } from "../api-client/inventory-api";
 
 import "../styles/infoPanel.css";
@@ -31,7 +31,7 @@ function BinContentsTable({
       ),
     })
   );
-  if (frontloadMeta.error) return <span>"Connection Error"</span>;
+  if (frontloadMeta.error) return <span>Connection Error</span>;
 
   let tabularData: {
     Identifier: string;

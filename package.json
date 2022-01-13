@@ -1,6 +1,6 @@
 {
   "name": "inventory-frontend",
-  "version": "0.2.10",
+  "version": "0.2.11-0",
   "description": "SSR React Typscript Frontend to Inventory App",
   "scripts": {
     "start": "webpack serve",
@@ -67,6 +67,8 @@
     "webpack-dev-server": "^4.6.0"
   },
   "dependencies": {
+    "@sentry/react": "^6.16.1",
+    "@sentry/tracing": "^6.16.1",
     "typedoc": "^0.22.10"
   }
 }

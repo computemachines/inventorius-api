@@ -25,6 +25,7 @@ import EULA from "./EULA";
 import NewBatch from "./NewBatch";
 import Batch from "./Batch";
 import Receive from "./Receive";
+import FileUpload from "./_Dummy";
 
 // Main app component
 function App() {
@@ -57,6 +58,9 @@ function App() {
                 {alertContent.content}
               </Alert>
               <Switch>
+                <Route path="/dummy">
+                  <FileUpload />
+                </Route>
                 <Route exact path="/">
                   <Home />
                 </Route>
