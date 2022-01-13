@@ -79,4 +79,4 @@ principals.init_app(app)
 
 @app.route("/api/version", methods=["GET"])
 def get_version():
-    return "0.3.1-2"
+    return "0.3.1-3"

@@ -1,9 +1,10 @@
 from flask import Blueprint, request, Response, url_for
 from voluptuous.error import MultipleInvalid
+from voluptuous.schema_builder import Required
 from inventory.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventory.db import db
 from inventory.util import admin_increment_code, check_code_list, no_cache
-from inventory.validation import new_sku_schema, sku_patch_schema
+from inventory.validation import new_sku_schema, prefixed_id, sku_patch_schema
 import inventory.util_error_responses as problem
 from inventory.resource_models import SkuEndpoint
 
@@ -52,40 +53,30 @@ def sku_get(id):
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
 @no_cache
 def sku_patch(id):
+    try:
+        json = sku_patch_schema.extend({"id": prefixed_id("SKU", id)})(request.json)
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
+
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
-    if existing is None:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "Can not edit sku that does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an exisiting sku id"
-            }]
-        })
-        return resp
+    if not existing:
+        return problem.invalid_params_response(problem.missing_resource_param_error("id"))
 
-    if "owned_codes" in patch:
+    if "owned_codes" in json:
         db.sku.update_one({"_id": id},
-                          {"$set": {"owned_codes": patch["owned_codes"]}})
-    if "associated_codes" in patch:
+                          {"$set": {"owned_codes": json["owned_codes"]}})
+    if "associated_codes" in json:
         db.sku.update_one({"_id": id},
-                          {"$set": {"associated_codes": patch["associated_codes"]}})
-    if "name" in patch:
+                          {"$set": {"associated_codes": json["associated_codes"]}})
+    if "name" in json:
         db.sku.update_one({"_id": id},
-                          {"$set": {"name": patch["name"]}})
-    if "props" in patch:
+                          {"$set": {"name": json["name"]}})
+    if "props" in json:
         db.sku.update_one({"_id": id},
-                          {"$set": {"props": patch["props"]}})
+                          {"$set": {"props": json["props"]}})
 
-    resp.status_code = 200
-    resp.mimetype = "application/json"
-    resp.data = json.dumps({
-        "Id": url_for("sku.sku_get", id=existing.id),
-    })
-    return resp
-
+    updated_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    return SkuEndpoint.from_sku(updated_sku).updated_success_response()
 
 @ sku.route('/api/sku/<id>', methods=['DELETE'])
 def sku_delete(id):

@@ -243,14 +243,14 @@ class InventoryStateMachine(RuleBasedStateMachine):
         resp = self.client.post('/api/skus', json=temp_sku.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
-        assert resp.json['type'] == 'bad-input-format'
+        assert resp.json['type'] == 'validation-error'
 
         temp_sku = Sku.from_json(sku.to_json())
         temp_sku.associated_codes.append(bad_code)
         resp = self.client.post('/api/skus', json=temp_sku.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
-        assert resp.json['type'] == 'bad-input-format'
+        assert resp.json['type'] == 'validation-error'
 
     @rule(sku_id=a_sku_id)
     def get_existing_sku(self, sku_id):

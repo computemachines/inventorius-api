@@ -7,6 +7,8 @@ import hypothesis.strategies as st
 from hypothesis import assume, settings, given
 
 
+# This is all automatically generated test code from failed hypothesis test runs
+
 def test_bin():
     state = InventoryStateMachine()
     v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
@@ -320,4 +322,10 @@ def test_was_undefined_key_error_01():
     state.batch_locations(batch_id=v2)
     state.receive_batch(batch_id=v2, bin_id=v1, quantity=1)
     state.batch_locations(batch_id=v2)
+    state.teardown()
+
+def test_update_sku():
+    state = InventoryStateMachine()
+    v1 = state.new_sku(sku=Sku(associated_codes=[], id='SKU000000', name='', owned_codes=[], props={}))
+    state.update_sku(patch={}, sku_id=v1)
     state.teardown()
