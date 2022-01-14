@@ -14,32 +14,37 @@ import ItemLabel from "./ItemLabel";
 function Home() {
   const { data, frontloadMeta, setData } = useFrontload(
     "home-component",
-    async ({ api }) => ({ status: await api.getStatus() })
+    async function({ api }) {
+      const status = await api.getStatus();
+      return ({ status });
+    }
   );
   const api = React.useContext(ApiContext);
 
   if (frontloadMeta.pending) return <div>Loading</div>;
   if (frontloadMeta.error) throw new Error("API Error\n"+frontloadMeta);
   
-  return (
-    <div>
-      <div
-        onClick={() =>
-          api.getStatus().then((status) =>
-            setData(() => ({
-              status,
-            }))
-          )
-        }
-      >
-        Api Version: {data.status.version} <br />
-        Api is ok: {data.status['is-up']}
-      </div>
-      <div>
-        example bin: <ItemLabel label={"BIN000024"} />
-      </div>
-    </div>
-  );
+  throw new Error("bad");
+
+  // return (
+  //   <div>
+  //     <div
+  //       onClick={() =>
+  //         api.getStatus().then((status) =>
+  //           setData(() => ({
+  //             status,
+  //           }))
+  //         )
+  //       }
+  //     >
+  //       Api Version: {data.status.version} <br />
+  //       Api is ok: {data.status['is-up']}
+  //     </div>
+  //     <div>
+  //       example bin: <ItemLabel label={"BIN000024"} />
+  //     </div>
+  //   </div>
+  // );
 }
 
 export default Home;

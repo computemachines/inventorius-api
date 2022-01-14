@@ -52,11 +52,11 @@ export class InventoryApi {
 
   async getStatus(): Promise<ApiStatus> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
-    return {... await resp.json(), kind: "api-status"};
+    return new ApiStatus({... await resp.json(), hostname: this.hostname});
   }
   async getNextBin(): Promise<NextBin | Problem> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
-    const json = await resp.json();
+    const json = await resp.json()['state'];
     if (!resp.ok) return { ...json, kind: "problem" };
     return new NextBin({ ...json, hostname: this.hostname });
   }
