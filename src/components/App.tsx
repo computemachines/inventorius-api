@@ -27,7 +27,11 @@ import Batch from "./Batch";
 import Receive from "./Receive";
 import FileUpload from "./_Dummy";
 
-// Main app component
+/** 
+ * Main app component
+ * 
+ * @returns React app component tree
+ */
 function App() {
   const [alertContent, setAlertContent] = useState<{
     content?: ReactNode;
@@ -35,10 +39,6 @@ function App() {
   }>({});
   const [dropdownIsActive, setDropdownIsActive] = useState(false);
 
-  // const setDropdownIsActive = (state: boolean) => {
-  //   console.log("setDropdownIsActive(" + state + ")");
-  //   _setDropdownIsActive(state);
-  // };
   ReactModal.setAppElement("#react-root");
 
   return (
@@ -58,9 +58,7 @@ function App() {
                 {alertContent.content}
               </Alert>
               <Switch>
-                <Route path="/dummy">
-                  <FileUpload />
-                </Route>
+                
                 <Route exact path="/">
                   <Home />
                 </Route>
@@ -100,6 +98,7 @@ function App() {
                 <Route>
                   <FourOhFour />
                 </Route>
+                
               </Switch>
             </AlertContext.Provider>
           </Sentry.ErrorBoundary>

@@ -3,6 +3,14 @@ import { useFrontload } from "react-frontload";
 import { ApiContext } from "../api-client/inventory-api";
 import ItemLabel from "./ItemLabel";
 
+
+/**
+ * Home page component
+ * 
+ * Should show general statistics, recent transactions, information of general interest.
+ * 
+ * @returns ReactElement
+ */
 function Home() {
   const { data, frontloadMeta, setData } = useFrontload(
     "home-component",
@@ -11,8 +19,8 @@ function Home() {
   const api = React.useContext(ApiContext);
 
   if (frontloadMeta.pending) return <div>Loading</div>;
-  if (frontloadMeta.error) return <div>API Error</div>;
-
+  if (frontloadMeta.error) throw new Error("API Error\n"+frontloadMeta);
+  
   return (
     <div>
       <div

@@ -148,6 +148,7 @@ app.get("/*", cors(), async function (req, res) {
     // otherwise just return the rendered output with default status code (200?)
     else res.send(complete_page);
   } catch (err) {
+    Sentry.captureException(err);
     console.error(err);
   }
 });

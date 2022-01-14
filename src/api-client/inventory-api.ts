@@ -50,7 +50,7 @@ export class InventoryApi {
   }
 
   async getVersion(): Promise<string> {
-    return (await fetch(`${this.hostname}/api/version`)).text();
+    return (await fetch(`${this.hostname}/api/version-crash`)).text();
   }
   async getNextBin(): Promise<NextBin | Problem> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
