@@ -205,19 +205,21 @@ class BinEndpoint(HypermediaEndpoint):
     def deleted_success_response(self):
         return self.status_response("bin deleted")
 
+
 class SkuEndpoint(HypermediaEndpoint):
     @classmethod
     def from_sku(cls, sku):
         endpoint = SkuEndpoint(
             resource_uri=url_for("sku.sku_get", id=sku.id),
-            state=sku.to_dict(True),
+            state=sku.to_dict(),
             operations=[
                 operations.sku_update(sku.id),
                 operations.sku_delete(sku.id),
+                operations.sku_bins(sku.id),
             ]
         )
         return endpoint
-    
+
     def created_success_response(self):
         return self.status_response("sku created", status_code=201)
 
@@ -226,3 +228,9 @@ class SkuEndpoint(HypermediaEndpoint):
 
     def deleted_success_response(self):
         return self.status_response("sku deleted")
+
+
+class StatusEndpoint(HypermediaEndpoint):
+    def __init__(self, version, is_up=True):
+        super().__init__(resource_uri=url_for("get_version"),
+                         state={"version": version, "is-up": is_up})

@@ -61,3 +61,6 @@ def sku_update(id):
 
 def sku_delete(id):
     return operation("delete", DELETE, url_for("sku.sku_delete", id=id))
+
+def sku_bins(id):
+    return operation("bins", GET, url_for("sku.sku_bins_get", id=id))

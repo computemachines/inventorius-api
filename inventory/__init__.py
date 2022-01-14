@@ -22,7 +22,8 @@ from inventory.sku import sku
 # from inventory.file_upload import file_upload
 # from inventory.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventory.user import user
-from inventory.util import login_manager, principals
+from inventory.util import login_manager, no_cache, principals
+from inventory.resource_models import StatusEndpoint
 
 import os
 import sentry_sdk
@@ -62,10 +63,10 @@ if app.debug:
 
 def cors_allow_all(response):
     if app.debug:
-        if platform.system() == "Linux":
-            # warn if running on production server. 
-            # TODO: this is a little embarassing, but it will work for now
-            print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
+        # if platform.system() == "Linux":
+        # warn if running on production server.
+        # TODO: this is a little embarassing, but it will work for now
+        print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
         response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
@@ -77,6 +78,10 @@ app.after_request(cors_allow_all)
 login_manager.init_app(app)
 principals.init_app(app)
 
-@app.route("/api/version", methods=["GET"])
+
+@app.route("/api/status", methods=["GET"])
+@no_cache
 def get_version():
-    return "0.3.1-3"
+    return StatusEndpoint(
+        version="0.3.2-0"
+    ).get_response()
