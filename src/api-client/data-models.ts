@@ -1,6 +1,6 @@
 import fetch from "cross-fetch";
 
-type Props = unknown;
+type Props = Record<string, unknown> | null;
 
 /**
  * JSON representation of a 'application/problem+json' response.
@@ -96,8 +96,8 @@ export class Bin extends RestEndpoint {
     update: CallableRestOperation;
   };
 
-  update(props: Props): Promise<Response> {
-    return this.operations.update.perform({ json: { props: props } });
+  update(patch:{props:Props}): Promise<Response> {
+    return this.operations.update.perform({ json: patch });
   }
 
   delete(): Promise<Response> {
@@ -244,7 +244,7 @@ export class SearchResults extends RestEndpoint {
     returned_num_results: number;
     results: SearchResult[];
   };
-  operations: {};
+  operations: null;
 }
 export function isSkuState(result: SearchResult): result is SkuState {
   return result.id.startsWith("SKU");

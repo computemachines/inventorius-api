@@ -3,6 +3,7 @@ import "core-js/features/object";
 import * as React from "react";
 import { ReactNode, useState } from "react";
 import { Route, Switch, Link } from "react-router-dom";
+import * as Sentry from "@sentry/react";
 
 import ReactModal from "react-modal";
 
@@ -11,7 +12,6 @@ import "../styles/accessibility.css";
 import "../styles/App.css";
 
 import { AlertContext, Alert } from "./Alert";
-import ErrorBoundary from "./ErrorBoundary";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Home from "./Home";
@@ -49,7 +49,7 @@ function App() {
       </div>
       <div className="main-container">
         <div className="main-content" id="main">
-          <ErrorBoundary>
+          <Sentry.ErrorBoundary fallback={<h2>Something went wrong.</h2>} showDialog>
             <AlertContext.Provider value={{ setAlertContent }}>
               <Alert
                 onClose={() => setAlertContent({ content: null })}
@@ -102,7 +102,7 @@ function App() {
                 </Route>
               </Switch>
             </AlertContext.Provider>
-          </ErrorBoundary>
+          </Sentry.ErrorBoundary>
         </div>
         <div className="footer-wrapper">
           <Link to="/legal">Legal</Link>

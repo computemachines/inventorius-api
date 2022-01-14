@@ -1,6 +1,6 @@
 {
   "name": "inventory-frontend",
-  "version": "0.2.11-1",
+  "version": "0.2.11-2",
   "description": "SSR React Typscript Frontend to Inventory App",
   "scripts": {
     "start": "webpack serve",
@@ -25,6 +25,7 @@
   "homepage": "https://github.com/computemachines/inventory-frontend#readme",
   "devDependencies": {
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.3",
+    "@sentry/webpack-plugin": "^1.18.3",
     "@types/cors": "^2.8.12",
     "@types/docopt": "^0.6.33",
     "@types/express": "^4.17.13",
@@ -67,6 +68,7 @@
     "webpack-dev-server": "^4.6.0"
   },
   "dependencies": {
+    "@sentry/node": "^6.16.1",
     "@sentry/react": "^6.16.1",
     "@sentry/tracing": "^6.16.1",
     "typedoc": "^0.22.10"

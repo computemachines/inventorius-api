@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 import { useFrontload } from "react-frontload";
+import * as Sentry from "@sentry/react";
 import {
   generatePath,
   Link,
@@ -103,7 +104,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <ItemLabel link={true} label={data.parentSku.state.id} />
     );
   } else {
-    console.log("fall-through [87643]");
+    Sentry.captureMessage("impossible fallthrough");
   }
 
   return (

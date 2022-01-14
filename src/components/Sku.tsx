@@ -48,6 +48,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
     // if data loads and not editing
     if (
       frontloadMeta.done &&
+      !frontloadMeta.error &&
       data.sku.kind != "problem" &&
       saveState == "live"
     ) {
