@@ -83,6 +83,14 @@ export class CallableRestOperation implements RestOperation {
   }
 }
 
+export class ApiStatus extends RestEndpoint {
+  kind: "api-status" = "api-status";
+  state: {
+    version: string,
+    "is-ok": boolean,
+  };
+}
+
 export interface BinState {
   id: string;
   contents: Record<string, number>;

@@ -14,7 +14,7 @@ import ItemLabel from "./ItemLabel";
 function Home() {
   const { data, frontloadMeta, setData } = useFrontload(
     "home-component",
-    async ({ api }) => ({ version: await api.getVersion() })
+    async ({ api }) => ({ status: await api.getStatus() })
   );
   const api = React.useContext(ApiContext);
 
@@ -25,14 +25,15 @@ function Home() {
     <div>
       <div
         onClick={() =>
-          api.getVersion().then((version) =>
+          api.getStatus().then((status) =>
             setData(() => ({
-              version,
+              status,
             }))
           )
         }
       >
-        Api Version: {data.version}
+        Api Version: {data.status.version} <br />
+        Api is ok: {data.status['is-up']}
       </div>
       <div>
         example bin: <ItemLabel label={"BIN000024"} />

@@ -14,6 +14,7 @@ import {
   NextSku,
   NextBatch,
   Batch,
+  ApiStatus,
 } from "./data-models";
 
 export interface FrontloadContext {
@@ -49,8 +50,9 @@ export class InventoryApi {
     return server_rendered;
   }
 
-  async getVersion(): Promise<string> {
-    return (await fetch(`${this.hostname}/api/version-crash`)).text();
+  async getStatus(): Promise<ApiStatus> {
+    const resp = await fetch(`${this.hostname}/api/next/bin`);
+    return {... await resp.json(), kind: "api-status"};
   }
   async getNextBin(): Promise<NextBin | Problem> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
