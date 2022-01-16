@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect } from "react";
 import { useHistory } from "react-router";
 import { useFrontload } from "react-frontload";
-import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/api-client";
 import {
   BinState,
   isBatchState,

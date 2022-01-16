@@ -9,7 +9,7 @@ const nohot = process.env.NO_HOT === "true"; // only used in ReactRefreshWebpack
 isDevelopment && console.log("DEVELOPMENT MODE");
 nohot && console.log("DISABLED ReactRefreshWebpackPlugin");
 
-const SentryCliPlugin = require('@sentry/webpack-plugin');
+// const SentryCliPlugin = require('@sentry/webpack-plugin');
 
 module.exports = {
   mode: isDevelopment ? "development" : "production",
@@ -32,7 +32,7 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.js$/,
+        test: /\.js?$/,
         enforce: "pre",
         use: "source-map-loader",
       },

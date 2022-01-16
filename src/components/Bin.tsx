@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
 import { useParams } from "react-router-dom";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { FrontloadContext } from "../api-client/api-client";
 
 import "../styles/infoPanel.css";
 import DataTable, { HeaderSpec } from "./DataTable";

@@ -10,7 +10,7 @@ import App from "../components/App";
 import * as Sentry from "@sentry/react";
 import { Integrations } from "@sentry/tracing";
 import { BrowserRouter } from "react-router-dom";
-import { ApiContext, InventoryApi } from "../api-client/inventory-api";
+import { ApiContext, ApiClient } from "../api-client/api-client";
 
 
 declare global {
@@ -90,7 +90,7 @@ function initialize_app(){
     const frontloadState = createFrontloadState.client({
       // this context object is passed as the only argument to the callbacks collected by the useFrontload hook
       context: {
-        api: new InventoryApi(window.__DEV_MODE ? "http://localhost:8080" : ""),
+        api: new ApiClient(window.__DEV_MODE ? "http://localhost:8080" : ""),
       },
     
       // data returned by frontloadServerRender. This contains the prefetched data.
@@ -110,7 +110,7 @@ function initialize_app(){
     // same as the hydrating case, except there is no server rendered data
     const frontloadState = createFrontloadState.client({
       serverRenderedData: {},
-      context: { api: new InventoryApi("http://localhost:8080") },
+      context: { api: new ApiClient("http://localhost:8080") },
       logging: true,
     });
     frontloadState.setFirstRenderDoneOnClient();

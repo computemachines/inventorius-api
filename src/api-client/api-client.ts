@@ -19,13 +19,13 @@ import {
 } from "./data-models";
 
 export interface FrontloadContext {
-  api: InventoryApi;
+  api: ApiClient;
 }
 
 /**
  * Inventorius API client
  */
-export class InventoryApi {
+export class ApiClient {
   hostname: string;
 
 
@@ -67,7 +67,7 @@ export class InventoryApi {
 
   async getNextBin(): Promise<NextBin> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
-    const json = await resp.json()['state'];
+    const json = await resp.json();
     if (!resp.ok) throw Error(`${this.hostname}/api/next/bin returned error status`);
     return new NextBin({ ...json, hostname: this.hostname });
   }
@@ -222,4 +222,4 @@ export class InventoryApi {
 }
 
 // Do not use this on the server side! Use react-frontload.
-export const ApiContext = createContext<InventoryApi>(new InventoryApi(""));
+export const ApiContext = createContext<ApiClient>(new ApiClient(""));

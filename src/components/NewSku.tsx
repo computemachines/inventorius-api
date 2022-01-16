@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useContext, useRef, useState } from "react";
 import { useFrontload } from "react-frontload";
-import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/api-client";
 
 import "../styles/form.css";
 import { AlertContext } from "./Alert";
@@ -26,8 +26,8 @@ function NewSku() {
   let skuIdPlaceholder;
   if (frontloadMeta.pending) {
     skuIdPlaceholder = "Loading...";
-  } else if (frontloadMeta.error || data.nextSku.kind == "problem") {
-    skuIdPlaceholder = "API Error";
+  } else if (frontloadMeta.error) {
+    throw Error("API Error");
   } else {
     skuIdPlaceholder = data.nextSku.state;
   }
@@ -57,20 +57,19 @@ function NewSku() {
             break;
           }
         }
-        const resp = await api.newSku({
+        const resp = await api.createSku({
           id: skuIdValue || skuIdPlaceholder,
           name: nameValue,
           owned_codes: ownedCodes,
           associated_codes: associatedCodes,
         });
-        const json = await resp.json();
-        if (resp.ok) {
+        if (resp.kind == "status") {
           setClearForm();
           setAlertContent({
             content: (
               <p>
                 Success,{" "}
-                <ItemLabel url={json.Id} onClick={() => setAlertContent({})} />{" "}
+                <ItemLabel url={resp.Id} onClick={() => setAlertContent({})} />{" "}
                 created.
               </p>
             ),
@@ -81,7 +80,7 @@ function NewSku() {
           skuInputRef.current.focus();
         } else {
           setAlertContent({
-            content: <p>{json.title}</p>,
+            content: <p>{resp.title}</p>,
             mode: "failure",
           });
         }

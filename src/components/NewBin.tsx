@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 import { useFrontload } from "react-frontload";
-import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/api-client";
 
 import "../styles/form.css";
 
@@ -22,8 +22,8 @@ function NewBin() {
     })
   );
 
-  
-  if (frontloadMeta.done && data.nextBin.kind != "problem")
+
+  if (frontloadMeta.done)
     binIdPlaceholder = data.nextBin.state;
 
   return (
@@ -32,18 +32,17 @@ function NewBin() {
       onSubmit={async (e) => {
         e.preventDefault();
 
-        const resp = await api.newBin({
+        const resp = await api.createBin({
           id: binIdValue || binIdPlaceholder,
           props: null,
         });
-        const json = await resp.json();
-        if (resp.ok) {
+        if (resp.kind == "status") {
           setBinIdValue("");
           setAlertContent({
             content: (
               <p>
                 Success,{" "}
-                <ItemLabel url={json.Id} onClick={(e) => setAlertContent({})} />{" "}
+                <ItemLabel url={resp.Id} onClick={(e) => setAlertContent({})} />{" "}
                 created.
               </p>
             ),
@@ -51,13 +50,10 @@ function NewBin() {
           });
         } else {
           setAlertContent({
-            content: <p>{json.title}</p>,
+            content: <p>{resp.title}</p>,
             mode: "failure",
           });
         }
-
-        // data.api.getNextBin()
-        //   .then((nextBin) => setData((data) => ({ ...data, nextBin })));
       }}
     >
       <h2 className="form-title">New Bin</h2>

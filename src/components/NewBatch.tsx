@@ -3,7 +3,7 @@ import * as React from "react";
 import { useContext, useState, useRef, useEffect } from "react";
 import { useFrontload } from "react-frontload";
 import { useHistory, useLocation } from "react-router-dom";
-import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/api-client";
 
 import "../styles/form.css";
 // import "../styles/NewBatch.css";
@@ -62,14 +62,7 @@ function NewBatch() {
   }
 
   if (frontloadMeta.pending) return <div>Loading...</div>;
-  if (frontloadMeta.error)
-    return (
-      <div>
-        {frontloadMeta.error.message}
-        <br />
-        {frontloadMeta.error.stack}
-      </div>
-    );
+  if (frontloadMeta.error) throw Error("API Error");
 
   return (
     <form
@@ -91,26 +84,25 @@ function NewBatch() {
             break;
 
           default:
-            let _exhaustiveCheck: never;
+            let _exhaustiveCheck: never; // eslint-disable-line
           }
         }
         const nextBatch =
           data.nextBatch.kind == "next-batch" ? data.nextBatch.state : "";
-        const resp = await api.newBatch({
+        const resp = await api.createBatch({
           id: batchIdValue || nextBatch,
           sku_id: parentSkuId,
           name: nameValue,
           owned_codes: ownedCodes,
           associated_codes: associatedCodes,
         });
-        const json = await resp.json();
-        if (resp.ok) {
+        if (resp.kind == "status") {
           clearForm();
           setAlertContent({
             content: (
               <p>
                 Success,{" "}
-                <ItemLabel url={json.Id} onClick={() => setAlertContent({})} />{" "}
+                <ItemLabel url={resp.Id} onClick={() => setAlertContent({})} />{" "}
                 created.
               </p>
             ),
@@ -121,7 +113,7 @@ function NewBatch() {
           batchIdRef.current.focus();
         } else {
           setAlertContent({
-            content: <p>{json.title}</p>,
+            content: <p>{resp.title}</p>,
             mode: "failure",
           });
         }
@@ -150,9 +142,7 @@ function NewBatch() {
           id="batch_id"
           name="batch_id"
           placeholder={
-            data.nextBatch.kind == "next-batch"
-              ? data.nextBatch.state
-              : data.nextBatch.title
+            data.nextBatch.state
           }
           value={batchIdValue}
           onChange={(e) => setBatchIdValue(e.target.value)}
@@ -160,9 +150,7 @@ function NewBatch() {
         <PrintButton
           value={
             batchIdValue ||
-            (data.nextBatch.kind == "next-batch"
-              ? data.nextBatch.state
-              : data.nextBatch.title)
+              data.nextBatch.state
           }
         />
       </div>

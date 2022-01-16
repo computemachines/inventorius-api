@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 
-import { ApiContext } from "../api-client/inventory-api";
+import { ApiContext } from "../api-client/api-client";
 import { AlertContext } from "./Alert";
 
 import "../styles/form.css";
@@ -45,7 +45,7 @@ function Receive() {
           item_id: itemIdValue,
           quantity: parseInt(quantityValue),
         });
-        if (resp.kind == "ok") {
+        if (resp.kind == "status") {
           setAlertContent({
             content: (
               <div>

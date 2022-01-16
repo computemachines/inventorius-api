@@ -17,7 +17,7 @@ import * as Sentry from "@sentry/node";
 import * as Tracing from "@sentry/tracing";
 
 import App from "../components/App";
-import { InventoryApi } from "../api-client/inventory-api";
+import { ApiClient } from "../api-client/api-client";
 const API_HOSTNAME = "http://localhost:8081";
 
 const doc = `
@@ -115,7 +115,7 @@ app.get("/*", cors(), async function (req, res) {
 
   
   const frontloadState = createFrontloadState.server({
-    context: { api: new InventoryApi(API_HOSTNAME) },
+    context: { api: new ApiClient(API_HOSTNAME) },
     logging: dev,
   });
 

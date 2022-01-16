@@ -9,7 +9,7 @@ import {
   useHistory,
   useParams,
 } from "react-router-dom";
-import { ApiContext, FrontloadContext } from "../api-client/inventory-api";
+import { ApiContext, FrontloadContext } from "../api-client/api-client";
 // import { Problem, Sku as ApiSku } from "../api-client/data-models";
 import ReactModal from "react-modal";
 
@@ -104,7 +104,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <ItemLabel link={true} label={data.parentSku.state.id} />
     );
   } else {
-    Sentry.captureMessage("impossible fallthrough");
+    throw Error("impossible fallthrough");
   }
 
   return (
@@ -128,7 +128,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
             if (data.batch.kind == "problem") throw "impossible";
             const resp = await api.hydrate(data.batch).delete();
             // setShowModal(false); // this doesn't seem to be necessary?
-            if (resp.ok) {
+            if (resp.kind == "status") {
               setAlertContent({ content: <p>Deleted</p>, mode: "success" });
               const updatedBatch = await api.getBatch(id);
               const updatedParentSku =
@@ -143,9 +143,8 @@ function Batch({ editable = false }: { editable?: boolean }) {
                 batchBins: updatedBatchBins,
               }));
             } else {
-              const json = await resp.json();
               setAlertContent({
-                content: <p>{json.title}</p>,
+                content: <p>{resp.title}</p>,
                 mode: "failure",
               });
             }
@@ -242,12 +241,11 @@ function Batch({ editable = false }: { editable?: boolean }) {
                       )
                       .map(({ value }) => value),
                   });
-                  const json = await resp.json();
 
-                  if (!resp.ok) {
+                  if (resp.kind == "problem") {
                     setSaveState("unsaved");
                     setAlertContent({
-                      content: <p>{json.title}</p>,
+                      content: <p>{resp.title}</p>,
                       mode: "failure",
                     });
                   } else {

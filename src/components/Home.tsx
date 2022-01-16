@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
-import { ApiContext } from "../api-client/inventory-api";
+import { ApiContext } from "../api-client/api-client";
 import ItemLabel from "./ItemLabel";
 
 

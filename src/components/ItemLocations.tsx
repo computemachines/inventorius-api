@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { FrontloadContext } from "../api-client/inventory-api";
+import { FrontloadContext } from "../api-client/api-client";
 
 import "../styles/ItemLocations.css";
 import DataTable, { HeaderSpec } from "./DataTable";
