@@ -22,7 +22,7 @@ function NewBin() {
     })
   );
 
-  if (frontloadMeta.error) binIdPlaceholder = "API Error";
+  
   if (frontloadMeta.done && data.nextBin.kind != "problem")
     binIdPlaceholder = data.nextBin.state;
 

@@ -9,7 +9,7 @@ function Topbar({ isActive, setActive }: { isActive: boolean, setActive: (isActi
     <div className="top-bar">
       <div className="branding">
         <div className="logo" />
-        <h2>Inventory App</h2>
+        <h2>Inventorius</h2>
       </div>
       <button
         className={`hamburger hamburger--squeeze ${isActive ? "is-active" : ""}`}

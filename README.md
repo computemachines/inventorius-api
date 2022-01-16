@@ -1,3 +1,5 @@
+# Inventorius
+An inventory management system for hobbyists and makers.
 
 # Reminder
 Modified from [https://github.com/lob/generate-changelog#usage]

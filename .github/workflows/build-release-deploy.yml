@@ -24,14 +24,14 @@ jobs:
         run: npm run build:server
       - name: package for deployment
         run: |
-          cp -v package.json package-lock.json inventory-frontend.service inventory-nginx.conf dist/
+          cp -v package.json package-lock.json inventorius-frontend.service inventorius-nginx.conf dist/
           cd dist/
-          tar -czvf ../inventory-frontend-package.tar.gz *
+          tar -czvf ../inventorius-frontend-package.tar.gz *
       - name: upload deployment artifact
         uses: actions/upload-artifact@v2
         with:
           name: deployment-package
-          path: inventory-frontend-package.tar.gz
+          path: inventorius-frontend-package.tar.gz
 
   release:
     runs-on: ubuntu-latest
@@ -87,7 +87,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          files: inventory-frontend-package.tar.gz
+          files: inventorius-frontend-package.tar.gz
           name: Prerelease ${{ env.TAG_NAME }}
           body: ${{steps.build_changelog.outputs.changelog}}
           draft: false
@@ -99,7 +99,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          files: inventory-frontend-package.tar.gz
+          files: inventorius-frontend-package.tar.gz
           name: Release ${{ env.TAG_NAME }}
           body: ${{steps.build_changelog.outputs.changelog}}
           draft: false
@@ -122,21 +122,21 @@ jobs:
         with:
           name: deployment-package
       - name: upload deployment package
-        run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts inventory-frontend-package.tar.gz root@computemachines.com:/root
+        run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts inventorius-frontend-package.tar.gz root@computemachines.com:/root
       - name: Run deployment commands on production server
         run: |
           ssh -T -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com << EOF
-            systemctl stop inventory-frontend.service
-            #rm inventory-frontend-package.tar.gz
-            #wget https://github.com/computemachines/inventory-frontend/releases/latest/download/inventory-frontend-package.tar.gz
+            systemctl stop inventorius-frontend.service
+            #rm inventorius-frontend-package.tar.gz
+            #wget https://github.com/computemachines/inventorius-frontend/releases/latest/download/inventorius-frontend-package.tar.gz
             
-            cd inventory/
+            cd inventorius/
             rm -r node-deployment/
             mkdir node-deployment/
-            tar -zxvf ../inventory-frontend-package.tar.gz -C node-deployment/
+            tar -zxvf ../inventorius-frontend-package.tar.gz -C node-deployment/
             cd node-deployment
-            cp inventory-nginx.conf /etc/nginx/sites-available/ -v
+            cp inventorius-nginx.conf /etc/nginx/sites-available/ -v
             source ~/.nvm/nvm.sh
             npm ci --production
-            systemctl start inventory-frontend.service
+            systemctl start inventorius-frontend.service
             systemctl restart nginx

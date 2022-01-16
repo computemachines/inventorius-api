@@ -15,17 +15,24 @@ import {
   NextBatch,
   Batch,
   ApiStatus,
+  Status,
 } from "./data-models";
 
 export interface FrontloadContext {
   api: InventoryApi;
 }
 
+/**
+ * Inventorius API client
+ */
 export class InventoryApi {
   hostname: string;
+
+
   constructor(hostname = "") {
     this.hostname = hostname;
   }
+
 
   hydrate<T extends Sku | Batch>(server_rendered: T): T {
     if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
@@ -50,28 +57,38 @@ export class InventoryApi {
     return server_rendered;
   }
 
+
   async getStatus(): Promise<ApiStatus> {
-    const resp = await fetch(`${this.hostname}/api/next/bin`);
+    const resp = await fetch(`${this.hostname}/api/status`);
+    if (!resp.ok) throw Error(`${this.hostname}/api/status returned error code`);
     return new ApiStatus({... await resp.json(), hostname: this.hostname});
   }
-  async getNextBin(): Promise<NextBin | Problem> {
+
+
+  async getNextBin(): Promise<NextBin> {
     const resp = await fetch(`${this.hostname}/api/next/bin`);
     const json = await resp.json()['state'];
-    if (!resp.ok) return { ...json, kind: "problem" };
+    if (!resp.ok) throw Error(`${this.hostname}/api/next/bin returned error status`);
     return new NextBin({ ...json, hostname: this.hostname });
   }
-  async getNextSku(): Promise<NextSku | Problem> {
+
+
+  async getNextSku(): Promise<NextSku> {
     const resp = await fetch(`${this.hostname}/api/next/sku`);
     const json = await resp.json();
-    if (!resp.ok) return { ...json, kind: "problem" };
+    if (!resp.ok) throw Error(`${this.hostname}/api/next/sku returned error status`);
     return new NextSku({ ...json, hostname: this.hostname });
   }
-  async getNextBatch(): Promise<NextBatch | Problem> {
+
+
+  async getNextBatch(): Promise<NextBatch> {
     const resp = await fetch(`${this.hostname}/api/next/batch`);
     const json = await resp.json();
-    if (!resp.ok) return { ...json, kind: "problem" };
+    if (!resp.ok) throw Error(`${this.hostname}/api/next/sku returned error status`);
     return new NextBatch({ ...json, hostname: this.hostname });
   }
+
+
   async getSearchResults(params: {
     query: string;
     limit?: number;
@@ -85,6 +102,8 @@ export class InventoryApi {
     if (resp.ok) return new SearchResults({ ...json });
     else return { ...json, kind: "problem" };
   }
+
+
   async getBin(id: string): Promise<Bin | Problem> {
     const resp = await fetch(`${this.hostname}/api/bin/${id}`);
     const json = await resp.json();
@@ -92,58 +111,88 @@ export class InventoryApi {
     if (resp.ok) return new Bin({ ...json, hostname: this.hostname });
     else return { ...json, kind: "problem" };
   }
-  newBin({ id, props }: { id: string; props: unknown }): Promise<Response> {
-    return fetch(`${this.hostname}/api/bins`, {
+
+
+  async createBin({ id, props }: { id: string; props: unknown }): Promise<Status | Problem> {
+    const resp = await fetch(`${this.hostname}/api/bins`, {
       method: "POST",
       body: JSON.stringify({ id, props }),
       headers: {
         "Content-Type": "application/json",
       },
     });
+    const json = await resp.json();
+    if (resp.ok) {
+      return {...json, kind: "status"};
+    } else {
+      return {...json, kind: "problem"};
+    }
   }
+
+
   async getSku(id: string): Promise<Sku | Problem> {
     const resp = await fetch(`${this.hostname}/api/sku/${id}`);
     const json = await resp.json();
     if (resp.ok) return new Sku({ ...json, hostname: this.hostname });
     else return { ...json, kind: "problem" };
   }
-  newSku(params: {
+
+
+  async createSku(params: {
     id: string;
     name: string;
     props?: unknown;
     owned_codes?: string[];
     associated_codes?: string[];
-  }): Promise<Response> {
-    return fetch(`${this.hostname}/api/skus`, {
+  }): Promise<Status | Problem> {
+    const resp = await fetch(`${this.hostname}/api/skus`, {
       method: "POST",
       body: JSON.stringify(params),
       headers: {
         "Content-Type": "application/json",
       },
     });
+    const json = await resp.json();
+    if (resp.ok) {
+      return {...json, kind: "status"};
+    } else {
+      return {...json, kind: "problem"};
+    }
   }
+
+
   async getBatch(id: string): Promise<Batch | Problem> {
     const resp = await fetch(`${this.hostname}/api/batch/${id}`);
     const json = await resp.json();
     if (resp.ok) return new Batch({ ...json, hostname: this.hostname });
     else return { ...json, kind: "problem" };
   }
-  newBatch(params: {
+
+
+  async createBatch(params: {
     id: string;
     sku_id?: string;
     name?: string;
     owned_codes?: string[];
     associated_codes?: string[];
     props?: unknown;
-  }): Promise<Response> {
-    return fetch(`${this.hostname}/api/batches`, {
+  }): Promise<Status | Problem> {
+    const resp = await fetch(`${this.hostname}/api/batches`, {
       method: "POST",
       body: JSON.stringify(params),
       headers: {
         "Content-Type": "application/json",
       },
     });
+    const json = await resp.json();
+    if (resp.ok) {
+      return {...json, kind: "status"};
+    } else {
+      return {...json, kind: "problem"};
+    }
   }
+
+
   async receive({
     into_id,
     item_id,
@@ -152,7 +201,7 @@ export class InventoryApi {
     into_id: string;
     item_id: string;
     quantity: number;
-  }): Promise<{ kind: "ok"; resp: Response } | Problem> {
+  }): Promise<Status | Problem> {
     const resp = await fetch(`${this.hostname}/api/bin/${into_id}/contents`, {
       method: "POST",
       body: JSON.stringify({
@@ -163,9 +212,12 @@ export class InventoryApi {
         "Content-Type": "application/json",
       },
     });
-    if (resp.ok) return { kind: "ok", resp };
     const json = await resp.json();
-    return { ...json, kind: "problem" };
+    if (resp.ok) {
+      return {...json, kind: "status"};
+    } else {
+      return {...json, kind: "problem"};
+    }
   }
 }
 

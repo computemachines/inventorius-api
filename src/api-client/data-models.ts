@@ -2,6 +2,18 @@ import fetch from "cross-fetch";
 
 type Props = Record<string, unknown> | null;
 
+
+async function status_or_problem(resp_promise: Promise<Response>): Promise<Status | Problem> {
+  const resp = await resp_promise;
+  const json = await resp.json();
+  if (resp.ok) {
+    return {...json, kind: "status"};
+  } else {
+    return {...json, kind: "problem"};
+  }
+}
+
+
 /**
  * JSON representation of a 'application/problem+json' response.
  */
@@ -12,8 +24,29 @@ export interface Problem {
   kind: "problem";
   type: string;
   title: string;
-  "invalid-params": Array<{ name: string; reason: string }>;
+  "invalid-params"?: Array<{ name: string; reason: string }>;
 }
+
+/**
+ * Type returned by resource creation or update api calls when successful.
+ * For example, POST /api/skus might return:
+ *   {kind: "status", Id: "/sku/SKU000001", status: "sku successfully created"}
+ */
+export interface Status {
+  /**
+   * Discriminator
+   */
+  kind: "status";
+  /**
+   * URI of the newly created resource.
+   */
+  Id: string;
+  /**
+   * Human readable status string.
+   */
+  status: string;
+}
+
 
 class RestEndpoint {
   state: unknown;
@@ -104,12 +137,12 @@ export class Bin extends RestEndpoint {
     update: CallableRestOperation;
   };
 
-  update(patch:{props:Props}): Promise<Response> {
-    return this.operations.update.perform({ json: patch });
+  update(patch:{props:Props}): Promise<Status | Problem> {
+    return status_or_problem(this.operations.update.perform({ json: patch }));
   }
 
-  delete(): Promise<Response> {
-    return this.operations.delete.perform();
+  delete(): Promise<Status | Problem> {
+    return status_or_problem(this.operations.delete.perform());
   }
 }
 
@@ -150,11 +183,11 @@ export class Sku extends RestEndpoint {
     owned_codes?: string[];
     associated_codes?: string[];
     props?: Props;
-  }): Promise<Response> {
-    return this.operations.update.perform({ json: patch });
+  }): Promise<Status | Problem> {
+    return status_or_problem(this.operations.update.perform({ json: patch }));
   }
-  delete(): Promise<Response> {
-    return this.operations.delete.perform();
+  delete(): Promise<Status | Problem> {
+    return status_or_problem(this.operations.delete.perform());
   }
   async bins(): Promise<SkuLocations | Problem> {
     const resp = await this.operations.bins.perform();
@@ -192,11 +225,11 @@ export class Batch extends RestEndpoint {
     owned_codes?: string[];
     associated_codes?: string[];
     props?: Props;
-  }): Promise<Response> {
-    return this.operations.update.perform({ json: patch });
+  }): Promise<Status | Problem> {
+    return status_or_problem(this.operations.update.perform({ json: patch }));
   }
-  delete(): Promise<Response> {
-    return this.operations.delete.perform();
+  delete(): Promise<Status | Problem> {
+    return status_or_problem(this.operations.delete.perform());
   }
   async bins(): Promise<BatchLocations | Problem> {
     const resp = await this.operations.bins.perform();
@@ -205,6 +238,7 @@ export class Batch extends RestEndpoint {
     else return { ...json, kind: "problem" };
   }
 }
+
 
 export class NextBin extends RestEndpoint {
   kind: "next-bin" = "next-bin";

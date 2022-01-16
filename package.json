@@ -1,7 +1,7 @@
 {
-  "name": "inventory-frontend",
+  "name": "inventorius-frontend",
   "version": "0.2.11-5",
-  "description": "SSR React Typscript Frontend to Inventory App",
+  "description": "An inventory management system for hobbyists and makers.",
   "scripts": {
     "start": "webpack serve",
     "build:client": "cross-env NODE_ENV=production webpack",
@@ -10,8 +10,7 @@
     "build:server:dev": "webpack --config webpack.server.config.js",
     "server:dev": "node dist/server.bundle.js -p 8080 --dev",
     "server:only": "node dist/server.bundle.js -p 8080 --dev --noclient",
-    "test": "jest",
-    "docs": "jsdoc -c jsdoc.json src"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
