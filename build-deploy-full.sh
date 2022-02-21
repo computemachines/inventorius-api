@@ -1,17 +1,17 @@
 #!/bin/bash --init-file
 
-DOMAINS="-d computemachines.com -d inventory.computemachines.com"
+DOMAINS="-d inventory.computemachines.com -d inventori.us"
 EMAIL=tparker@computemachines.com
 
 cd /root
-rm -r inventory # fresh install
-rm inventory-frontend-package.tar.gz
+rm -r inventorius # fresh install
+rm inventorius-frontend-package.tar.gz
 
 echo "---- Checking user -------"
-if ! id www-uwsgi-inventory-api &>/dev/null
+if ! id www-uwsgi-inventorius-api &>/dev/null
 then
   echo "---- Creating user for web process ----"
-  useradd -M www-uwsgi-inventory-api
+  useradd -M www-uwsgi-inventorius-api
 fi
 # if ! id masdfongodb &>/dev/null
 # then
@@ -58,23 +58,23 @@ fi
 # pushd temp-build
 
 # echo "---- Building Frontend ----"
-# git clone https://github.com/computemachines/inventory-frontend.git
-# pushd inventory-frontend
+# git clone https://github.com/computemachines/inventorius-frontend.git
+# pushd inventorius-frontend
 # git pull
 # npm ci
 # npm run build:client
 # npm run build:server
-# cp package.json inventory-nginx.conf package-lock.json inventory-frontend.service dist/
+# cp package.json inventorius-nginx.conf package-lock.json inventorius-frontend.service dist/
 # pushd dist
-# tar -czf /root/inventory/inventory-frontend-package.tar.gz *
+# tar -czf /root/inventorius/inventorius-frontend-package.tar.gz *
 # popd # out dist
-# popd # out inventory-frontend
+# popd # out inventorius-frontend
 # popd # out temp-build
 # echo "---- Cleaning Up ----------"
 # rm -rf temp-build/
 
 echo "---- Downloading Frontend Release ----"
-wget https://github.com/computemachines/inventory-frontend/releases/latest/download/inventory-frontend-package.tar.gz
+wget https://github.com/computemachines/inventorius-frontend/releases/latest/download/inventorius-frontend-package.tar.gz
 
 echo "---- Installing -----------"
 
@@ -83,38 +83,38 @@ systemctl stop nginx
 certbot certonly -n -m $EMAIL --agree-tos --standalone $DOMAINS
 
 echo "---- Installing Frontend --"
-mkdir -pv inventory/node-deployment
-cd /root/inventory/
-tar -xzf ../inventory-frontend-package.tar.gz -C node-deployment
-cd /root/inventory/node-deployment/
+mkdir -pv inventorius/node-deployment
+cd /root/inventorius/
+tar -xzf ../inventorius-frontend-package.tar.gz -C node-deployment
+cd /root/inventorius/node-deployment/
 npm ci --production
-cp -v inventory-frontend.service /etc/systemd/system/
+cp -v inventorius-frontend.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable inventory-frontend
+systemctl enable inventorius-frontend
 
 echo "---- Installing NGINX conf ----"
-cd /root/inventory/node-deployment/
-cp -v inventory-nginx.conf /etc/nginx/sites-available/
+cd /root/inventorius/node-deployment/
+cp -v inventorius-nginx.conf /etc/nginx/sites-available/
 rm /etc/nginx/sites-enabled/default -v
-ln -sv /etc/nginx/sites-available/inventory-nginx.conf /etc/nginx/sites-enabled/inventory-nginx.conf
+ln -sv /etc/nginx/sites-available/inventorius-nginx.conf /etc/nginx/sites-enabled/inventorius-nginx.conf
 
 echo "---- Installing Backend ----"
-cd /root/inventory/
-git clone https://github.com/computemachines/inventory-api.git
-cd /root/inventory/inventory-api/
+cd /root/inventorius/
+git clone https://github.com/computemachines/inventorius-api.git
+cd /root/inventorius/inventorius-api/
 chown -R www-data:www-data ../
-chown -R www-uwsgi-inventory-api:www-data .
-cp inventory-api.{service,socket} /etc/systemd/system/
+chown -R www-uwsgi-inventorius-api:www-data .
+cp inventorius-api.{service,socket} /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable inventory-api.service
-systemctl enable inventory-api.socket
+systemctl enable inventorius-api.service
+systemctl enable inventorius-api.socket
 pip install -r requirements.txt
 
 echo "---- Starting --------------"
-systemctl start inventory-frontend
+systemctl start inventorius-frontend
 systemctl start mongod
-systemctl start inventory-api.service
-systemctl start inventory-api.socket
+systemctl start inventorius-api.service
+systemctl start inventorius-api.socket
 systemctl start nginx
 
 echo "---- Done ------------------"
