@@ -1,10 +1,10 @@
 [Unit]
-Description="Inventory Frontend"
+Description="Inventorius Frontend"
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/root/inventory/node-deployment
+WorkingDirectory=/root/inventorius/node-deployment
 User=www-data
 Group=www-data
 ExecStart=/root/.nvm/versions/node/v16.4.0/bin/node server.bundle.js -p 3001
