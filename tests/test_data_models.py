@@ -1,4 +1,4 @@
-from inventory.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
+from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 
 import pytest
 import json
