@@ -12,19 +12,20 @@ import ItemLabel from "./ItemLabel";
  * @returns ReactElement
  */
 function Home() {
-  const { data, frontloadMeta, setData } = useFrontload(
-    "home-component",
-    async function({ api }) {
-      const status = await api.getStatus();
-      return ({ status });
-    }
-  );
-  const api = React.useContext(ApiContext);
+  return <div>Home component</div>
+  // const { data, frontloadMeta, setData } = useFrontload(
+  //   "home-component",
+  //   async function({ api }) {
+  //     const status = await api.getStatus();
+  //     return ({ status });
+  //   }
+  // );
+  // const api = React.useContext(ApiContext);
 
-  if (frontloadMeta.pending) return <div>Loading</div>;
-  if (frontloadMeta.error) throw new Error("API Error\n"+frontloadMeta);
+  // if (frontloadMeta.pending) return <div>Loading</div>;
+  // if (frontloadMeta.error) throw new Error("API Error\n"+frontloadMeta);
   
-  throw new Error("bad");
+  // throw new Error("bad");
 
   // return (
   //   <div>
