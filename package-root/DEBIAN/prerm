@@ -1,0 +1,8 @@
+#! /usr/bin/sh
+
+systemctl stop inventorius-api.service
+systemctl stop inventorius-api.socket
+systemctl disable inventorius-api.socket
+systemctl disable inventorius-api.service
+
+userdel www-uwsgi-inventorius-api

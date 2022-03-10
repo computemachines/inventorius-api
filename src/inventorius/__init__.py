@@ -25,24 +25,30 @@ from inventorius.user import user
 from inventorius.util import login_manager, no_cache, principals
 from inventorius.resource_models import StatusEndpoint
 
-import os
-import sentry_sdk
-from sentry_sdk.integrations.flask import FlaskIntegration
-
 import platform
+import os
 
-sentry_dsn = os.getenv("SENTRY_DSN")
-if sentry_dsn:
-    print("setup sentry.io integration")
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        integrations=[FlaskIntegration()],
+sentry_dsn = False
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    sentry_dsn = os.getenv("SENTRY_DSN")
 
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        traces_sample_rate=1.0
-    )
+    if sentry_dsn:
+        print("setup sentry.io integration with configured sentry_dsn")
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[FlaskIntegration()],
+
+            # Set traces_sample_rate to 1.0 to capture 100%
+            # of transactions for performance monitoring.
+            # We recommend adjusting this value in production.
+            traces_sample_rate=1.0
+        )
+
+except ModuleNotFoundError:
+    print("error reporting disabled: 'python3-sentry-sdk' not installed")
+
 
 
 app = Flask('inventorius')

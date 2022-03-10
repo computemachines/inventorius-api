@@ -27,7 +27,11 @@ jobs:
         run: |
           sudo apt install libmagickwand-dev
           python -m pip install --upgrade pip
-          pip install -r requirements.txt 
+          pip install -r requirements.txt
+      - name: build and install wheel
+        run: |
+          make build
+          pip install dist/*.whl
       - name: Run Tests
         run: pytest
 
@@ -80,28 +84,50 @@ jobs:
           message: ${{ env.coverageText }}
           color: orange
           cacheSeconds: 300
-  deploy:
-    name: Deploy to production
+  package:
+    name: Build .deb package and deploy
     runs-on: ubuntu-20.04
-    needs: test
-    
-    steps:
+    # needs: test
+
+    steps: 
       - name: Checkout
         uses: actions/checkout@v2
+      - name: build
+        run: |
+          pip install -U build
+          make build
+      - name: package
+        run: make deb
+      - name: get deb name
+        run: echo "deb_name=$(basename dist/*.deb)" >> $GITHUB_ENV
+      - name: artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.deb_name }}
+          path: dist/${{ env.deb_name }}
+
       - name: setup private key
         env:
           PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_PRIVKEY_GPG_PASSWORD }}
         run: |
-          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
+          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa deployment-ci/github_id_rsa.gpg
           chmod 600 github_id_rsa
       - name: unpack secrets.ini
         env:
           PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_SECRETS_INI_GPG_PASSWORD }}
-        run: gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output secrets.ini secrets.ini.gpg
+        run: gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output secrets.ini deployment-ci/secrets.ini.gpg
       - name: upload secrets.ini
-        run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts secrets.ini root@computemachines.com:secrets.ini
-
+        run: scp -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts secrets.ini root@computemachines.com:secrets.ini
+      - name: download packaged build
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.deb_name }}
+      - name: upload to production server
+        run: scp -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts $DEB_NAME root@computemachines.com:$DEB_NAME
+        env:
+          DEB_NAME: ${{ env.deb_name }}
       - name: Run deployment commands on production server
         run: |
-          ssh -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com \
-            "cd inventory/inventory-api/; git fetch; git reset --hard $GITHUB_SHA ; sudo systemctl restart inventory-api"
+          ssh -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts root@computemachines.com "sudo dpkg -i $DEB_NAME; sudo systemctl restart inventory-api"
+        env:
+          DEB_NAME: ${{ env.deb_name }}
