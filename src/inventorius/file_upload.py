@@ -4,7 +4,7 @@ import json
 from wand.image import Image
 
 file_upload = Blueprint("file_upload", __name__)
-
+ 
 @file_upload.route('/api/images', methods=['POST'])
 def images_post():
   resp = Response()

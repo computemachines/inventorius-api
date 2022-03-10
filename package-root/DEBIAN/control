@@ -1,0 +1,11 @@
+Package: inventorius-api
+Maintainer: Tyler Parker <tparker@computemachines.com>
+Version: 0.3.3
+Build-Depends: dh-systemd (>=1.5)
+Depends: python3 (>= 3.5), python3-flask
+Suggests: inventorius-frontend
+Description: Inventory management system for makers and hobbyiests.
+ .
+ This is the backend api package.
+Homepage: https://inventori.us
+Architecture: all
