@@ -128,6 +128,6 @@ jobs:
           DEB_NAME: ${{ env.deb_name }}
       - name: Run deployment commands on production server
         run: |
-          ssh -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts root@computemachines.com "sudo dpkg -i $DEB_NAME; sudo systemctl restart inventory-api"
+          ssh -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts root@computemachines.com "dpkg -i $DEB_NAME; sudo systemctl restart inventory-api"
         env:
           DEB_NAME: ${{ env.deb_name }}
