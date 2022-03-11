@@ -45,9 +45,13 @@ def non_whitespace(s):
         raise Invalid(f"must not contain whitespace characters")
     return s
 
+def alphanum(s: str):
+    if not s.isalnum():
+        raise Invalid("must be alphanumeric")
+    return s
 
 
-id_schema = All(Length(1), str, non_empty_string, non_whitespace)
+id_schema = All(Length(1), str, non_empty_string, non_whitespace, alphanum)
 password_schema = All(Length(8), str)
 code_list_schema = [All(non_empty_string, non_whitespace)]
 

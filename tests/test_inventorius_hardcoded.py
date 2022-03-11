@@ -329,3 +329,11 @@ def test_update_sku():
     v1 = state.new_sku(sku=Sku(associated_codes=[], id='SKU000000', name='', owned_codes=[], props={}))
     state.update_sku(patch={}, sku_id=v1)
     state.teardown()
+
+def test_login_whoami():
+    state = InventoriusStateMachine()
+    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
+    state.login_as(user_id=v1)
+    state.delete_existing_user(user_id=v1)
+    state.whoami()
+    state.teardown()

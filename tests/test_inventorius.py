@@ -48,6 +48,9 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         del self.model_users[user_id]
         assert resp.status_code == 200
 
+        if self.logged_in_as == user_id:
+            self.logged_in_as = None
+
     @rule(user_id=a_user_id)
     def get_existing_user(self, user_id):
         resp = self.client.get(f"/api/user/{user_id}")

@@ -87,7 +87,7 @@ jobs:
   package:
     name: Build .deb package and deploy
     runs-on: ubuntu-20.04
-    # needs: test
+    needs: test
 
     steps: 
       - name: Checkout

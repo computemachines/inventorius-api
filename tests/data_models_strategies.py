@@ -3,19 +3,20 @@ from inventorius.data_models import Bin, Sku, Batch, UserData
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
 
-from string import ascii_letters, printable, ascii_lowercase, whitespace
+from string import ascii_letters, printable, ascii_lowercase, whitespace, digits
 
 import os
 import time
 import hashlib
 import base64
 
-ids = text(
-    printable.translate(str.maketrans(
-        {"/": None, "?": None, "&": None, "#": None}
-    )).translate(str.maketrans(
-        {c: None for c in whitespace}
-    )), min_size=1)
+# ids = text(
+#     printable.translate(str.maketrans(
+#         {"/": None, "?": None, "&": None, "#": None}
+#     )).translate(str.maketrans(
+#         {c: None for c in whitespace}
+#     )), min_size=1)
+ids = text(ascii_letters + digits, min_size=1)
 
 fieldNames = text(ascii_lowercase + '_')
 simpleTypes = one_of(none(),
@@ -71,7 +72,7 @@ def batches_(draw: DrawFn, id=None, sku_id=0, name=None, owned_codes=None, assoc
 def users_(draw, id=None, name=None, password=None):
     id = id or draw(ids)
     name = name or draw(text())
-    password = draw(text(min_size=8))
+    password = draw(text(printable, min_size=8))
     # salt = os.urandom(64)
     # derived_shadow_id = hashlib.sha256((str(time.time()) + str(id)).encode("utf-8"),
     #                                    usedforsecurity=False)
