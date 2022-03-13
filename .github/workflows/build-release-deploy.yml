@@ -127,28 +127,23 @@ jobs:
         env:
           PRIVKEYENCRYPTED: ${{ secrets.DEPLOY_PRIVKEY_GPG_PASSWORD }}
         run: |
-          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa github_id_rsa.gpg
+          gpg --quiet --batch --yes --decrypt --passphrase="$PRIVKEYENCRYPTED" --output github_id_rsa deployment-ci/github_id_rsa.gpg
           chmod 600 github_id_rsa
       - name: get deployment package
         uses: actions/download-artifact@v2
         with:
           name: inventorius-frontend_latest_all.deb
+
+      - name: get deployment package name
+        run: echo "DEB_NAME=$(basename inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
+
       - name: upload deployment package
-        run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts inventorius-frontend-package.tar.gz root@computemachines.com:/root
+        run: scp -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts $DEB_NAME root@computemachines.com:$DEB_NAME
+        env:
+          DEB_NAME: ${{ env.DEB_NAME }}
+
       - name: Run deployment commands on production server
         run: |
-          ssh -T -i github_id_rsa -o UserKnownHostsFile=known_hosts root@computemachines.com << EOF
-            systemctl stop inventorius-frontend.service
-            #rm inventorius-frontend-package.tar.gz
-            #wget https://github.com/computemachines/inventorius-frontend/releases/latest/download/inventorius-frontend-package.tar.gz
-            
-            cd inventorius/
-            rm -r node-deployment/
-            mkdir node-deployment/
-            tar -zxvf ../inventorius-frontend-package.tar.gz -C node-deployment/
-            cd node-deployment
-            cp inventorius-nginx.conf /etc/nginx/sites-available/ -v
-            source ~/.nvm/nvm.sh
-            npm ci --production
-            systemctl start inventorius-frontend.service
-            systemctl restart nginx
+          ssh -T -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts root@computemachines.com dpkg -i $DEB_NAME
+        env:
+          DEB_NAME: ${{ env.DEB_NAME }}
