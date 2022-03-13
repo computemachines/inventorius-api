@@ -1,0 +1,7 @@
+#! /usr/bin/sh
+
+useradd -M www-data
+
+systemctl daemon-reload
+systemctl enable inventorius-frontend.service
+systemctl start inventorius-frontend.service

@@ -1,5 +1,5 @@
-# Inventorius
-An inventory management system for hobbyists and makers.
+# Inventorius Frontend
+An inventory management system for hobbyists and makers. This is the component that renders and serves the web app. Server-side and client-side api fetches are served by [inventorius-api].
 
 # Reminder
 Modified from [https://github.com/lob/generate-changelog#usage]

@@ -1,0 +1,12 @@
+Package: inventorius-frontend
+Maintainer: Tyler Parker <tparker@computemachines.com>
+Version: 0.2.11
+Build-Depends: dh-systemd (>=1.5)
+Depends: nginx, nodejs
+Suggests: inventorius-api
+Description: Inventory management system for makers and hobbyiests.
+ .
+ This component serves the reactjs based application.
+Homepage: https://inventori.us
+Source: https://github.com/computemachines/inventorius-frontend
+Architecture: all

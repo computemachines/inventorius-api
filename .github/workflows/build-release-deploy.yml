@@ -18,20 +18,24 @@ jobs:
           node-version: "15.x"
       - name: install deps
         run: npm ci
-      - name: build client app
-        run: npm run build:client
-      - name: build server
-        run: npm run build:server
+      - name: build
+        run: make build
       - name: package for deployment
+        run: make deb
+
+      - name: debugging info
         run: |
-          cp -v package.json package-lock.json inventorius-frontend.service inventorius-nginx.conf dist/
-          cd dist/
-          tar -czvf ../inventorius-frontend-package.tar.gz *
+          ls -lh
+          echo "----"
+          ls -lh dist
+
+      - name: get deployment package name
+        run: echo "DEB_NAME=$(basename dist/inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
       - name: upload deployment artifact
         uses: actions/upload-artifact@v2
         with:
-          name: deployment-package
-          path: inventorius-frontend-package.tar.gz
+          name: inventorius-frontend_latest_all.deb
+          path: dist/${{ env.DEB_NAME }}
 
   release:
     runs-on: ubuntu-latest
@@ -73,12 +77,20 @@ jobs:
       - name: get deployment package
         uses: actions/download-artifact@v2
         with:
-          name: deployment-package
+          name: inventorius-frontend_latest_all.deb
+
+      - name: debug output
+        run: ls -lh
+
       - name: Get tag name
         run: |
           echo $GITHUB_REF
           echo ${GITHUB_REF#refs/tags/}
           echo TAG_NAME=${GITHUB_REF#refs/tags/} >> $GITHUB_ENV
+
+      
+      - name: get deployment package name
+        run: echo "DEB_NAME=$(basename inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
 
       - name: Create prerelease
         if: ${{contains(github.ref, '-')}}
@@ -87,7 +99,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          files: inventorius-frontend-package.tar.gz
+          files: ${{ env.DEB_NAME }}
           name: Prerelease ${{ env.TAG_NAME }}
           body: ${{steps.build_changelog.outputs.changelog}}
           draft: false
@@ -99,7 +111,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          files: inventorius-frontend-package.tar.gz
+          files: inventorius-frontend_latest_all.deb
           name: Release ${{ env.TAG_NAME }}
           body: ${{steps.build_changelog.outputs.changelog}}
           draft: false
@@ -120,7 +132,7 @@ jobs:
       - name: get deployment package
         uses: actions/download-artifact@v2
         with:
-          name: deployment-package
+          name: inventorius-frontend_latest_all.deb
       - name: upload deployment package
         run: scp -i github_id_rsa -o UserKnownHostsFile=known_hosts inventorius-frontend-package.tar.gz root@computemachines.com:/root
       - name: Run deployment commands on production server
