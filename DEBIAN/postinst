@@ -19,4 +19,7 @@ systemctl enable inventorius-api.service
 systemctl start inventorius-api.socket
 systemctl start inventorius-api.service
 
-ln -sv /etc/uwsgi/apps-enabled/pkg_inventorius-api.ini /etc/uwsgi/apps-available/pkg_inventorius-api.ini 
+if [ ! -e /etc/uwsgi/apps-enabled/pkg_inventorius-api.ini ]
+then
+    ln -sv /etc/uwsgi/apps-available/pkg_inventorius-api.ini /etc/uwsgi/apps-enabled/pkg_inventorius-api.ini
+fi

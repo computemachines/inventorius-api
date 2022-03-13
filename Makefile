@@ -29,9 +29,6 @@ deb:
 	mkdir -pv $(PYTHON_DIST_PACKAGES)
 	pip install --target $(PYTHON_DIST_PACKAGES) $(wildcard dist/inventorius_api-*-none-any.whl)
 
-	mkdir -pv $(CONFIG_DIRECTORY)
-	cp -v config/inventorius.conf $(CONFIG_DIRECTORY)
-
 	mkdir -pv $(UWSGI_APPS_AVAILABLE)
 	cp -v config/pkg_inventorius-api.ini $(UWSGI_APPS_AVAILABLE)
 	mkdir -pv $(UWSGI_APPS_ENABLED)
