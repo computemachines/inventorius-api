@@ -29,8 +29,21 @@ jobs:
           echo "----"
           ls -lh dist
 
+      - name: get env secrets
+        env:
+          PASSPHRASE: ${{ secrets.DEPLOY_SECRETS_GPG_PASSWORD }}
+        run: |
+          gpg --quiet --batch --yes --decrypt --passphrase="$PASSPHRASE" --output deployment-ci/inventorius-frontend_secrets.sh deployment-ci/inventorius-frontend_secrets.sh.gpg
+          chmod +x deployment-ci/inventorius-frontend_secrets.sh
+
+      - name: sentry.io release and sourcemaps
+        run: |
+          bash deployment-ci/sentry_create_release.sh
+          bash deployment-ci/sentry_upload_source_maps.sh
+
       - name: get deployment package name
         run: echo "DEB_NAME=$(basename dist/inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
+
       - name: upload deployment artifact
         uses: actions/upload-artifact@v2
         with:
@@ -111,7 +124,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          files: inventorius-frontend_latest_all.deb
+          files: ${{ env.DEB_NAME }}
           name: Release ${{ env.TAG_NAME }}
           body: ${{steps.build_changelog.outputs.changelog}}
           draft: false

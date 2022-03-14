@@ -9,3 +9,5 @@ coverage/
 stats.json
 docs
 package-root
+*secrets*
+!*.gpg
