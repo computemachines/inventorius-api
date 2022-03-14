@@ -18,7 +18,12 @@ import * as Tracing from "@sentry/tracing";
 
 import App from "../components/App";
 import { ApiClient } from "../api-client/api-client";
+import { version } from "os";
 const API_HOSTNAME = "http://localhost:8081";
+
+declare var VERSION: string;
+
+console.log(VERSION)
 
 const doc = `
 Usage:
@@ -39,8 +44,10 @@ const noclient: boolean = args["--noclient"];
 
 const app = express();
 
+// TODO: move hardcoded dsn to config file
 Sentry.init({
   dsn: "https://841e6ad3756e472085e3e924a0ded641@o1103275.ingest.sentry.io/6150241",
+  release: VERSION,
   integrations: [
     // enable HTTP calls tracing
     new Sentry.Integrations.Http({ tracing: true }),

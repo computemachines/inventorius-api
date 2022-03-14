@@ -1,12 +1,13 @@
 const webpack = require("webpack");
 const path = require("path");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin")
+const version = require("./package.json").version
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 module.exports = {
     mode: isDevelopment ? "development" : "production",
-    devtool: isDevelopment && "inline-source-map",
+    devtool: isDevelopment ? "inline-source-map" : "source-map",
     target: "node",
     entry: {
         server: "./src/server/entry",
@@ -36,6 +37,9 @@ module.exports = {
     plugins: [
         new MiniCssExtractPlugin({
             filename: "/assets/main.css",
+        }),
+        new webpack.DefinePlugin({
+            VERSION: JSON.stringify(version)
         })
     ],
 }

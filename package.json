@@ -24,6 +24,7 @@
   "homepage": "https://github.com/computemachines/inventory-frontend#readme",
   "devDependencies": {
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.3",
+    "@sentry/cli": "^1.73.2",
     "@sentry/webpack-plugin": "^1.18.3",
     "@types/cors": "^2.8.12",
     "@types/docopt": "^0.6.33",

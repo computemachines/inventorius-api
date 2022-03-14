@@ -1,4 +1,4 @@
-.PHONY: deb clean build install
+.PHONY: deb clean build install sentry_create_release
 
 PACKAGE_ROOT = ./package-root
 
@@ -7,12 +7,16 @@ CONFIG_DIRECTORY = $(PACKAGE_ROOT)/etc/inventorius_api
 NGINX_CONFIG = $(PACKAGE_ROOT)/etc/nginx/conf.d
 LIB_DIRECTORY = $(PACKAGE_ROOT)/usr/lib/inventorius-frontend
 
+
 clean:
 	rm -r dist $(PACKAGE_ROOT)
 
 build:
 	npm run build:client
 	npm run build:server
+
+sentry_create_release:
+	./deployment-ci/sentry_create_release.sh
 
 install:
 	sudo dpkg -i dist/inventorius-api_0.3.3_all.deb
@@ -35,3 +39,4 @@ deb:
 	cp -vr $(wildcard dist/*) $(LIB_DIRECTORY)
 
 	dpkg-deb --build $(PACKAGE_ROOT)/ dist
+
