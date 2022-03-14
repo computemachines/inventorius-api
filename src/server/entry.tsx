@@ -44,6 +44,8 @@ const noclient: boolean = args["--noclient"];
 
 const app = express();
 
+console.log("Release version: " + VERSION)
+
 // TODO: move hardcoded dsn to config file
 Sentry.init({
   dsn: "https://841e6ad3756e472085e3e924a0ded641@o1103275.ingest.sentry.io/6150241",
