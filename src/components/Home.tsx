@@ -3,6 +3,7 @@ import { useFrontload } from "react-frontload";
 import { ApiContext } from "../api-client/api-client";
 import ItemLabel from "./ItemLabel";
 
+// import "../environment"
 
 /**
  * Home page component
@@ -12,7 +13,7 @@ import ItemLabel from "./ItemLabel";
  * @returns ReactElement
  */
 function Home() {
-  return <div>Home component</div>
+  return <div>Version: {process.env.VERSION}</div>
   // const { data, frontloadMeta, setData } = useFrontload(
   //   "home-component",
   //   async function({ api }) {
