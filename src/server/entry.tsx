@@ -45,7 +45,7 @@ const app = express();
 // TODO: move hardcoded dsn to config file
 Sentry.init({
   dsn: "https://841e6ad3756e472085e3e924a0ded641@o1103275.ingest.sentry.io/6150241",
-  release: "server-"+process.env.VERSION,
+  release: process.env.VERSION,
   environment: process.env.NODE_ENV,
   integrations: [
     // enable HTTP calls tracing

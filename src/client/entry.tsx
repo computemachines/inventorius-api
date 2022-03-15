@@ -39,7 +39,7 @@ function init_sentry() {
     dsn: "https://b694aa8379e140ab9e94b4e906b17768@o1103275.ingest.sentry.io/6148115",
     integrations: [new Integrations.BrowserTracing(
     )],
-    release: "client-"+process.env.VERSION,
+    release: process.env.VERSION,
     environment: process.env.NODE_ENV,
     tracesSampleRate: 1.0,
   });
