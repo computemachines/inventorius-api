@@ -1,6 +1,8 @@
 import * as React from "react";
 import { useFrontload } from "react-frontload";
 import { useParams } from "react-router-dom";
+import * as Sentry from "@sentry/react";
+
 import { FrontloadContext } from "../api-client/api-client";
 
 import "../styles/infoPanel.css";
@@ -10,28 +12,42 @@ import { FourOhFour } from "./FourOhFour";
 
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
+import { Batch, Problem, Sku } from "../api-client/data-models";
+import * as e from "express";
 
 function BinContentsTable({
   key = "",
   contents,
+  filterShow = "all",
 }: {
   key?: string;
   contents: Record<string, number>;
+  filterShow?: "sku" | "bat" | "all";
 }) {
   const { data, frontloadMeta } = useFrontload(
     `bin-contents-table-${key}-component`,
     async ({ api }: FrontloadContext) => ({
       detailedContents: await Promise.all(
         Object.entries(contents).map(async function ([id, quantity]) {
-          const sku = await api.getSku(id);
-          if (sku.kind == "problem")
-            return { id, quantity, kind: "problem", problem: sku };
-          else return { id, quantity, kind: "sku", item: sku };
+          let item: Problem | Sku | Batch;
+          if (id.startsWith("SKU")) {
+            item = await api.getSku(id);
+          } else if (id.startsWith("BAT")) {
+            item = await api.getBatch(id);
+          } else {
+            Sentry.captureException("Bad id provided to bindcontentstable(contents)");
+          }
+          if (item.kind == "problem")
+            return { id, quantity, kind: "problem", problem: item };
+          else return { id, quantity, kind: item.kind, item: item };
         })
       ),
     })
   );
-  if (frontloadMeta.error) return <span>Connection Error</span>;
+  if (frontloadMeta.error) {
+    Sentry.captureException(new Error("API Error"))
+    return <span>API Error</span>;
+  }
 
   let tabularData: {
     Identifier: string;
@@ -41,12 +57,17 @@ function BinContentsTable({
   }[];
 
   if (frontloadMeta.done) {
-    tabularData = data.detailedContents.map((row) => ({
-      Identifier: row.id,
-      Quantity: row.quantity,
-      Type: row.kind,
-      Name: row.kind != "problem" ? row.item.state.name : null,
-    }));
+    tabularData = data.detailedContents.map((row) => {
+      if (row.kind == "problem") {
+        Sentry.captureException(new Error("bin contents table bad row"));
+      }
+      return ({
+        Identifier: row.id,
+        Quantity: row.quantity,
+        Type: row.kind,
+        Name: row.kind != "problem" ? row.item.state.name : null,
+      });
+    });
   } else {
     tabularData = Object.entries(contents).map(([Identifier, Quantity]) => ({
       Identifier,
