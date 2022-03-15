@@ -12,3 +12,7 @@ htmlcov
 secrets.ini
 github_id_rsa
 build
+dist/
+package-root/
+*secret*
+!*.gpg
