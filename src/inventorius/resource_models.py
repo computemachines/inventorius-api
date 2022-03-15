@@ -117,7 +117,7 @@ class PrivateProfile(Profile):
         if not profile:
             return None
         profile.operations = [
-            operations.user_delete(id)
+            operations.user_delete(user_id)
         ]
         return profile
 
@@ -129,9 +129,9 @@ class BatchEndpoint(HypermediaEndpoint):
             resource_uri=url_for("batch.batch_get", id=data_batch.id),
             state=data_batch.to_dict(),
             operations=[
-                operations.batch_update(id),
-                operations.batch_delete(id),
-                operations.batch_bins(id),
+                operations.batch_update(data_batch.id),
+                operations.batch_delete(data_batch.id),
+                operations.batch_bins(data_batch.id),
             ],
         )
         endpoint.data_batch = data_batch
@@ -143,11 +143,11 @@ class BatchEndpoint(HypermediaEndpoint):
             raise NotImplementedError()
 
         endpoint = BatchEndpoint(
-            resource_uri=url_for("batch.batch_get", id=id),
+            resource_uri=url_for("batch.batch_get", id=batch_id),
             operations=[
-                operations.batch_update(id),
-                operations.batch_delete(id),
-                operations.batch_bins(id),
+                operations.batch_update(batch_id),
+                operations.batch_delete(batch_id),
+                operations.batch_bins(batch_id),
             ],
         )
         return endpoint

@@ -89,5 +89,5 @@ principals.init_app(app)
 @no_cache
 def get_version():
     return StatusEndpoint(
-        version="0.3.2-0"
+        version="0.3.4"
     ).get_response()

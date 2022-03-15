@@ -91,8 +91,11 @@ def batch_patch(id):
                             {"$set": {"name": json['name']}})
 
     if "sku_id" in json.keys():
-        db.batch.update_one({"_id": id},
-                            {"$set": {"sku_id": json['sku_id']}})
+        if not json["sku_id"]:
+            db.batch.update_one({"_id": id}, {"$unset": {"sku_id": ""}})
+        else:
+            db.batch.update_one({"_id": id},
+                                {"$set": {"sku_id": json['sku_id']}})
 
     if "owned_codes" in json.keys():
         db.batch.update_one({"_id": id},
