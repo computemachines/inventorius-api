@@ -12,7 +12,6 @@ import { Integrations } from "@sentry/tracing";
 import { BrowserRouter } from "react-router-dom";
 import { ApiContext, ApiClient } from "../api-client/api-client";
 
-
 declare global {
   /**
    * Window interface items inserted by server renderer.
@@ -35,23 +34,13 @@ declare global {
  * Set up sentry error reporting.
  */
 function init_sentry() {
-  function get_sentry_env() {
-    if (window.__FRONTLOAD_SERVER_STATE ) {
-      if (window.__DEV_MODE) {
-        return "development";
-      } else {
-        return "production";
-      }
-    } else {
-      return "development";
-    }
-  }
 
   Sentry.init({
     dsn: "https://b694aa8379e140ab9e94b4e906b17768@o1103275.ingest.sentry.io/6148115",
     integrations: [new Integrations.BrowserTracing(
     )],
-    environment: get_sentry_env(),
+    release: "client-"+process.env.VERSION,
+    environment: process.env.NODE_ENV,
     tracesSampleRate: 1.0,
   });
 }

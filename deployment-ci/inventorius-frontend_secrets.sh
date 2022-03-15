@@ -2,6 +2,8 @@
 # ; gpg -c secrets.txt
 
 # [sentry]
-SENTRY_ORG="computemachines"
-SENTRY_PROJECT="inventory-demo-frontend-server"
-SENTRY_AUTH_TOKEN="68e8f9c582a24c6d895bc4edcc23efb4639a4066755a4f0d91f3b6865b094b95"
+SERVER_SENTRY_ORG="computemachines"
+SERVER_SENTRY_PROJECT="inventory-demo-frontend-server"
+CLIENT_SENTRY_ORG="computemachines"
+CLIENT_SENTRY_PROJECT="inventorius-demo-frontend-client"
+SENTRY_AUTH_TOKEN="3af6129d1c53480e95222864c321a67889469ac2dfba40998f8911a7e4792e39"

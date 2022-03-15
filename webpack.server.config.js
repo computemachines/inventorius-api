@@ -39,7 +39,8 @@ module.exports = {
             filename: "/assets/main.css",
         }),
         new webpack.DefinePlugin({
-            VERSION: JSON.stringify(version)
+            'process.env.VERSION': JSON.stringify(version),
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
         })
     ],
 }
