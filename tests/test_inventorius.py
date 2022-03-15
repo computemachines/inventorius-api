@@ -97,6 +97,11 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         rp = self.client.patch(f'/api/user/{user_id}', json=user_patch)
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
+
+        if "password" in user_patch:
+            # changing password should cause log out
+            self.logged_in_as = None
+
         for key in user_patch.keys():
             self.model_users[user_id][key] = user_patch[key]
 

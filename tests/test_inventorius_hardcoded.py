@@ -337,3 +337,15 @@ def test_login_whoami():
     state.delete_existing_user(user_id=v1)
     state.whoami()
     state.teardown()
+
+def test_change_password():
+    state = InventoriusStateMachine()
+    state.api_next()
+    state.api_next()
+    state.api_next()
+    v1 = state.new_user(user={'id': '3', 'name': '', 'password': '11100111'})
+    v2 = state.new_sku(sku=Sku(associated_codes=[], id='SKU065793', name='A', owned_codes=[], props={}))
+    state.login_as(user_id=v1)
+    state.update_existing_user(user_id=v1, user_patch={'password': '000000000'})
+    state.whoami()
+    state.teardown()
