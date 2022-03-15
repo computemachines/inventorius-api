@@ -20,4 +20,5 @@
         "entryPointStrategy": "expand",
         "out": "docs"
     },
+    "strict": true,
 }

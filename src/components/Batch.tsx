@@ -22,31 +22,39 @@ import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 import ItemLocations from "./ItemLocations";
 import { stringifyUrl } from "query-string";
+import { Problem, Sku } from "../api-client/data-models";
 
 function Batch({ editable = false }: { editable?: boolean }) {
-  const { id } = useParams<{ id: string }>();
-  const { data, frontloadMeta, setData } = useFrontload(
-    "batch-component",
-    async ({ api }: FrontloadContext) => {
-      const batch = await api.getBatch(id);
-      const parentSku =
-        batch.kind == "batch" && batch.state.sku_id
-          ? await api.getSku(batch.state.sku_id)
-          : null;
-      const batchBins = batch.kind == "batch" ? await batch.bins() : null;
-      return { batch, parentSku, batchBins };
-    }
-  );
-  const { setAlertContent } = useContext(AlertContext);
+  const history = useHistory();
+  const { id: batch_id } = useParams<{ id: string }>();
+
   const [showModal, setShowModal] = useState(false);
   const [saveState, setSaveState] = useState<"live" | "unsaved" | "saving">(
     "live"
   );
-  const history = useHistory();
   const [unsavedParentSkuId, setUnsavedParentSkuId] = useState("");
   const [unsavedName, setUnsavedName] = useState("");
   const [unsavedCodes, setUnsavedCodes] = useState<Code[]>([]);
+
   const api = useContext(ApiContext);
+  const { setAlertContent } = useContext(AlertContext);
+
+  const { data, frontloadMeta, setData } = useFrontload(
+    "batch-component",
+    async ({ api }: FrontloadContext) => {
+      const batch = await api.getBatch(batch_id);
+
+      let parentSku: Problem | Sku | null = null;
+      if (batch.kind == "problem") {
+        parentSku = batch;
+      } else if (batch.state.sku_id) {
+        parentSku = await api.getSku(batch.state.sku_id);
+      }
+
+      const batchBins = batch.kind == "batch" ? await batch.bins() : batch;
+      return { batch, parentSku, batchBins };
+    }
+  );
 
   useEffect(() => {
     if (!editable) setSaveState("live");
@@ -58,6 +66,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       data.batch.kind != "problem" &&
       saveState == "live"
     ) {
+      // reset unsaved data
       setUnsavedName(data.batch.state.name);
       setUnsavedCodes([
         ...data.batch.state.owned_codes.map((value) => ({
@@ -75,10 +84,18 @@ function Batch({ editable = false }: { editable?: boolean }) {
   // useEffect(() => {});
 
   if (frontloadMeta.pending) return <div>Loading...</div>;
-  if (frontloadMeta.error) return <div>Connection Error</div>;
+  if (frontloadMeta.error) {
+    Sentry.captureException(new Error("frontloadMeta.error"))
+    return <div>Connection Error</div>;
+  }
   if (data.batch.kind == "problem") {
-    if (data.batch.type == "missing-resource") return <FourOhFour />;
-    else return <div>{data.batch.title}</div>;
+    if (data.batch.type == "missing-resource") {
+      Sentry.captureException(new Error("missing batch"));
+      return <FourOhFour />;
+    } else {
+      Sentry.captureException(new Error(JSON.stringify(data)))
+      return <div>{data.batch.title}</div>;
+    }
   }
 
   let parentSkuShowItemDesc = null;
@@ -98,6 +115,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <div style={{ fontStyle: "italic" }}>(Anonymous)</div>
     );
   } else if (!data.parentSku || data.parentSku.kind == "problem") {
+    Sentry.captureException(new Error("parent_sku was null or problem but batch.state.sku_id was not empty"));
     parentSkuShowItemDesc = <div>{data.batch.state.sku_id} not found</div>;
   } else if (data.parentSku.kind == "sku") {
     parentSkuShowItemDesc = (
@@ -106,6 +124,16 @@ function Batch({ editable = false }: { editable?: boolean }) {
   } else {
     throw Error("impossible fallthrough");
   }
+
+  let itemLocations = null;
+  if (data.batchBins.kind == "problem") {
+    Sentry.captureException(new Error("Error loading batch locations"));
+    itemLocations = <div>Problem loading locations</div>;
+  } else {
+    itemLocations = <ItemLocations itemLocations={data.batchBins} />
+  }
+
+
 
   return (
     <div className="info-panel">
@@ -130,7 +158,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
             // setShowModal(false); // this doesn't seem to be necessary?
             if (resp.kind == "status") {
               setAlertContent({ content: <p>Deleted</p>, mode: "success" });
-              const updatedBatch = await api.getBatch(id);
+              const updatedBatch = await api.getBatch(batch_id);
               const updatedParentSku =
                 updatedBatch.kind == "batch"
                   ? await api.getSku(updatedBatch.state.sku_id)
@@ -161,8 +189,8 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <div className="info-item">
         <div className="info-item-title">Batch Label</div>
         <div className="info-item-description">
-          <ItemLabel link={false} label={id} />
-          <PrintButton value={id} />
+          <ItemLabel link={false} label={batch_id} />
+          <PrintButton value={batch_id} />
         </div>
       </div>
       <div className="info-item">
@@ -187,11 +215,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <div className="info-item">
         <div className="info-item-title">Locations</div>
         <div className="info-item-description">
-          {data.batchBins.kind == "batch-locations" ? (
-            <ItemLocations itemLocations={data.batchBins} />
-          ) : (
-            "Problem loading locations."
-          )}
+          {itemLocations}
         </div>
       </div>
       <div className="info-item">
@@ -219,7 +243,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
               <button
                 className="edit-controls-cancel-button"
                 onClick={(e) => {
-                  history.push(generatePath("/batch/:id", { id }));
+                  history.push(generatePath("/batch/:id", { id: batch_id }));
                 }}
               >
                 Cancel
@@ -230,7 +254,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
                   if (data.batch.kind == "problem") throw "impossible";
                   setSaveState("saving");
                   const resp = await api.hydrate(data.batch).update({
-                    sku_id: unsavedParentSkuId,
+                    sku_id: unsavedParentSkuId || null,
                     name: unsavedName,
                     owned_codes: unsavedCodes
                       .filter(({ kind, value }) => kind == "owned" && value)
@@ -243,6 +267,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
                   });
 
                   if (resp.kind == "problem") {
+                    Sentry.captureException(new Error("error saving batch edit"));
                     setSaveState("unsaved");
                     setAlertContent({
                       content: <p>{resp.title}</p>,
@@ -254,7 +279,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
                       content: <div>Saved!</div>,
                       mode: "success",
                     });
-                    const updatedBatch = await api.getBatch(id);
+                    const updatedBatch = await api.getBatch(batch_id);
                     const updatedParentSku =
                       updatedBatch.kind == "batch" && updatedBatch.state.sku_id
                         ? await api.getSku(updatedBatch.state.sku_id)
@@ -269,7 +294,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
                       parentSku: updatedParentSku,
                       batchBins: updatedBatchBins,
                     }));
-                    history.push(generatePath("/batch/:id", { id }));
+                    history.push(generatePath("/batch/:id", { id: batch_id }));
                   }
                 }}
               >
@@ -279,13 +304,13 @@ function Batch({ editable = false }: { editable?: boolean }) {
           ) : (
             <>
               <Link
-                to={generatePath("/batch/:id/edit", { id })}
+                to={generatePath("/batch/:id/edit", { id: batch_id })}
                 className="action-link"
               >
                 Edit
               </Link>
               <Link
-                to={stringifyUrl({ url: "/receive", query: { item: id } })}
+                to={stringifyUrl({ url: "/receive", query: { item: batch_id } })}
                 className="action-link"
               >
                 Receive

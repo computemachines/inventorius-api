@@ -161,8 +161,8 @@ export class ApiClient {
   }
 
 
-  async getBatch(id: string): Promise<Batch | Problem> {
-    const resp = await fetch(`${this.hostname}/api/batch/${id}`);
+  async getBatch(batch_id: string): Promise<Batch | Problem> {
+    const resp = await fetch(`${this.hostname}/api/batch/${batch_id}`);
     const json = await resp.json();
     if (resp.ok) return new Batch({ ...json, hostname: this.hostname });
     else return { ...json, kind: "problem" };
