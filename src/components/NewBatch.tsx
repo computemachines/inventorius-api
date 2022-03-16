@@ -4,6 +4,7 @@ import { useContext, useState, useRef, useEffect } from "react";
 import { useFrontload } from "react-frontload";
 import { useHistory, useLocation } from "react-router-dom";
 import { ApiContext, FrontloadContext } from "../api-client/api-client";
+import * as Sentry from "@sentry/react";
 
 import "../styles/form.css";
 // import "../styles/NewBatch.css";
@@ -15,6 +16,8 @@ import PrintButton from "./PrintButton";
 function NewBatch() {
   const location = useLocation();
   const queryParentSkuId = (parse(location.search).parent as string) || "";
+  const history = useHistory();
+
   const { data, frontloadMeta, setData } = useFrontload(
     "new-batch-component",
     async ({ api }: FrontloadContext) => ({
@@ -22,15 +25,16 @@ function NewBatch() {
       parentSku: queryParentSkuId ? await api.getSku(queryParentSkuId) : null,
     })
   );
+
   const api = useContext(ApiContext);
   const { setAlertContent } = useContext(AlertContext);
-  const history = useHistory();
 
   const [parentSkuId, setParentSkuId] = useState("");
   const [batchIdValue, setBatchIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
   const [codes, setCodes] = useState<Code[]>([]);
-  const batchIdRef = useRef(null);
+  
+  const batchIdRef = useRef(null); // for setting initial focus
 
   useEffect(() => {
     if (parentSkuId) {
@@ -91,7 +95,7 @@ function NewBatch() {
           data.nextBatch.kind == "next-batch" ? data.nextBatch.state : "";
         const resp = await api.createBatch({
           id: batchIdValue || nextBatch,
-          sku_id: parentSkuId,
+          sku_id: parentSkuId || null,
           name: nameValue,
           owned_codes: ownedCodes,
           associated_codes: associatedCodes,
