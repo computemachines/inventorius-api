@@ -85,7 +85,7 @@ new_batch_schema = Schema({
     "associated_codes": code_list_schema,
     "name": str,
     "props": dict,
-    "sku_id": prefixed_id("SKU")
+    "sku_id": NoneOr(prefixed_id("SKU")),
 })
 
 batch_patch_schema = Schema({
