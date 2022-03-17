@@ -38,14 +38,14 @@ export class ApiClient {
     if (Object.getPrototypeOf(server_rendered) !== Object.prototype)
       return server_rendered;
     switch (server_rendered.kind) {
-    case "sku":
-      Object.setPrototypeOf(server_rendered, Sku.prototype);
-      break;
-    case "batch":
-      Object.setPrototypeOf(server_rendered, Batch.prototype);
-      break;
-    default:
-      let _exhaustive_check: never; // eslint-disable-line
+      case "sku":
+        Object.setPrototypeOf(server_rendered, Sku.prototype);
+        break;
+      case "batch":
+        Object.setPrototypeOf(server_rendered, Batch.prototype);
+        break;
+      default:
+        let _exhaustive_check: never; // eslint-disable-line
     }
     for (const key in server_rendered.operations) {
       Object.setPrototypeOf(
@@ -61,7 +61,7 @@ export class ApiClient {
   async getStatus(): Promise<ApiStatus> {
     const resp = await fetch(`${this.hostname}/api/status`);
     if (!resp.ok) throw Error(`${this.hostname}/api/status returned error code`);
-    return new ApiStatus({... await resp.json(), hostname: this.hostname});
+    return new ApiStatus({ ... await resp.json(), hostname: this.hostname });
   }
 
 
@@ -123,9 +123,9 @@ export class ApiClient {
     });
     const json = await resp.json();
     if (resp.ok) {
-      return {...json, kind: "status"};
+      return { ...json, kind: "status" };
     } else {
-      return {...json, kind: "problem"};
+      return { ...json, kind: "problem" };
     }
   }
 
@@ -154,9 +154,9 @@ export class ApiClient {
     });
     const json = await resp.json();
     if (resp.ok) {
-      return {...json, kind: "status"};
+      return { ...json, kind: "status" };
     } else {
-      return {...json, kind: "problem"};
+      return { ...json, kind: "problem" };
     }
   }
 
@@ -186,9 +186,9 @@ export class ApiClient {
     });
     const json = await resp.json();
     if (resp.ok) {
-      return {...json, kind: "status"};
+      return { ...json, kind: "status" };
     } else {
-      return {...json, kind: "problem"};
+      return { ...json, kind: "problem" };
     }
   }
 
@@ -214,9 +214,29 @@ export class ApiClient {
     });
     const json = await resp.json();
     if (resp.ok) {
-      return {...json, kind: "status"};
+      return { ...json, kind: "status" };
     } else {
-      return {...json, kind: "problem"};
+      return { ...json, kind: "problem" };
+    }
+  }
+
+  async move({ from_id, to_id, item_id, quantity }): Promise<Status | Problem> {
+    const resp = await fetch(`${this.hostname}/api/bin/${from_id}/contents/move`, {
+      method: "PUT",
+      body: JSON.stringify({
+        id: item_id,
+        destination: to_id,
+        quantity,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      }
+    });
+    const json = await resp.json();
+    if (resp.ok) {
+      return { ...json, kind: "status" };
+    } else {
+      return { ...json, kind: "problem" };
     }
   }
 }

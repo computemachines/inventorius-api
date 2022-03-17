@@ -26,6 +26,7 @@ import NewBatch from "./NewBatch";
 import Batch from "./Batch";
 import Receive from "./Receive";
 import FileUpload from "./_Dummy";
+import MoveItem from "./MoveItem";
 
 /** 
  * Main app component
@@ -88,6 +89,9 @@ function App() {
                 </Route>
                 <Route path="/receive">
                   <Receive />
+                </Route>
+                <Route path="/move">
+                  <MoveItem />
                 </Route>
                 <Route path="/search">
                   <SearchForm />
