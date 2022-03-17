@@ -20,3 +20,8 @@ def bin_deleted_response(id):
         url_for("bin.bin_get", id=id),
         {"status": "bin deleted"}
     ).get_response(200)
+
+def moved_response():
+    return HypermediaEndpoint(
+        state={"status": "items moved"}
+    ).get_response(200)

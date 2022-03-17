@@ -1,7 +1,12 @@
 from inventorius.util import getIntArgs, admin_get_next
 from flask import Blueprint, request, Response, url_for
+from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.validation import item_move_schema
+import inventorius.util_error_responses as problem
+import inventorius.util_success_responses as success
+from inventorius.util import no_cache
 
 import json
 
@@ -51,11 +56,34 @@ inventorius = Blueprint("inventorius", __name__)
 
 
 @inventorius.route('/api/bin/<id>/contents/move', methods=['PUT'])
+@no_cache
 def move_bin_contents_put(id):
-    resp = Response()
+    try:
+        json = item_move_schema(request.json)
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
+
     item_id = request.json['id']
     destination = request.json['destination']
     quantity = request.json['quantity']
+
+    if not db.bin.find_one({"_id": id}):
+        return problem.missing_bin_response(id)
+    if not db.bin.find_one({"_id": destination}):
+        return problem.missing_bin_response(destination)
+
+    if item_id.startswith("SKU"):
+        if not db.sku.find_one({"_id": item_id}):
+            return problem.missing_sku_response(item_id)
+    elif item_id.startswith("BAT"):
+        if not db.batch.find_one({"_id": item_id}):
+            return problem.missing_batch_response(item_id)
+
+    availible_quantity = Bin.from_mongodb_doc(
+        db.bin.find_one({"_id": id})).contents.get(item_id, 0)
+    if availible_quantity < quantity:
+        return problem.move_insufficient_quantity(
+            name="quantity", availible=availible_quantity, requested=quantity)
 
     db.bin.update_one({"_id": id},
                       {"$inc": {f"contents.{item_id}": - quantity}})
@@ -63,10 +91,8 @@ def move_bin_contents_put(id):
                       {"$inc": {f"contents.{item_id}": quantity}})
     db.bin.update_one({"_id": id, f"contents.{item_id}": 0},
                       {"$unset": {f"contents.{item_id}": ""}})
-    resp.status_code = 204
-    resp.headers['Cache-Control'] = 'no-cache'
 
-    return resp
+    return success.moved_response()
 
 
 @inventorius.route('/api/next/sku', methods=['GET'])

@@ -50,14 +50,16 @@ def test_delete_used_sku():
     state.teardown()
 
 
-@given(data=st.data())
-def test_move_sku(data):
+def test_move_sku():
     state = InventoriusStateMachine()
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001', props=None))
     v3 = state.new_sku(sku=Sku(id='SKU000000'))
     state.receive_sku(bin_id=v1, sku_id=v3, quantity=1)
+
+    data = dst.DataProxy('SKU000000', 1)
     state.move(data=data, destination_binId=v2, source_binId=v1)
+
     state.get_existing_bin(bin_id=v1)
     state.get_existing_bin(bin_id=v2)
     state.teardown()

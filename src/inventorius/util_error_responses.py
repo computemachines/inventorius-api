@@ -8,6 +8,7 @@ problem_titles = {
     "validation-error": "Input did not validate.",
     "duplicate-resource": "Attempt to create resource that already exists.",
     "missing-resource": "Resource does not exist.",
+    "insufficient-quantity": "Requested greater quantity than is available.",
     "invalid-credentials": "Identity not authorized.",
     "account-deactivated": "Account is deactivated.",
     "dangerous-operation": "This operation requires force=true."
@@ -67,12 +68,19 @@ def duplicate_resource_response(key, reason="must not already exist", status_cod
 
 
 def missing_resource_response(uri, create_operation=None):
-    return problem_response(status_code=404, json={
-        "type": "missing-resource",
-        "title": problem_titles["missing-resource"],
-        "Id": uri,
-        "operations": [create_operation]
-    })
+    if create_operation:
+        return problem_response(status_code=404, json={
+            "type": "missing-resource",
+            "title": problem_titles["missing-resource"],
+            "Id": uri,
+            "operations": [create_operation]
+        })
+    else:
+        return problem_response(status_code=404, json={
+            "type": "missing-resource",
+            "title": problem_titles["missing-resource"],
+            "Id": uri,
+        })
 
 
 def missing_user_response(id):
@@ -155,3 +163,32 @@ def dangerous_operation_unforced_response(name=None, reason=""):
             "invalid-params": invalid_params
         }
     )
+
+
+def move_insufficient_quantity(name=None, availible=None, requested=None):
+    if name:
+        reason = "quantity too high"
+        if requested is not None and availible is not None:
+            reason = f"requested {requested}, but only {availible} is availible"
+
+        invalid_params = [{
+            "name": name,
+            "reason": reason,
+        }]
+
+        return problem_response(
+            status_code="405",
+            json={
+                "type": "insufficient-quantity",
+                "title": problem_titles["insufficient-quantity"],
+                "invalid-params": name,
+            }
+        )
+    else:
+        return problem_response(
+            status_code="405",
+            json={
+                "type": "insufficient-quantity",
+                "title": problem_titles["insufficient-quantity"],
+            }
+        )

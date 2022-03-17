@@ -106,6 +106,6 @@ class DataProxy:
         self.source = list(args)
 
     def draw(self, wants):
-        ret = self.source.pop()
+        ret = self.source.pop(0)
         assert type(wants.example()) == type(ret)
         return ret

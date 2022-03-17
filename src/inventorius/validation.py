@@ -50,6 +50,10 @@ def alphanum(s: str):
         raise Invalid("must be alphanumeric")
     return s
 
+def positive(i: int):
+    if i <= 0:
+        raise Invalid("must be greater than or equal to 1")
+    return i
 
 id_schema = All(Length(1), str, non_empty_string, non_whitespace, alphanum)
 password_schema = All(Length(8), str)
@@ -122,4 +126,10 @@ sku_patch_schema = Schema({
     "associated_codes": NoneOr(code_list_schema),
     "name": NoneOr(str),
     "props": NoneOr(dict),
+})
+
+item_move_schema = Schema({
+    Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
+    Required("destination"): prefixed_id("BIN"),
+    Required("quantity"): All(int, positive),
 })
