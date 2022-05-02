@@ -2,6 +2,7 @@ from os import stat
 from flask import Response
 from json import dumps
 from flask.helpers import url_for
+from setuptools import Require
 from voluptuous import Schema, Required, All, Length, Range
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
@@ -132,4 +133,9 @@ item_move_schema = Schema({
     Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
     Required("destination"): prefixed_id("BIN"),
     Required("quantity"): All(int, positive),
+})
+
+item_release_receive_schema = Schema({
+    Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
+    Required("quantity"): int # can be positive or negative
 })

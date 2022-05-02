@@ -177,7 +177,7 @@ def move_insufficient_quantity(name=None, availible=None, requested=None):
         }]
 
         return problem_response(
-            status_code="405",
+            status_code=405,
             json={
                 "type": "insufficient-quantity",
                 "title": problem_titles["insufficient-quantity"],
@@ -186,9 +186,19 @@ def move_insufficient_quantity(name=None, availible=None, requested=None):
         )
     else:
         return problem_response(
-            status_code="405",
+            status_code=405,
             json={
                 "type": "insufficient-quantity",
                 "title": problem_titles["insufficient-quantity"],
             }
         )
+
+
+def release_insufficient_quantity():
+    return problem_response(
+        status_code=405,
+        json={
+            "type": "insufficient-quantity",
+            "title": problem_titles["insufficient-quantity"],
+        }
+    )

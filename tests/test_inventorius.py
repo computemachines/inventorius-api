@@ -1,3 +1,4 @@
+import os
 from hypothesis.errors import NonInteractiveExampleWarning
 import tests.data_models_strategies as dst
 from inventorius.data_models import Bin, Sku, Batch
@@ -232,7 +233,8 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_sku_id, sku=dst.skus_())
     def new_sku(self, sku):
-        resp = self.client.post('/api/skus', json=sku.to_dict(mask_default=True))
+        resp = self.client.post(
+            '/api/skus', json=sku.to_dict(mask_default=True))
         if sku.id in self.model_skus.keys():
             assert resp.status_code == 409
             assert resp.is_json
@@ -604,6 +606,40 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             assert rp.is_json
             assert rp.json['type'] == 'missing-resource'
 
+    @rule(bin_id=a_bin_id, sku_id=a_sku_id, quantity=st.integers(-100, 0))
+    def release_sku(self, bin_id, sku_id, quantity):
+        rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
+            "id": sku_id,
+            "quantity": quantity,
+        })
+        if quantity + self.model_bins[bin_id].contents.get(sku_id, 0) < 0:
+            assert rp.status_code == 405
+            assert rp.is_json
+            assert rp.json['type'] == "insufficient-quantity"
+        else:
+            assert rp.status_code == 201
+            self.model_bins[bin_id].contents[sku_id] = self.model_bins[bin_id].contents.get(
+                sku_id, 0) + quantity
+            if self.model_bins[bin_id].contents[sku_id] == 0:
+                del self.model_bins[bin_id].contents[sku_id]
+
+    @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(-100, 0))
+    def release_batch(self, bin_id, batch_id, quantity):
+        rp = self.client.post(f"/api/bin/{bin_id}/contents", json={
+            "id": batch_id,
+            "quantity": quantity,
+        })
+        if quantity + self.model_bins[bin_id].contents.get(batch_id, 0) < 0:
+            assert rp.status_code == 405
+            assert rp.is_json
+            assert rp.json['type'] == "insufficient-quantity"
+        else:
+            assert rp.status_code == 201
+            self.model_bins[bin_id].contents[batch_id] = self.model_bins[bin_id].contents.get(
+                batch_id, 0) + quantity
+            if self.model_bins[bin_id].contents[batch_id] == 0:
+                del self.model_bins[bin_id].contents[batch_id]
+
     @rule(source_binId=a_bin_id, destination_binId=a_bin_id, data=st.data())
     def move(self, source_binId, destination_binId, data):
         assume(source_binId != destination_binId)
@@ -619,7 +655,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             "quantity": quantity,
             "destination": destination_binId
         })
-        assert rp.status_code == 204
+        assert rp.status_code == 200
         assert rp.cache_control.no_cache
 
         self.model_bins[source_binId].contents[sku_id] -= quantity
@@ -727,9 +763,6 @@ class InventoriusStateMachine(RuleBasedStateMachine):
                 if sku_type:
                     assert sku_type not in sku_types  # each sku type should only appear once
                     sku_types.append(sku_type)
-
-
-import os
 
 
 TestInventorius = InventoriusStateMachine.TestCase

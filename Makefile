@@ -16,7 +16,7 @@ build:
 	python -m build
 
 install:
-	sudo dpkg -i dist/inventorius-api_0.3.3_all.deb
+	sudo dpkg -i dist/inventorius-api_0.3.7_all.deb
 
 deb:
 	mkdir -pv $(PACKAGE_ROOT)/DEBIAN

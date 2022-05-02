@@ -64,11 +64,6 @@ def test_move_sku():
     state.get_existing_bin(bin_id=v2)
     state.teardown()
 
-
-def test_move_sku_given():
-    test_move_sku()
-
-
 def test_sku_locations():
     state = InventoriusStateMachine()
     state.delete_missing_sku(sku_id='SKU000000')
@@ -350,4 +345,12 @@ def test_change_password():
     state.login_as(user_id=v1)
     state.update_existing_user(user_id=v1, user_patch={'password': '000000000'})
     state.whoami()
+    state.teardown()
+
+def test_release_anonymous_nothing():
+    state = InventoriusStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props={}, sku_id=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={}))
+    state.release_batch(batch_id=v1, bin_id=v2, quantity=0)
+    state.positive_quantities()
     state.teardown()

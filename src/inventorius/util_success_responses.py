@@ -25,3 +25,14 @@ def moved_response():
     return HypermediaEndpoint(
         state={"status": "items moved"}
     ).get_response(200)
+
+def bin_contents_post_response(quantity):
+    if quantity > 0:
+        status = "items received"
+    if quantity < 0:
+        status = "items released"
+    if quantity == 0:
+        status = "no change"
+    return HypermediaEndpoint(
+        state={"status": status}
+    ).get_response(201)

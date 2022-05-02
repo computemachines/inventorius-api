@@ -3,7 +3,7 @@ from flask import Blueprint, request, Response, url_for
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
-from inventorius.validation import item_move_schema
+from inventorius.validation import item_move_schema, item_release_receive_schema
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
 from inventorius.util import no_cache
@@ -63,9 +63,9 @@ def move_bin_contents_put(id):
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    item_id = request.json['id']
-    destination = request.json['destination']
-    quantity = request.json['quantity']
+    item_id = json['id']
+    destination = json['destination']
+    quantity = json['quantity']
 
     if not db.bin.find_one({"_id": id}):
         return problem.missing_bin_response(id)
@@ -169,78 +169,39 @@ def next_bin():
 #     return json.dumps({"sku_id": sku.id, "bin_id": bin.id, "new_quantity": "not implemented"}), 200
 
 
-@inventorius.route('/api/bin/<id>/contents', methods=["POST"])
-def bin_contents_post(id):
-    into_bin = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
-    item_id = request.json['id']
-    quantity = request.json['quantity']
-    resp = Response()
-    resp.headers.add("Cache-Control", "no-cache")
+@inventorius.route('/api/bin/<bin_id>/contents', methods=["POST"])
+@no_cache
+def bin_contents_post(bin_id):
+    try:
+        json = item_release_receive_schema(request.json)
+    except MultipleInvalid as e:
+        return problem.invalid_params_response(e)
 
-    if not into_bin:
-        resp.status_code = 404
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "missing-resource",
-            "title": "Can not receive items into a bin that does not exist.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "must be an exisiting bin id"
-            }]
-        })
-        return resp
+    item_id = json["id"]
+    quantity = json["quantity"]
+
+    if not db.bin.find_one({"_id": bin_id}):
+        return problem.missing_bin_response(bin_id)
 
     if item_id.startswith("SKU"):
-        exisiting_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": item_id}))
-        if not exisiting_sku:
-            resp.status_code = 409
-            resp.mimetype = "application/problem+json"
-            resp.data = json.dumps({
-                "type": "missing-resource",
-                "title": "Can not receive sku that does not exist.",
-                "invalid-params": [{
-                    "name": "item_id",
-                    "reason": "must be an exisiting batch or sku id"
-                }]
-            })
-            return resp
-        else:
-            db.bin.update_one({"_id": into_bin.id},
-                              {"$inc": {f"contents.{item_id}": quantity}})
-            resp.status_code = 201
-            return resp
+        if not db.sku.find_one({"_id": item_id}):
+            return problem.missing_sku_response(item_id)
     elif item_id.startswith("BAT"):
-        existing_batch = Batch.from_mongodb_doc(
-            db.batch.find_one({"_id": item_id}))
-        if not existing_batch:
-            resp.status_code = 409
-            resp.mimetype = "application/problem+json"
-            resp.data = json.dumps({
-                "type": "missing-resource",
-                "title": "Can not receive batch that does not exist.",
-                "invalid-params": [{
-                    "name": "item_id",
-                    "reason": "must be an exisiting batch or sku id"
-                }]
-            })
-            return resp
-        else:
-            db.bin.update_one({"_id": into_bin.id},
-                              {"$inc": {f"contents.{item_id}": quantity}})
-            resp.status_code = 201
-            return resp
-    else:
-        resp.status_code = 409
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "bad-id-format",
-            "title": "Received item id must be a batch or sku.",
-            "invalid-params": [{
-                "name": "item_id",
-                "reason": "must be an exisiting batch or sku id"
-            }]
-        })
-        return resp
+        if not db.batch.find_one({"_id": item_id}):
+            return problem.missing_batch_response(item_id)
+
+    old_quantity = db.bin.find_one(
+        {"_id": bin_id}, {f"contents.{item_id}": 1})["contents"].get(item_id, 0)
+    if quantity + old_quantity < 0:
+        return problem.release_insufficient_quantity()
+
+    db.bin.update_one({"_id": bin_id},
+                        {"$inc": {f"contents.{item_id}": quantity}})
+
+    db.bin.update_one({"_id": bin_id, f"contents.{item_id}": 0},
+                        {"$unset": {f"contents.{item_id}": ""}})
+    return success.bin_contents_post_response(quantity)
+
 
 
 @inventorius.route('/api/search', methods=['GET'])
