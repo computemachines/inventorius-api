@@ -1,5 +1,5 @@
 import fetch from "cross-fetch";
-import { json } from "express";
+import { json, response } from "express";
 import { stringify } from "querystring";
 import { createContext } from "react";
 
@@ -220,24 +220,43 @@ export class ApiClient {
     }
   }
 
-  async move({ from_id, to_id, item_id, quantity }): Promise<Status | Problem> {
-    const resp = await fetch(`${this.hostname}/api/bin/${from_id}/contents/move`, {
-      method: "PUT",
+  async release({ from_id, item_id, quantity }): Promise<Status | Problem> {
+    const resp = await fetch(`${this.hostname}/api/bin/${from_id}/contents`, {
+      method: "POST",
       body: JSON.stringify({
         id: item_id,
-        destination: to_id,
-        quantity,
+        quantity: -quantity,
       }),
       headers: {
         "Content-Type": "application/json",
-      }
+      },
     });
     const json = await resp.json();
     if (resp.ok) {
-      return { ...json, kind: "status" };
+      return {...json, kind: "status"}
     } else {
-      return { ...json, kind: "problem" };
+      return {...json, kind: "problem"}
     }
+}
+
+  async move({ from_id, to_id, item_id, quantity }): Promise < Status | Problem > {
+  const resp = await fetch(`${this.hostname}/api/bin/${from_id}/contents/move`, {
+    method: "PUT",
+    body: JSON.stringify({
+      id: item_id,
+      destination: to_id,
+      quantity,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+    }
+  });
+  const json = await resp.json();
+  if(resp.ok) {
+  return { ...json, kind: "status" };
+} else {
+  return { ...json, kind: "problem" };
+}
   }
 }
 

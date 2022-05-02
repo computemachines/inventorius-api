@@ -1,6 +1,6 @@
 Package: inventorius-frontend
 Maintainer: Tyler Parker <tparker@computemachines.com>
-Version: 0.3.0
+Version: 0.3.1
 Build-Depends: dh-systemd (>=1.5)
 Depends: nginx, nodejs
 Suggests: inventorius-api

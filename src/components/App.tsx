@@ -27,6 +27,7 @@ import Batch from "./Batch";
 import Receive from "./Receive";
 import FileUpload from "./_Dummy";
 import MoveItem from "./MoveItem";
+import Release from "./Release";
 
 /** 
  * Main app component
@@ -89,6 +90,9 @@ function App() {
                 </Route>
                 <Route path="/receive">
                   <Receive />
+                </Route>
+                <Route path="/release">
+                  <Release />
                 </Route>
                 <Route path="/move">
                   <MoveItem />
