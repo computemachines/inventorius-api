@@ -44,6 +44,9 @@ jobs:
       - name: get deployment package name
         run: echo "DEB_NAME=$(basename dist/inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
 
+      - name: Sanity security precaution before upload-artifact
+        run: find . -name \*secrets\* -exec rm -fv {} \;
+
       - name: upload deployment artifact
         uses: actions/upload-artifact@v2
         with:
@@ -104,6 +107,11 @@ jobs:
       
       - name: get deployment package name
         run: echo "DEB_NAME=$(basename inventorius-frontend_*_all.deb)" >> $GITHUB_ENV
+
+      
+      - name: Sanity security precaution before upload-artifact
+        run: find . -name \*secrets\* -exec rm -fv {} \;
+
 
       - name: Create prerelease
         if: ${{contains(github.ref, '-')}}
