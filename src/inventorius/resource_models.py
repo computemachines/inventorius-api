@@ -188,7 +188,7 @@ class BinEndpoint(HypermediaEndpoint):
     def from_bin(cls, bin):
         endpoint = BinEndpoint(
             resource_uri=url_for("bin.bin_get", id=bin.id),
-            state=bin.to_dict(True),
+            state=bin.to_dict(),
             operations=[
                 operations.bin_update(bin.id),
                 operations.bin_delete(bin.id),
