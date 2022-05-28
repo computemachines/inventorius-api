@@ -34,7 +34,6 @@ function NewBin() {
 
         const resp = await api.createBin({
           id: binIdValue || binIdPlaceholder,
-          props: null,
         });
         if (resp.kind == "status") {
           setBinIdValue("");

@@ -113,7 +113,7 @@ export class ApiClient {
   }
 
 
-  async createBin({ id, props }: { id: string; props: unknown }): Promise<Status | Problem> {
+  async createBin({ id, props }: { id: string; props?: unknown }): Promise<Status | Problem> {
     const resp = await fetch(`${this.hostname}/api/bins`, {
       method: "POST",
       body: JSON.stringify({ id, props }),
