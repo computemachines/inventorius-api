@@ -23,6 +23,7 @@ import PrintButton from "./PrintButton";
 import ItemLocations from "./ItemLocations";
 import { stringifyUrl } from "query-string";
 import { Problem, Sku } from "../api-client/data-models";
+import PropertiesTable, { Property } from "./PropertiesTable";
 
 function Batch({ editable = false }: { editable?: boolean }) {
   const history = useHistory();
@@ -35,6 +36,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
   const [unsavedParentSkuId, setUnsavedParentSkuId] = useState("");
   const [unsavedName, setUnsavedName] = useState("");
   const [unsavedCodes, setUnsavedCodes] = useState<Code[]>([]);
+  const [unsavedProperties, setUnsavedProperties] = useState<Property[]>([]);
 
   const api = useContext(ApiContext);
   const { setAlertContent } = useContext(AlertContext);
@@ -233,6 +235,18 @@ function Batch({ editable = false }: { editable?: boolean }) {
               editable={editable}
             />
           )}
+        </div>
+      </div>
+      <div className="info-item">
+        <div className="info-item-title">Additional Properties</div>
+        <div className="info-item-description">
+          {unsavedProperties.length == 0 && !editable ? (
+            "None"
+          ) : (
+            <PropertiesTable editable={editable} properties={unsavedProperties} setProperties={(properties => {
+              setSaveState("unsaved");
+              setUnsavedProperties(properties);
+            })} />)}
         </div>
       </div>
       <div className="info-item">
