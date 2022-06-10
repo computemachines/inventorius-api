@@ -11,6 +11,7 @@ import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
 
 from pymongo import TEXT
+from bson.decimal128 import Decimal128
 
 import json
 

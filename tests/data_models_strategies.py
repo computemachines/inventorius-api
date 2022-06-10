@@ -1,4 +1,4 @@
-from inventorius.data_models import Bin, Sku, Batch, UserData
+from inventorius.data_models import Bin, Sku, Batch, UserData, Props
 
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
@@ -18,7 +18,7 @@ import base64
 #     )), min_size=1)
 ids = text(ascii_letters + digits, min_size=1)
 
-fieldNames = text(ascii_lowercase + '_')
+fieldNames = text(ascii_lowercase + '_', min_size=1)
 simpleTypes = one_of(none(),
                      integers(min_value=-2**63, max_value=2**63),
                      floats(allow_nan=False), text(printable))
@@ -31,6 +31,10 @@ json = recursive(simpleTypes,
 
 propertyDicts = dictionaries(fieldNames, json)
 
+
+@composite
+def props_(draw):
+    props = Props(draw(propertyDicts))
 
 @composite
 def label_(draw, prefix, length=9):

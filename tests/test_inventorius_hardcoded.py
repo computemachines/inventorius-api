@@ -1,6 +1,6 @@
 from tests.test_inventorius import InventoriusStateMachine
 import tests.data_models_strategies as dst
-from inventorius.data_models import Bin, Sku, Batch
+from inventorius.data_models import Bin, Sku, Batch, Props
 
 import pytest
 import hypothesis.strategies as st
@@ -11,40 +11,40 @@ from hypothesis import assume, settings, given
 
 def test_bin():
     state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000'))
     state.get_existing_bin(bin_id=v1)
     state.teardown()
 
 
 def test_update_bin():
     state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000'))
     state.update_bin(bin_id=v1, newProps={"1": "New props"})
     state.get_existing_bin(bin_id=v1)
 
 
 def test_recreate_bin():
     state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(id='BIN000000'))
     print(state)
     state.delete_empty_bin(bin_id=v1)
-    state.new_bin(bin=Bin(id='BIN000000', props=None))
+    state.new_bin(bin=Bin(id='BIN000000'))
     state.teardown()
 
 
 def test_delete_sku():
     state = InventoriusStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
+                               id='SKU000000', name='', owned_codes=[]))
     state.delete_unused_sku(sku_id=v1)
     state.teardown()
 
 
 def test_delete_used_sku():
     state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
     v2 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
+                               id='SKU000000', name='', owned_codes=[]))
     state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
     state.attempt_delete_used_sku(sku_id=v2)
     state.teardown()
@@ -52,8 +52,8 @@ def test_delete_used_sku():
 
 def test_move_sku():
     state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001', props=None))
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001'))
     v3 = state.new_sku(sku=Sku(id='SKU000000'))
     state.receive_sku(bin_id=v1, sku_id=v3, quantity=1)
 
@@ -67,9 +67,9 @@ def test_move_sku():
 def test_sku_locations():
     state = InventoriusStateMachine()
     state.delete_missing_sku(sku_id='SKU000000')
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
     v2 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
+                               id='SKU000000', name='', owned_codes=[]))
     state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
     state.sku_locations(sku_id=v2)
     state.teardown()
@@ -78,8 +78,8 @@ def test_sku_locations():
 def test_delete_sku_after_force_delete_bin():
     state = InventoriusStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+                               id='SKU000000', name='', owned_codes=[]))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
     state.receive_sku(bin_id=v2, quantity=1, sku_id=v1)
     state.delete_nonempty_bin_force(bin_id=v2)
     state.delete_unused_sku(sku_id=v1)
@@ -95,17 +95,17 @@ def test_update_nonexisting_batch():
 def test_recreate_batch():
     state = InventoriusStateMachine()
     v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000001', owned_codes=[], props=None, sku_id=None))
+        associated_codes=[], id='BAT000001', owned_codes=[], sku_id=None))
     state.delete_unused_batch(batch_id=v1)
     state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000001', owned_codes=[], props=None, sku_id=None))
+        associated_codes=[], id='BAT000001', owned_codes=[], sku_id=None))
     state.teardown()
 
 
 def test_update_batch():
     state = InventoriusStateMachine()
     v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
+        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
     state.update_batch(batch_id=v1, patch={'owned_codes': []})
     state.get_existing_batch(batch_id=v1)
     state.teardown()
@@ -115,12 +115,12 @@ def test_update_batch():
 def test_update_sku_batch():
     state = InventoriusStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000001', name='', owned_codes=[], props=None))
+                               id='SKU000001', name='', owned_codes=[]))
     v2 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000002', name='', owned_codes=[], props=None))
+                               id='SKU000002', name='', owned_codes=[]))
     # state.delete_missing_sku(sku_id='SKU000000')
     data = dst.DataProxy(Batch(associated_codes=[], id='BAT000000',
-                               owned_codes=[], props={0: 0}, sku_id='SKU000001'))
+                               owned_codes=[], props={"0": 0}, sku_id='SKU000001'))
     v2 = state.new_batch_existing_sku(data=data, sku_id=v1)
     state.attempt_update_nonanonymous_batch_sku_id(
         batch_id=v2, patch={}, sku_id='SKU000002')
@@ -130,9 +130,9 @@ def test_update_sku_batch():
 def test_add_sku_to_anonymous_batch():
     state = InventoriusStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[], props=None))
+                               id='SKU000000', name='', owned_codes=[]))
     v2 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
+        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
     state.update_anonymous_batch_existing_sku_id(
         batch_id=v2, patch={}, sku_id=v1)
     state.teardown()
@@ -156,8 +156,8 @@ def test_delete_bin_with_batch():
     state = InventoriusStateMachine()
     # state.delete_missing_bin(bin_id='BIN000000')
     v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
     state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
     state.delete_nonempty_bin_noforce(bin_id=v2)
     state.teardown()
@@ -166,8 +166,8 @@ def test_delete_bin_with_batch():
 def test_receive_batch():
     state = InventoriusStateMachine()
     v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], props=None, sku_id=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props=None))
+        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
+    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
     state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
     state.get_existing_bin(v2)
 
@@ -175,7 +175,7 @@ def test_receive_batch():
 # def test_search_name():
 #     state = InventoriusStateMachine()
 #     v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[
-#                                    'a'], id='BAT000000', name='', owned_codes=[], props=None, sku_id=None))
+#                                    'a'], id='BAT000000', name='', owned_codes=[], sku_id=None))
 #     state.search(query='a')
 #     state.teardown()
 
@@ -353,4 +353,11 @@ def test_release_anonymous_nothing():
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={}))
     state.release_batch(batch_id=v1, bin_id=v2, quantity=0)
     state.positive_quantities()
+    state.teardown()
+
+
+def test_update_anonymous_batch_with_additional_field():
+    state = InventoriusStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
+    state.update_batch(batch_id=v1, patch={'owned_codes': [], 'props': {'_': None}})
     state.teardown()

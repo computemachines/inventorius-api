@@ -3,7 +3,7 @@ from flask import Response
 from json import dumps
 from flask.helpers import url_for
 from setuptools import Require
-from voluptuous import Schema, Required, All, Length, Range
+from voluptuous import Schema, Required, All, Length, Range, ALLOW_EXTRA
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
 import re
@@ -56,6 +56,13 @@ def positive(i: int):
         raise Invalid("must be greater than or equal to 1")
     return i
 
+def str_dec(s):
+    if type(s) is not str:
+        raise Invalid("must be a string")
+    if not (re.search(r'^[+-]?(\d*\.)?\d*$', s) or re.search(r'\d', s)):
+        raise Invalid("must be a decimal string")
+    return s
+
 id_schema = All(Length(1), str, non_empty_string, non_whitespace, alphanum)
 password_schema = All(Length(8), str)
 code_list_schema = [All(non_empty_string, non_whitespace)]
@@ -84,12 +91,16 @@ login_request_schema = Schema({
     Required("password"): password_schema,
 })
 
+props_schema = Schema({
+    "cost_per_case": str_dec,
+}, extra=ALLOW_EXTRA)
+
 new_batch_schema = Schema({
     Required("id"): prefixed_id("BAT"),
     "owned_codes": code_list_schema,
     "associated_codes": code_list_schema,
     "name": str,
-    "props": dict,
+    "props": props_schema,
     "sku_id": NoneOr(prefixed_id("SKU")),
 })
 
@@ -98,19 +109,19 @@ batch_patch_schema = Schema({
     "owned_codes": NoneOr(code_list_schema),
     "associated_codes": NoneOr(code_list_schema),
     "name": NoneOr(str),
-    "props": NoneOr(dict),
+    "props": NoneOr(props_schema),
     "sku_id": NoneOr(prefixed_id("SKU")),
 })
 
 new_bin_schema = Schema({
     Required("id"): prefixed_id("BIN"),
-    "props": dict,
+    "props": props_schema,
 })
 
 
 bin_patch_schema = Schema({
     Required("id"): prefixed_id("BIN"),
-    "props": NoneOr(dict),
+    "props": NoneOr(props_schema),
 })
 
 new_sku_schema = Schema({
@@ -118,7 +129,7 @@ new_sku_schema = Schema({
     "owned_codes": code_list_schema,
     "associated_codes": code_list_schema,
     "name": str,
-    "props": dict,
+    "props": props_schema,
 })
 
 sku_patch_schema = Schema({
@@ -126,7 +137,7 @@ sku_patch_schema = Schema({
     "owned_codes": NoneOr(code_list_schema),
     "associated_codes": NoneOr(code_list_schema),
     "name": NoneOr(str),
-    "props": NoneOr(dict),
+    "props": NoneOr(props_schema),
 })
 
 item_move_schema = Schema({

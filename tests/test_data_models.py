@@ -1,4 +1,4 @@
-from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
+from inventorius.data_models import Bin, Sku, Batch, Props, DataModelJSONEncoder as Encoder
 
 import pytest
 import json
@@ -53,6 +53,20 @@ def test_sku_inequality(sku1, sku2):
         assert sku1 != sku2
         assert sku2 != sku1
 
+
+def test_batch_props():
+    new_batch = {
+        "id": "BAT0123456",
+        "props": {
+            "cost_per_case": "12.34"
+        }
+    }
+    batch = Batch.from_json(new_batch)
+    print(batch)
+
+def test_batch_no_props():
+    batch = Batch(id="BAT0123456")
+    print(batch.props)
 
 # def test_bin_extended():
 #     pass

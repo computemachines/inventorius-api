@@ -127,7 +127,7 @@ class BatchEndpoint(HypermediaEndpoint):
     def from_batch(cls, data_batch: Batch):
         endpoint = BatchEndpoint(
             resource_uri=url_for("batch.batch_get", id=data_batch.id),
-            state=data_batch.to_dict(),
+            state=data_batch.to_dict(mask_default=True),
             operations=[
                 operations.batch_update(data_batch.id),
                 operations.batch_delete(data_batch.id),
