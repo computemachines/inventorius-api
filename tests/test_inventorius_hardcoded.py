@@ -361,3 +361,10 @@ def test_update_anonymous_batch_with_additional_field():
     v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
     state.update_batch(batch_id=v1, patch={'owned_codes': [], 'props': {'_': None}})
     state.teardown()
+
+def test_clear_existing_props():
+    state = InventoriusStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
+    state.update_batch(batch_id=v1, patch={'props': {}})
+    state.get_existing_batch(batch_id=v1)
+    state.teardown()

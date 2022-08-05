@@ -1,7 +1,7 @@
 import os
 from hypothesis.errors import NonInteractiveExampleWarning
 import tests.data_models_strategies as dst
-from inventorius.data_models import Bin, Sku, Batch
+from inventorius.data_models import Bin, Props, Sku, Batch, Subdoc
 from conftest import clientContext
 import pytest
 import hypothesis.strategies as st
@@ -448,7 +448,10 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
         for key in patch.keys():
-            setattr(self.model_batches[batch_id], key, patch[key])
+            if key == "props":
+                setattr(self.model_batches[batch_id], "props", Props(**patch["props"]))
+            else:
+                setattr(self.model_batches[batch_id], key, patch[key])
 
     @rule(batch_id=dst.label_("BAT"), patch=batch_patch)
     def update_nonexisting_batch(self, batch_id, patch):
