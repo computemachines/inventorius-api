@@ -71,11 +71,11 @@ function Batch({ editable = false }: { editable?: boolean }) {
       // reset unsaved data
       setUnsavedName(data.batch.state.name);
       setUnsavedCodes([
-        ...data.batch.state.owned_codes.map((value) => ({
+        ...(data.batch.state.owned_codes || []).map((value) => ({
           value,
           kind: "owned" as const,
         })),
-        ...data.batch.state.associated_codes.map((value) => ({
+        ...(data.batch.state.associated_codes || []).map((value) => ({
           value,
           kind: "associated" as const,
         })),
@@ -87,7 +87,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
 
   if (frontloadMeta.pending) return <div>Loading...</div>;
   if (frontloadMeta.error) {
-    Sentry.captureException(new Error("frontloadMeta.error"))
+    Sentry.captureException(new Error("frontloadMeta.error"));
     return <div>Connection Error</div>;
   }
   if (data.batch.kind == "problem") {
@@ -95,7 +95,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       Sentry.captureException(new Error("missing batch"));
       return <FourOhFour />;
     } else {
-      Sentry.captureException(new Error(JSON.stringify(data)))
+      Sentry.captureException(new Error(JSON.stringify(data)));
       return <div>{data.batch.title}</div>;
     }
   }
@@ -117,7 +117,11 @@ function Batch({ editable = false }: { editable?: boolean }) {
       <div style={{ fontStyle: "italic" }}>(Anonymous)</div>
     );
   } else if (!data.parentSku || data.parentSku.kind == "problem") {
-    Sentry.captureException(new Error("parent_sku was null or problem but batch.state.sku_id was not empty"));
+    Sentry.captureException(
+      new Error(
+        "parent_sku was null or problem but batch.state.sku_id was not empty"
+      )
+    );
     parentSkuShowItemDesc = <div>{data.batch.state.sku_id} not found</div>;
   } else if (data.parentSku.kind == "sku") {
     parentSkuShowItemDesc = (
@@ -132,10 +136,8 @@ function Batch({ editable = false }: { editable?: boolean }) {
     Sentry.captureException(new Error("Error loading batch locations"));
     itemLocations = <div>Problem loading locations</div>;
   } else {
-    itemLocations = <ItemLocations itemLocations={data.batchBins} />
+    itemLocations = <ItemLocations itemLocations={data.batchBins} />;
   }
-
-
 
   return (
     <div className="info-panel">
@@ -216,9 +218,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
       </div>
       <div className="info-item">
         <div className="info-item-title">Locations</div>
-        <div className="info-item-description">
-          {itemLocations}
-        </div>
+        <div className="info-item-description">{itemLocations}</div>
       </div>
       <div className="info-item">
         <div className="info-item-title">Codes</div>
@@ -243,10 +243,15 @@ function Batch({ editable = false }: { editable?: boolean }) {
           {unsavedProperties.length == 0 && !editable ? (
             "None"
           ) : (
-            <PropertiesTable editable={editable} properties={unsavedProperties} setProperties={(properties => {
-              setSaveState("unsaved");
-              setUnsavedProperties(properties);
-            })} />)}
+            <PropertiesTable
+              editable={editable}
+              properties={unsavedProperties}
+              setProperties={(properties) => {
+                setSaveState("unsaved");
+                setUnsavedProperties(properties);
+              }}
+            />
+          )}
         </div>
       </div>
       <div className="info-item">
@@ -281,7 +286,9 @@ function Batch({ editable = false }: { editable?: boolean }) {
                   });
 
                   if (resp.kind == "problem") {
-                    Sentry.captureException(new Error("error saving batch edit"));
+                    Sentry.captureException(
+                      new Error("error saving batch edit")
+                    );
                     setSaveState("unsaved");
                     setAlertContent({
                       content: <p>{resp.title}</p>,
@@ -324,7 +331,10 @@ function Batch({ editable = false }: { editable?: boolean }) {
                 Edit
               </Link>
               <Link
-                to={stringifyUrl({ url: "/receive", query: { item: batch_id } })}
+                to={stringifyUrl({
+                  url: "/receive",
+                  query: { item: batch_id },
+                })}
                 className="action-link"
               >
                 Receive
