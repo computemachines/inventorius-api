@@ -2,7 +2,7 @@ import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 
 import { ApiContext } from "../api-client/api-client";
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 
 import "../styles/form.css";
 import { json } from "express";
@@ -14,7 +14,7 @@ function Release() {
     const location = useLocation();
     const history = useHistory();
     const api = useContext(ApiContext);
-    const { setAlertContent } = useContext(AlertContext);
+    const { setToastContent: setAlertContent } = useContext(ToastContext);
 
     const [fromIdValue, setFromIdValue] = useState("");
     const [itemIdValue, setItemIdValue] = useState("");

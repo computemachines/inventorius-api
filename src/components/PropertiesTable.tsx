@@ -1,18 +1,40 @@
 import * as React from "react";
 
 import "../styles/PropertiesTable.css"
+import AutocompleteInput from "./Autocomplete";
 
 // export type PropertyType = "string" | "date" | "integer" | "float" | "currency" | "physical-unit";
-export type PropertyType = "string";
+// export type PropertyType = "string";
+
+export interface Currency {
+    value: number,
+    monetaryUnit: string,
+}
+export class USD implements Currency {
+    value: number;
+    monetaryUnit: "USD";
+    constructor(value: number) {
+        this.value = value;
+    }
+}
+
 export interface Property {
     name: string;
     typed: {
         kind: "string";
         value: string;
+    } | {
+        kind: "currency";
+        value: Currency;
     };
 }
+
 const defaultProperties: Property[] = [
     { name: "", typed: { kind: "string", value: "" } }];
+
+const suggestProperties: Property[] = [
+    { name: "Cost of Raw Goods", typed: { kind: "currency", value: new USD(0)}}
+]
 
 function PropertyRow(
     { property }: {
@@ -44,8 +66,7 @@ function EditablePropertyInputRow(
     }
 
     return <div className="property-row">
-        <input
-            type="text"
+        <AutocompleteInput
             value={property.name}
             onChange={(e) => {
                 setProperty({ ...property, name: e.target.value });

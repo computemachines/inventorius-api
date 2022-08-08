@@ -14,7 +14,7 @@ import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 import ItemLocations from "./ItemLocations";
 import { useContext, useEffect, useState } from "react";
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import { stringifyUrl } from "query-string";
 
 function Sku({ editable = false }: { editable?: boolean }) {
@@ -30,7 +30,7 @@ function Sku({ editable = false }: { editable?: boolean }) {
       };
     }
   );
-  const { setAlertContent } = useContext(AlertContext);
+  const { setToastContent: setAlertContent } = useContext(ToastContext);
   const [showModal, setShowModal] = useState(false);
   const [saveState, setSaveState] = useState<"live" | "unsaved" | "saving">(
     "live"

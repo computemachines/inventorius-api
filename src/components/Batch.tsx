@@ -15,7 +15,7 @@ import ReactModal from "react-modal";
 
 import "../styles/infoPanel.css";
 import "../styles/warnModal.css";
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import CodesInput, { Code } from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";
@@ -39,7 +39,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
   const [unsavedProperties, setUnsavedProperties] = useState<Property[]>([]);
 
   const api = useContext(ApiContext);
-  const { setAlertContent } = useContext(AlertContext);
+  const { setToastContent: setAlertContent } = useContext(ToastContext);
 
   const { data, frontloadMeta, setData } = useFrontload(
     "batch-component",

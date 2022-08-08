@@ -8,7 +8,7 @@ import * as Sentry from "@sentry/react";
 
 import "../styles/form.css";
 // import "../styles/NewBatch.css";
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import CodesInput, { Code } from "./CodesInput";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
@@ -27,7 +27,7 @@ function NewBatch() {
   );
 
   const api = useContext(ApiContext);
-  const { setAlertContent } = useContext(AlertContext);
+  const { setToastContent: setAlertContent } = useContext(ToastContext);
 
   const [parentSkuId, setParentSkuId] = useState("");
   const [batchIdValue, setBatchIdValue] = useState("");

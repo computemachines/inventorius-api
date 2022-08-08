@@ -5,13 +5,14 @@ import { ApiContext, FrontloadContext } from "../api-client/api-client";
 
 import "../styles/form.css";
 
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 
 function NewBin() {
-  const { setAlertContent } = useContext(AlertContext);
+  const { setToastContent } = useContext(ToastContext);
   const api = useContext(ApiContext);
+  
   const [binIdValue, setBinIdValue] = useState("");
   let binIdPlaceholder = "Loading";
 
@@ -37,18 +38,18 @@ function NewBin() {
         });
         if (resp.kind == "status") {
           setBinIdValue("");
-          setAlertContent({
+          setToastContent({
             content: (
               <p>
                 Success,{" "}
-                <ItemLabel url={resp.Id} onClick={(e) => setAlertContent({})} />{" "}
+                <ItemLabel url={resp.Id} onClick={(e) => setToastContent({})} />{" "}
                 created.
               </p>
             ),
             mode: "success",
           });
         } else {
-          setAlertContent({
+          setToastContent({
             content: <p>{resp.title}</p>,
             mode: "failure",
           });

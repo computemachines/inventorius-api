@@ -3,12 +3,12 @@ import { useState, useContext } from "react";
 import { ApiContext } from "../api-client/api-client";
 
 import "../styles/form.css"
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import ItemLabel from "./ItemLabel";
 
 export default function MoveItem() {
     const api = useContext(ApiContext);
-    const {setAlertContent} = useContext(AlertContext);
+    const {setToastContent: setAlertContent} = useContext(ToastContext);
     const clearAlert = (e) => setAlertContent({});
 
     const [itemId, setItemId] = useState("");

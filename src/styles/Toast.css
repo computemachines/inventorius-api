@@ -1,4 +1,4 @@
-.main-alert {
+.toast {
   display: relative;
   border-radius: 0.5em;
   background-color: white;
@@ -8,14 +8,14 @@
   margin-bottom: 0.6rem;
 }
 
-.main-alert > .alert-close-button {
+.toast__close-button {
   float: right;
 }
 
-.main-alert.success {
+.toast--success {
   background-color: green;
 }
 
-.main-alert.failure {
+.toast--failure {
   background-color: red;
 }

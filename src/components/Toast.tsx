@@ -1,9 +1,9 @@
 import * as React from "react";
 import { ReactNode } from "react";
 
-import "../styles/Alert.css";
+import "../styles/Toast.css";
 
-type SetAlertContent = ({
+export type SetToastContent = ({
   content,
   mode,
 }: {
@@ -11,12 +11,12 @@ type SetAlertContent = ({
   mode?: "success" | "failure";
 }) => void;
 
-export const AlertContext =
-  React.createContext<{ setAlertContent: SetAlertContent }>(null);
+export const ToastContext =
+  React.createContext<{ setToastContent: SetToastContent }>(null);
 
-// render alert component
+// render toast component
 // Is rendered as closed/inactive when children is falsy
-export const Alert = ({
+export const Toast = ({
   onClose,
   children,
   mode,
@@ -26,8 +26,8 @@ export const Alert = ({
   mode?: "success" | "failure";
 }) =>
   children ? (
-    <div className={`main-alert ${mode ? mode : ""}`} id="#alert">
-      <button role="close" className="alert-close-button" onClick={onClose}>
+    <div className={`toast ${mode ? mode : ""}`} id="#toast">
+      <button role="close" className="toast__close-button" onClick={onClose}>
         X
       </button>
       {children}

@@ -4,7 +4,7 @@ import { useFrontload } from "react-frontload";
 import { ApiContext, FrontloadContext } from "../api-client/api-client";
 
 import "../styles/form.css";
-import { AlertContext } from "./Alert";
+import { ToastContext } from "./Toast";
 import CodesInput, { Code } from "./CodesInput";
 import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
@@ -17,7 +17,7 @@ function NewSku() {
     })
   );
   const api = useContext(ApiContext);
-  const { setAlertContent } = useContext(AlertContext);
+  const { setToastContent: setAlertContent } = useContext(ToastContext);
   const [skuIdValue, setSkuIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
   const [codes, setCodes] = useState<Code[]>([]);

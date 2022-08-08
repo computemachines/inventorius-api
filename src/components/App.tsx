@@ -11,7 +11,7 @@ import "normalize.css";
 import "../styles/accessibility.css";
 import "../styles/App.css";
 
-import { AlertContext, Alert } from "./Alert";
+import { ToastContext, Toast } from "./Toast";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Home from "./Home";
@@ -35,7 +35,7 @@ import Release from "./Release";
  * @returns React app component tree
  */
 function App() {
-  const [alertContent, setAlertContent] = useState<{
+  const [toastContent, setToastContent] = useState<{
     content?: ReactNode;
     mode?: "success" | "failure";
   }>({});
@@ -52,13 +52,13 @@ function App() {
       <div className="main-container">
         <div className="main-content" id="main">
           <Sentry.ErrorBoundary fallback={<h2>Something went wrong.</h2>} showDialog>
-            <AlertContext.Provider value={{ setAlertContent }}>
-              <Alert
-                onClose={() => setAlertContent({ content: null })}
-                mode={alertContent.mode}
+            <ToastContext.Provider value={{ setToastContent: setToastContent }}>
+              <Toast
+                onClose={() => setToastContent({ content: null })}
+                mode={toastContent.mode}
               >
-                {alertContent.content}
-              </Alert>
+                {toastContent.content}
+              </Toast>
               <Switch>
                 
                 <Route exact path="/">
@@ -108,7 +108,7 @@ function App() {
                 </Route>
                 
               </Switch>
-            </AlertContext.Provider>
+            </ToastContext.Provider>
           </Sentry.ErrorBoundary>
         </div>
         <div className="footer-wrapper">
