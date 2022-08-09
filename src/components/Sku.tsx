@@ -7,7 +7,6 @@ import ReactModal from "react-modal";
 import { Link } from "react-router-dom";
 
 import "../styles/infoPanel.css";
-import "../styles/warnModal.css";
 import CodesInput, { Code } from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
 import ItemLabel from "./ItemLabel";

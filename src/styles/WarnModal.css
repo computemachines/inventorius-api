@@ -1,0 +1,43 @@
+.warn-modal {
+  font-family: Roboto, Helvetica, sans-serif;
+  background-color: #cdd2d6;
+  border-radius: 1.5rem;
+  max-width: 20em;
+  margin: 3rem auto;
+  position: relative;
+  text-align: center;
+  padding: 2rem;
+}
+
+.warn-modal h3 {
+  margin-top: 0;
+}
+.warn-modal__close-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: #ecebe4;
+  border: 1px solid black;
+  border-radius: 0 1.5rem 0 1.5rem;
+  height: 3rem;
+  width: 3rem;
+}
+
+.warn-modal__cancel-button {
+  background-color: #ecebe4;
+  border: 1px solid black;
+  border-radius: 1em 0 0 1em;
+  font-size: 1.5em;
+  padding: 0.5em 0.5em 0.5em 0.8em;
+}
+
+.warn-modal__dangerous-button {
+  background-color: #26532b;
+  border: 1px solid black;
+  border-left: none;
+  border-radius: 0 1em 1em 0;
+  font-size: 1.5em;
+  padding: 0.5em 0.8em 0.5em 0.5em;
+  color: white;
+  font-weight: 600;
+}

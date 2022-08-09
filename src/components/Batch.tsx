@@ -11,10 +11,8 @@ import {
 } from "react-router-dom";
 import { ApiContext, FrontloadContext } from "../api-client/api-client";
 // import { Problem, Sku as ApiSku } from "../api-client/data-models";
-import ReactModal from "react-modal";
 
 import "../styles/infoPanel.css";
-import "../styles/warnModal.css";
 import { ToastContext } from "./Toast";
 import CodesInput, { Code } from "./CodesInput";
 import { FourOhFour } from "./FourOhFour";
@@ -24,6 +22,7 @@ import ItemLocations from "./ItemLocations";
 import { stringifyUrl } from "query-string";
 import { Problem, Sku } from "../api-client/data-models";
 import PropertiesTable, { Property } from "./PropertiesTable";
+import WarnModal from "./WarnModal";
 
 function Batch({ editable = false }: { editable?: boolean }) {
   const history = useHistory();
@@ -39,7 +38,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
   const [unsavedProperties, setUnsavedProperties] = useState<Property[]>([]);
 
   const api = useContext(ApiContext);
-  const { setToastContent: setAlertContent } = useContext(ToastContext);
+  const { setToastContent } = useContext(ToastContext);
 
   const { data, frontloadMeta, setData } = useFrontload(
     "batch-component",
@@ -145,47 +144,35 @@ function Batch({ editable = false }: { editable?: boolean }) {
         message="Leave without saving changes?"
         when={saveState != "live"}
       />
-      <ReactModal
-        isOpen={showModal}
-        onRequestClose={() => setShowModal(false)}
-        className="warn-modal"
-      >
-        <button className="modal-close" onClick={() => setShowModal(false)}>
-          X
-        </button>
-        <h3>Are you sure?</h3>
-        <button onClick={() => setShowModal(false)}>Cancel</button>
-        <button
-          onClick={async () => {
-            if (data.batch.kind == "problem") throw "impossible";
-            const resp = await api.hydrate(data.batch).delete();
-            // setShowModal(false); // this doesn't seem to be necessary?
-            if (resp.kind == "status") {
-              setAlertContent({ content: <p>Deleted</p>, mode: "success" });
-              const updatedBatch = await api.getBatch(batch_id);
-              const updatedParentSku =
-                updatedBatch.kind == "batch"
-                  ? await api.getSku(updatedBatch.state.sku_id)
-                  : null;
-              const updatedBatchBins =
-                updatedBatch.kind == "batch" ? await updatedBatch.bins() : null;
-              setData(() => ({
-                batch: updatedBatch,
-                parentSku: updatedParentSku,
-                batchBins: updatedBatchBins,
-              }));
-            } else {
-              setAlertContent({
-                content: <p>{resp.title}</p>,
-                mode: "failure",
-              });
-            }
-          }}
-          className="button-danger"
-        >
-          Delete
-        </button>
-      </ReactModal>
+      <WarnModal
+        dangerousActionName="Delete"
+        onContinue={async () => {
+          if (1==1) return;
+          if (data.batch.kind == "problem") throw "impossible";
+          const resp = await api.hydrate(data.batch).delete();
+          // setShowModal(false); // this doesn't seem to be necessary?
+          if (resp.kind == "status") {
+            setToastContent({ content: <p>Deleted</p>, mode: "success" });
+            const updatedBatch = await api.getBatch(batch_id);
+            const updatedParentSku =
+              updatedBatch.kind == "batch"
+                ? await api.getSku(updatedBatch.state.sku_id)
+                : null;
+            const updatedBatchBins =
+              updatedBatch.kind == "batch" ? await updatedBatch.bins() : null;
+            setData(() => ({
+              batch: updatedBatch,
+              parentSku: updatedParentSku,
+              batchBins: updatedBatchBins,
+            }));
+          } else {
+            setToastContent({
+              content: <p>{resp.title}</p>,
+              mode: "failure",
+            });
+          }
+        }}
+      ></WarnModal>
       <div className="info-item">
         <div className="info-item-title">Parent Sku</div>
         <div className="info-item-description">{parentSkuShowItemDesc}</div>
@@ -290,13 +277,13 @@ function Batch({ editable = false }: { editable?: boolean }) {
                       new Error("error saving batch edit")
                     );
                     setSaveState("unsaved");
-                    setAlertContent({
+                    setToastContent({
                       content: <p>{resp.title}</p>,
                       mode: "failure",
                     });
                   } else {
                     setSaveState("live");
-                    setAlertContent({
+                    setToastContent({
                       content: <div>Saved!</div>,
                       mode: "success",
                     });
