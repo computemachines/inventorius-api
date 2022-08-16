@@ -6,7 +6,7 @@ from inventorius.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventorius.resource_operations as operation
 from inventorius.util import admin_increment_code, check_code_list, no_cache
 from inventorius.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema
-from voluptuous import All
+from voluptuous import All, Required
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
 
@@ -64,7 +64,7 @@ def batch_patch(id):
     try:
         # must be batch patch, where json["id"] is prefixed and equals id
         json = batch_patch_schema.extend(
-            {"id": All(prefixed_id("BAT"), id)})(request.json)
+            {Required("id"): All(prefixed_id("BAT"), id)})(request.json)
         forced = forced_schema(request.args).get("force")
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
@@ -84,12 +84,14 @@ def batch_patch(id):
             and not forced):
         return problem.dangerous_operation_unforced_response("sku_id", "The sku of this batch has already been set. Can not change without force=true.")
 
+    new_batch_doc = Batch.from_json({"_id": id, **json}).to_mongodb_doc()
+
     if "props" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"props": json['props']}})
+                            {"$set": {"props": new_batch_doc['props']}})
     if "name" in json.keys():
         db.batch.update_one({"_id": id},
-                            {"$set": {"name": json['name']}})
+                            {"$set": {"name": new_batch_doc['name']}})
 
     if "sku_id" in json.keys():
         if not json["sku_id"]:

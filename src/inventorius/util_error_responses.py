@@ -1,7 +1,8 @@
 from flask import Response, url_for
-from json import dumps
+from json import JSONEncoder, dumps
 from voluptuous import MultipleInvalid, Invalid
 from inventorius.resource_operations import operation
+from inventorius.resource_models import BlankEncoder
 import inventorius.resource_operations as operations
 
 problem_titles = {
@@ -20,7 +21,7 @@ def problem_response(status_code=400, json=None):
     resp.status_code = status_code
     if json:
         resp.mimetype = "application/problem+json"
-        resp.data = dumps(json)
+        resp.data = dumps(json, cls=BlankEncoder)
 
     return resp
 

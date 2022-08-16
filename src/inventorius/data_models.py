@@ -176,7 +176,9 @@ class DataModel():
                 if isinstance(attribute, Subdoc):
                     return attribute.data_model_type.from_mongodb_doc(db_value)
             else:
-                return db_value
+                attribute = getattr(cls, model_key)
+                return attribute.bson_to_value(db_value)
+                # return db_value
 
 
         if mongo_dict is None:
@@ -187,7 +189,7 @@ class DataModel():
             model_value = db_value_to_model_value(
                 model_key=model_key, db_value=db_value)
             if model_key in model_keys:
-                data_model_dict[model_key] = db_value
+                data_model_dict[model_key] = model_value
         return cls(**data_model_dict)
 
     def to_mongodb_doc(self):
@@ -265,7 +267,9 @@ class UserData(DataModel):
 class Props(DataModel, HasAdditionalFields):
     cost_per_case = DataField(
         "cost_per_case", value_to_bson=Decimal128, bson_to_value=str)
-
+    count_per_case = DataField("count_per_case")
+    original_cost_per_case = DataField("original_cost_per_case", value_to_bson=Decimal128, bson_to_value=str)
+    original_count_per_case = DataField("original_count_per_case")
 
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""

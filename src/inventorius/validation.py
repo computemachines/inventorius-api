@@ -93,6 +93,7 @@ login_request_schema = Schema({
 
 props_schema = Schema({
     "cost_per_case": str_dec,
+    "original_cost_per_case": str_dec,
 }, extra=ALLOW_EXTRA)
 
 new_batch_schema = Schema({

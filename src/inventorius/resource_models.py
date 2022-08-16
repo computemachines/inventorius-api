@@ -4,7 +4,7 @@ from flask_login import current_user
 from flask_login.utils import encode_cookie
 
 from inventorius.db import db
-from inventorius.data_models import UserData, Batch, Bin
+from inventorius.data_models import DataModel, DataModelJSONEncoder, UserData, Batch, Bin
 import inventorius.resource_operations as operations
 
 # operation = {
@@ -13,6 +13,12 @@ import inventorius.resource_operations as operations
 #   "href": uri,
 #   (Expects-a): type or schema
 # }
+
+
+class BlankEncoder(json.JSONEncoder):
+    """Without this blank encoder the 'dumps' in problem_response and get_response throws error when encountering unserializable types."""
+    def default(self, o):
+        return {}
 
 
 class HypermediaEndpoint:
@@ -30,11 +36,14 @@ class HypermediaEndpoint:
         if self.resource_uri is not None:
             data["Id"] = self.resource_uri
         if self.state is not None:
-            data["state"] = self.state
+            if isinstance(self.state, DataModel):
+                data["state"] = self.state.to_dict(mask_default=True)
+            else:
+                data["state"] = self.state
         if self.operations is not None:
             data["operations"] = self.operations
 
-        resp.data = json.dumps(data)
+        resp.data = json.dumps(data, cls=BlankEncoder)
         return resp
 
     def redirect_response(self, redirect=True):
