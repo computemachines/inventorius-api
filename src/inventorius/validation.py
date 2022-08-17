@@ -1,3 +1,4 @@
+from locale import currency
 from os import stat
 from flask import Response
 from json import dumps
@@ -91,9 +92,22 @@ login_request_schema = Schema({
     Required("password"): password_schema,
 })
 
+units_schema = Schema({
+    Required("unit"): str,
+    Required("value"): Any(int, float),
+    "exponent": int,
+})
+def base_unit(unit):
+    return units_schema.extend({
+        Required("unit"): unit,
+    })
+currency = base_unit("USD")
+
 props_schema = Schema({
-    "cost_per_case": str_dec,
-    "original_cost_per_case": str_dec,
+    "cost_per_case": currency,
+    "original_cost_per_case": currency,
+    "count_per_case": int,
+    "original_count_per_case": int,
 }, extra=ALLOW_EXTRA)
 
 new_batch_schema = Schema({

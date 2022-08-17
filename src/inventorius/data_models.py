@@ -164,12 +164,14 @@ class DataModel():
             if issubclass(cls, HasAdditionalFields):
                 return db_key
             else:
-                raise Exception("db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
+                raise Exception(
+                    "db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
 
         def db_value_to_model_value(model_key, db_value):
             if not issubclass(cls, HasAdditionalFields):
                 if not hasattr(cls, model_key):
-                    raise Exception("db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
+                    raise Exception(
+                        "db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
                 attribute = getattr(cls, model_key)
                 if isinstance(attribute, DataField):
                     return attribute.bson_to_value(db_value)
@@ -179,7 +181,6 @@ class DataModel():
                 attribute = getattr(cls, model_key)
                 return attribute.bson_to_value(db_value)
                 # return db_value
-
 
         if mongo_dict is None:
             return None
@@ -231,7 +232,8 @@ class DataModel():
             if isinstance(class_variable, Subdoc):
                 if type(value) == class_variable.data_model_type:
                     subdoc_dict = value.to_dict(mask_default)
-                    default_dict = class_variable.default.to_dict(mask_default=True)
+                    default_dict = class_variable.default.to_dict(
+                        mask_default=True)
                     if not mask_default or (mask_default and subdoc_dict != default_dict):
                         prepared_dict[key] = subdoc_dict
                 assert type(value) is not dict
@@ -246,6 +248,7 @@ class DataModel():
         return prepared_dict
 
 # -------- Data model flags
+
 
 class HasAdditionalFields:
     pass
@@ -264,12 +267,24 @@ class UserData(DataModel):
     # email = DataField("email")
 
 
+def currency_from_bson(units):
+    assert units["unit"] == "USD"
+    return {"unit": "USD", "value": float(units['value'].to_decimal())}
+
+
+def currency_to_bson(units):
+    assert units["unit"] == "USD"
+    return {"unit": "USD", "value": Decimal128(str(units['value']))}
+
+
 class Props(DataModel, HasAdditionalFields):
     cost_per_case = DataField(
-        "cost_per_case", value_to_bson=Decimal128, bson_to_value=str)
+        "cost_per_case", value_to_bson=currency_to_bson, bson_to_value=currency_from_bson)
     count_per_case = DataField("count_per_case")
-    original_cost_per_case = DataField("original_cost_per_case", value_to_bson=Decimal128, bson_to_value=str)
+    original_cost_per_case = DataField(
+        "original_cost_per_case", value_to_bson=currency_to_bson, bson_to_value=currency_from_bson)
     original_count_per_case = DataField("original_count_per_case")
+
 
 class Bin(DataModel):
     """Models a physical bin in the inventory system."""
