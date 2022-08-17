@@ -449,7 +449,8 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         assert rp.cache_control.no_cache
         for key in patch.keys():
             if key == "props":
-                setattr(self.model_batches[batch_id], "props", Props(**patch["props"]))
+                setattr(self.model_batches[batch_id],
+                        "props", Props(**patch["props"]))
             else:
                 setattr(self.model_batches[batch_id], key, patch[key])
 
@@ -485,7 +486,10 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         assert rp.status_code == 200
         assert rp.cache_control.no_cache
         for key in patch.keys():
-            setattr(self.model_batches[batch_id], key, patch[key])
+            if key == "props":
+                setattr(self.model_batches[batch_id], key, Props(**patch[key]))
+            else:
+                setattr(self.model_batches[batch_id], key, patch[key])
 
     @rule(batch_id=a_batch_id, sku_id=dst.label_("SKU"), patch=batch_patch)
     def attempt_update_anonymous_batch_missing_sku_id(self, batch_id, sku_id, patch):

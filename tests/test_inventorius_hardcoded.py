@@ -64,6 +64,7 @@ def test_move_sku():
     state.get_existing_bin(bin_id=v2)
     state.teardown()
 
+
 def test_sku_locations():
     state = InventoriusStateMachine()
     state.delete_missing_sku(sku_id='SKU000000')
@@ -312,20 +313,25 @@ def test_update_batch_existing_sku():
 #     state.new_user(user={'id': '\x0c', 'name': '', 'password': '00000000'})
 #     state.teardown()
 
+
 def test_was_undefined_key_error_01():
     state = InventoriusStateMachine()
     v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={'_': None}))
-    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT575165', name='A', owned_codes=[], props={'': None}, sku_id=None))
+    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+    ], id='BAT575165', name='A', owned_codes=[], props={'': None}, sku_id=None))
     state.batch_locations(batch_id=v2)
     state.receive_batch(batch_id=v2, bin_id=v1, quantity=1)
     state.batch_locations(batch_id=v2)
     state.teardown()
 
+
 def test_update_sku():
     state = InventoriusStateMachine()
-    v1 = state.new_sku(sku=Sku(associated_codes=[], id='SKU000000', name='', owned_codes=[], props={}))
+    v1 = state.new_sku(sku=Sku(associated_codes=[],
+                       id='SKU000000', name='', owned_codes=[], props={}))
     state.update_sku(patch={}, sku_id=v1)
     state.teardown()
+
 
 def test_login_whoami():
     state = InventoriusStateMachine()
@@ -335,21 +341,26 @@ def test_login_whoami():
     state.whoami()
     state.teardown()
 
+
 def test_change_password():
     state = InventoriusStateMachine()
     state.api_next()
     state.api_next()
     state.api_next()
     v1 = state.new_user(user={'id': '3', 'name': '', 'password': '11100111'})
-    v2 = state.new_sku(sku=Sku(associated_codes=[], id='SKU065793', name='A', owned_codes=[], props={}))
+    v2 = state.new_sku(sku=Sku(associated_codes=[],
+                       id='SKU065793', name='A', owned_codes=[], props={}))
     state.login_as(user_id=v1)
-    state.update_existing_user(user_id=v1, user_patch={'password': '000000000'})
+    state.update_existing_user(user_id=v1, user_patch={
+                               'password': '000000000'})
     state.whoami()
     state.teardown()
 
+
 def test_release_anonymous_nothing():
     state = InventoriusStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props={}, sku_id=None))
+    v1 = state.new_anonymous_batch(batch=Batch(
+        associated_codes=[], id='BAT000000', name='', owned_codes=[], props={}, sku_id=None))
     v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={}))
     state.release_batch(batch_id=v1, bin_id=v2, quantity=0)
     state.positive_quantities()
@@ -358,13 +369,29 @@ def test_release_anonymous_nothing():
 
 def test_update_anonymous_batch_with_additional_field():
     state = InventoriusStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
-    state.update_batch(batch_id=v1, patch={'owned_codes': [], 'props': {'_': None}})
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+    ], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
+    state.update_batch(batch_id=v1, patch={
+                       'owned_codes': [], 'props': {'_': None}})
     state.teardown()
+
 
 def test_clear_existing_props():
     state = InventoriusStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[
+    ], id='BAT000000', name='', owned_codes=[], props=Props(cost_per_case=None), sku_id=None))
     state.update_batch(batch_id=v1, patch={'props': {}})
+    state.get_existing_batch(batch_id=v1)
+    state.teardown()
+
+
+def test_add_sku_to_anonymous_batch():
+    state = InventoriusStateMachine()
+    v1 = state.new_anonymous_batch(batch=Batch(associated_codes=[], id='BAT000000', name='', owned_codes=[], props=Props(
+        cost_per_case=None, count_per_case=None, original_cost_per_case=None, original_count_per_case=None), sku_id=None))
+    v2 = state.new_sku(sku=Sku(associated_codes=[],
+                       id='SKU000000', name='', owned_codes=[], props={}))
+    state.update_anonymous_batch_existing_sku_id(batch_id=v1, patch={
+                                                 'associated_codes': [], 'owned_codes': [], 'props': {}}, sku_id=v2)
     state.get_existing_batch(batch_id=v1)
     state.teardown()
