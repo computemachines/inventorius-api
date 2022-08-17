@@ -1,18 +1,35 @@
 import fetch from "cross-fetch";
 
-type Props = Record<string, unknown> | null;
-
-
-async function status_or_problem(resp_promise: Promise<Response>): Promise<Status | Problem> {
-  const resp = await resp_promise;
-  const json = await resp.json();
-  if (resp.ok) {
-    return {...json, kind: "status"};
-  } else {
-    return {...json, kind: "problem"};
+export type Props = Record<string, unknown> | null;
+export type Unit = Unit1;
+export class Unit1 {
+  unit: string;
+  value: number;
+  constructor({ unit, value }: { unit: string; value: number }) {
+    this.unit = unit;
+    this.value = value;
   }
 }
 
+export class Currency extends Unit1 {}
+export class USD extends Currency {
+  unit: "USD";
+  constructor(value: number) {
+    super({ unit: "USD", value });
+  }
+}
+
+async function status_or_problem(
+  resp_promise: Promise<Response>
+): Promise<Status | Problem> {
+  const resp = await resp_promise;
+  const json = await resp.json();
+  if (resp.ok) {
+    return { ...json, kind: "status" };
+  } else {
+    return { ...json, kind: "problem" };
+  }
+}
 
 /**
  * JSON representation of a 'application/problem+json' response.
@@ -46,7 +63,6 @@ export interface Status {
    */
   status: string;
 }
-
 
 class RestEndpoint {
   state: unknown;
@@ -119,8 +135,8 @@ export class CallableRestOperation implements RestOperation {
 export class ApiStatus extends RestEndpoint {
   kind: "api-status" = "api-status";
   state: {
-    version: string,
-    "is-ok": boolean,
+    version: string;
+    "is-ok": boolean;
   };
 }
 
@@ -137,7 +153,7 @@ export class Bin extends RestEndpoint {
     update: CallableRestOperation;
   };
 
-  update(patch:{props:Props}): Promise<Status | Problem> {
+  update(patch: { props: Props }): Promise<Status | Problem> {
     return status_or_problem(this.operations.update.perform({ json: patch }));
   }
 
@@ -220,6 +236,7 @@ export class Batch extends RestEndpoint {
     bins: CallableRestOperation;
   };
   update(patch: {
+    id: string;
     sku_id?: string;
     name?: string;
     owned_codes?: string[];
@@ -238,7 +255,6 @@ export class Batch extends RestEndpoint {
     else return { ...json, kind: "problem" };
   }
 }
-
 
 export class NextBin extends RestEndpoint {
   kind: "next-bin" = "next-bin";

@@ -7,13 +7,16 @@ import "../styles/WarnModal.css";
 export default function WarnModal({
   onContinue,
   dangerousActionName,
+  showModal,
+  setShowModal,
   children,
 }: {
   onContinue: () => void;
   dangerousActionName: string;
+  showModal: boolean;
+  setShowModal: React.Dispatch<React.SetStateAction<boolean>>;
   children?: React.ReactNode;
 }) {
-  const [showModal, setShowModal] = useState(true);
   return (
     <ReactModal
       isOpen={showModal}
@@ -33,7 +36,9 @@ export default function WarnModal({
       >
         Cancel
       </button>
-      <button className="warn-modal__dangerous-button" onClick={onContinue}>{dangerousActionName}</button>
+      <button className="warn-modal__dangerous-button" onClick={onContinue}>
+        {dangerousActionName}
+      </button>
     </ReactModal>
   );
 }

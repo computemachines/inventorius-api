@@ -20,8 +20,11 @@ import ItemLabel from "./ItemLabel";
 import PrintButton from "./PrintButton";
 import ItemLocations from "./ItemLocations";
 import { stringifyUrl } from "query-string";
-import { Problem, Sku } from "../api-client/data-models";
-import PropertiesTable, { Property } from "./PropertiesTable";
+import { Problem, Sku, Unit, Unit1 } from "../api-client/data-models";
+import PropertiesTable, {
+  api_props_from_properties,
+  Property,
+} from "./PropertiesTable";
 import WarnModal from "./WarnModal";
 
 function Batch({ editable = false }: { editable?: boolean }) {
@@ -64,6 +67,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
   useEffect(() => {
     if (
       frontloadMeta.done &&
+      !frontloadMeta.error &&
       data.batch.kind != "problem" &&
       saveState == "live"
     ) {
@@ -79,6 +83,42 @@ function Batch({ editable = false }: { editable?: boolean }) {
           kind: "associated" as const,
         })),
       ]);
+      setUnsavedProperties(
+        Object.entries(data.batch.state.props || {}).map(([name, value]) => {
+          let typed;
+          if (typeof value == "undefined") {
+            throw new Error("Api returned empty property: " + name);
+          }
+          if (typeof value == "number") {
+            typed = {
+              kind: "number",
+              value: value,
+            };
+          } else if (typeof value == "string") {
+            typed = {
+              kind: "string",
+              value: value,
+            };
+          } else if (typeof value == "object") {
+            if ("unit" in value && "value" in value) {
+              let physical = new Unit1(
+                value as { unit: string; value: number }
+              );
+              switch (physical.unit) {
+                case "USD":
+                  typed = { kind: "currency", value: physical.value };
+                  break;
+
+                default:
+                  throw new Error("Unsupported api unit type");
+              }
+            }
+          } else {
+            throw new Error("Unsupported api type");
+          }
+          return new Property({ name, typed: typed });
+        })
+      );
     }
   }, [frontloadMeta, data, saveState]);
 
@@ -145,9 +185,11 @@ function Batch({ editable = false }: { editable?: boolean }) {
         when={saveState != "live"}
       />
       <WarnModal
+        showModal={showModal}
+        setShowModal={setShowModal}
         dangerousActionName="Delete"
         onContinue={async () => {
-          if (1==1) return;
+          if (1 == 1) return;
           if (data.batch.kind == "problem") throw "impossible";
           const resp = await api.hydrate(data.batch).delete();
           // setShowModal(false); // this doesn't seem to be necessary?
@@ -173,21 +215,22 @@ function Batch({ editable = false }: { editable?: boolean }) {
           }
         }}
       ></WarnModal>
-      <div className="info-item">
-        <div className="info-item-title">Parent Sku</div>
-        <div className="info-item-description">{parentSkuShowItemDesc}</div>
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Parent Sku</div>
+        <div className="info-panel__item-description">
+          {parentSkuShowItemDesc}
+        </div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Batch Label</div>
-        <div className="info-item-description">
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Batch Label</div>
+        <div className="info-panel__item-description">
           <ItemLabel link={false} label={batch_id} />
           <PrintButton value={batch_id} />
         </div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Name</div>
-        <div className="info-item-description">
-          {/* <div className="item-description-oneline"> */}
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Name</div>
+        <div className="info-panel__item-description">
           {editable ? (
             <input
               type="text"
@@ -200,16 +243,15 @@ function Batch({ editable = false }: { editable?: boolean }) {
           ) : (
             unsavedName || <div style={{ fontStyle: "italic" }}>(Empty)</div>
           )}
-          {/* </div> */}
         </div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Locations</div>
-        <div className="info-item-description">{itemLocations}</div>
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Locations</div>
+        <div className="info-panel__item-description">{itemLocations}</div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Codes</div>
-        <div className="info-item-description">
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Codes</div>
+        <div className="info-panel__item-description">
           {unsavedCodes.length == 0 && !editable ? (
             "None"
           ) : (
@@ -224,9 +266,9 @@ function Batch({ editable = false }: { editable?: boolean }) {
           )}
         </div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Additional Properties</div>
-        <div className="info-item-description">
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Additional Properties</div>
+        <div className="info-panel__item-description">
           {unsavedProperties.length == 0 && !editable ? (
             "None"
           ) : (
@@ -241,9 +283,12 @@ function Batch({ editable = false }: { editable?: boolean }) {
           )}
         </div>
       </div>
-      <div className="info-item">
-        <div className="info-item-title">Actions</div>
-        <div className="info-item-description" style={{ display: "block" }}>
+      <div className="info-panel__item">
+        <div className="info-panel__item-title">Actions</div>
+        <div
+          className="info-panel__item-description"
+          style={{ display: "block" }}
+        >
           {editable ? (
             <div className="edit-controls">
               <button
@@ -259,8 +304,10 @@ function Batch({ editable = false }: { editable?: boolean }) {
                 onClick={async () => {
                   if (data.batch.kind == "problem") throw "impossible";
                   setSaveState("saving");
+                  console.log(unsavedCodes);
                   const resp = await api.hydrate(data.batch).update({
                     sku_id: unsavedParentSkuId || null,
+                    id: batch_id,
                     name: unsavedName,
                     owned_codes: unsavedCodes
                       .filter(({ kind, value }) => kind == "owned" && value)
@@ -270,6 +317,7 @@ function Batch({ editable = false }: { editable?: boolean }) {
                         ({ kind, value }) => kind == "associated" && value
                       )
                       .map(({ value }) => value),
+                    props: api_props_from_properties(unsavedProperties),
                   });
 
                   if (resp.kind == "problem") {

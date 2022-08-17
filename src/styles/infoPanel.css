@@ -43,7 +43,8 @@
   float: right;
 }
 
-/* Line up the text baselines so that toggling input doesn't push anything. */
+/* This is hard and not worth the effort
+ //Line up the text baselines so that toggling input doesn't push anything.
 .item-description-oneline,
 .info-panel__item-description--single-line {
   padding: calc(2px + 0.2rem) 2px;
@@ -52,7 +53,7 @@ input.item-description-oneline,
 .info-panel__input-item-description--single-line {
   padding: 0.2rem 0;
   width: 100%;
-}
+} */
 
 .action-link,
 .info-panel__action-link {

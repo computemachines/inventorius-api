@@ -1,9 +1,9 @@
 {
   "name": "inventorius-frontend",
-  "version": "0.3.4-0",
+  "version": "0.3.5-0",
   "description": "An inventory management system for hobbyists and makers.",
   "scripts": {
-    "start": "webpack serve",
+    "start": "webpack serve -d source-map",
     "build:client": "cross-env NODE_ENV=production webpack",
     "build:client:dev": "cross-env NO_HOT=true webpack",
     "build:server": "cross-env NODE_ENV=production webpack --config webpack.server.config.js",
