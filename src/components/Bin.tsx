@@ -45,7 +45,7 @@ function BinContentsTable({
     })
   );
   if (frontloadMeta.error) {
-    Sentry.captureException(new Error("API Error"))
+    Sentry.captureException(new Error("API Error"));
     return <span>API Error</span>;
   }
 

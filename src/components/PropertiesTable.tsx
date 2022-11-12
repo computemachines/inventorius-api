@@ -15,17 +15,17 @@ function defaultPropertyType(
   type: "string" | "currency" | "number"
 ): string | Currency | number {
   switch (type) {
-    case "currency":
-      return new USD(0);
-      break;
-    case "number":
-      return 0;
-      break;
-    case "string":
-      return "";
-      break;
-    default:
-      throw new Error("Impossible fallthrough");
+  case "currency":
+    return new USD(0);
+    break;
+  case "number":
+    return 0;
+    break;
+  case "string":
+    return "";
+    break;
+  default:
+    throw new Error("Impossible fallthrough");
   }
 }
 
@@ -50,18 +50,18 @@ export class Property {
   }
   value(): string | number | Unit1 {
     switch (this.typed.kind) {
-      case "currency":
-        return this.typed.value;
-      case "number":
-        return this.typed.value;
-      case "string":
-        return this.typed.value;
+    case "currency":
+      return this.typed.value;
+    case "number":
+      return this.typed.value;
+    case "string":
+      return this.typed.value;
     }
   }
 }
 
 export function api_props_from_properties(properties: Property[]): Props {
-  let ret = {};
+  const ret = {};
   for (let i = 0; i < properties.length; i++) {
     ret[properties[i].name] = new Property(properties[i]).value();
   }
@@ -119,7 +119,7 @@ function EditablePropertyInputRow({
 }) {
   const commonProps = {
     onChange(e) {
-      let newTyped = { ...property.typed };
+      const newTyped = { ...property.typed };
       newTyped.value = e.target.value;
       setProperty({ ...property, typed: newTyped });
     },
@@ -137,36 +137,36 @@ function EditablePropertyInputRow({
 
   let valueInput;
   switch (property.typed.kind) {
-    case "string":
-      valueInput = (
-        <input type="text" {...commonProps} value={property.typed.value} />
-      );
-      break;
-    case "currency":
-      valueInput = (
-        <input
-          type="number"
-          value={property.typed.value.value}
-          {...commonProps}
-          onChange={(e) =>
-            setProperty({
-              ...property,
-              typed: {
-                kind: "currency",
-                value: new USD(parseFloat(e.target.value)),
-              },
-            })
-          }
-        />
-      );
-      break;
-    case "number":
-      valueInput = (
-        <input type="number" {...commonProps} value={property.typed.value} />
-      );
-      break;
-    default:
-      throw new Error("Impossible fallthrough");
+  case "string":
+    valueInput = (
+      <input type="text" {...commonProps} value={property.typed.value} />
+    );
+    break;
+  case "currency":
+    valueInput = (
+      <input
+        type="number"
+        value={property.typed.value.value}
+        {...commonProps}
+        onChange={(e) =>
+          setProperty({
+            ...property,
+            typed: {
+              kind: "currency",
+              value: new USD(parseFloat(e.target.value)),
+            },
+          })
+        }
+      />
+    );
+    break;
+  case "number":
+    valueInput = (
+      <input type="number" {...commonProps} value={property.typed.value} />
+    );
+    break;
+  default:
+    throw new Error("Impossible fallthrough");
   }
 
   return (
@@ -175,7 +175,7 @@ function EditablePropertyInputRow({
         className="properties-table-row__name"
         value={property.name}
         setValue={(name) => {
-          let predefined = predefinedProperties.find(
+          const predefined = predefinedProperties.find(
             (predefinedProperty) => name == predefinedProperty.name
           );
           if (typeof predefined !== "undefined") {
@@ -243,30 +243,30 @@ function PropertiesTable({
     >
       {editable
         ? (properties.length == 0 ? [defaultProperty] : properties).map(
-            (property, i, visibleProperties) => (
-              <EditablePropertyInputRow
-                key={i}
-                property={property}
-                setProperty={(newProperty) => {
-                  let newProperties = [...visibleProperties];
-                  newProperties[i] = newProperty;
-                  setProperties(newProperties);
-                }}
-                insertProperty={() => {
-                  setProperties([...properties, defaultProperty]);
-                }}
-                deleteProperty={() => {
-                  let newProperties = [...visibleProperties];
-                  newProperties.splice(i, 1);
-                  setProperties(newProperties);
-                }}
-                isLast={i == visibleProperties.length - 1}
-              />
-            )
+          (property, i, visibleProperties) => (
+            <EditablePropertyInputRow
+              key={i}
+              property={property}
+              setProperty={(newProperty) => {
+                const newProperties = [...visibleProperties];
+                newProperties[i] = newProperty;
+                setProperties(newProperties);
+              }}
+              insertProperty={() => {
+                setProperties([...properties, defaultProperty]);
+              }}
+              deleteProperty={() => {
+                const newProperties = [...visibleProperties];
+                newProperties.splice(i, 1);
+                setProperties(newProperties);
+              }}
+              isLast={i == visibleProperties.length - 1}
+            />
           )
+        )
         : properties.map((property, i, properties) => (
-            <PropertyRow key={i} property={property} />
-          ))}
+          <PropertyRow key={i} property={property} />
+        ))}
     </div>
   );
 }

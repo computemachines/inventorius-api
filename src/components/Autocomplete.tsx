@@ -60,7 +60,7 @@ function AutocompleteInput({
   suggestions: string[];
 }) {
   const [isActive, setIsActive] = useState(false);
-  let filteredSuggestions = suggestions.filter((suggestion) =>
+  const filteredSuggestions = suggestions.filter((suggestion) =>
     suggestion.toUpperCase().startsWith(value.toUpperCase())
   );
   const [selectedMatch, setSelectedMatch] = useState(null);
@@ -79,38 +79,38 @@ function AutocompleteInput({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           switch (e.key) {
-            case "ArrowDown":
-              if (selectedMatch === null) {
-                console.log("init");
-                setSelectedMatch(0);
-              } else {
-                console.log("down");
-                setSelectedMatch(
-                  clamp(selectedMatch + 1, 0, filteredSuggestions.length - 1)
-                );
-              }
-              break;
-            case "ArrowUp":
-              if (selectedMatch === null) {
-                setSelectedMatch(filteredSuggestions.length - 1);
-              } else {
-                setSelectedMatch(
-                  clamp(selectedMatch - 1, 0, filteredSuggestions.length - 1)
-                );
-              }
-              break;
-            case "Tab":
-              if (
-                selectedMatch !== null &&
+          case "ArrowDown":
+            if (selectedMatch === null) {
+              console.log("init");
+              setSelectedMatch(0);
+            } else {
+              console.log("down");
+              setSelectedMatch(
+                clamp(selectedMatch + 1, 0, filteredSuggestions.length - 1)
+              );
+            }
+            break;
+          case "ArrowUp":
+            if (selectedMatch === null) {
+              setSelectedMatch(filteredSuggestions.length - 1);
+            } else {
+              setSelectedMatch(
+                clamp(selectedMatch - 1, 0, filteredSuggestions.length - 1)
+              );
+            }
+            break;
+          case "Tab":
+            if (
+              selectedMatch !== null &&
                 selectedMatch >= 0 &&
                 selectedMatch <= filteredSuggestions.length - 1
-              ) {
-                setSelectedMatch(null);
-                setValue(filteredSuggestions[selectedMatch]);
-              }
-              break;
-            default:
-              break;
+            ) {
+              setSelectedMatch(null);
+              setValue(filteredSuggestions[selectedMatch]);
+            }
+            break;
+          default:
+            break;
           }
         }}
       />

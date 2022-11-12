@@ -13,7 +13,7 @@ import ItemLabel from "./ItemLabel";
  * @returns ReactElement
  */
 function Home() {
-  return <div>Version: {process.env.VERSION}</div>
+  return <div>Version: {process.env.VERSION}</div>;
   // const { data, frontloadMeta, setData } = useFrontload(
   //   "home-component",
   //   async function({ api }) {
