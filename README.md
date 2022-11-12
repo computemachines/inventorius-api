@@ -99,7 +99,7 @@ ImageMagick-7.1.0-17-Q16-HDRI-x64-dll.exe
 ## Run dev server (Ubuntu 20.04)
 ```sh
 $ cd src
-$ FLASK_ENV="development" FLASK_APP="inventorius" python3 -f flask run -p 8081
+$ FLASK_ENV="development" FLASK_APP="inventorius" python3 -m flask run -p 8081
 ```
 
 ## Run dev server, (windows powershell): 
