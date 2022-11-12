@@ -1,6 +1,5 @@
 import fetch from "cross-fetch";
 import { json, response } from "express";
-import { stringify } from "querystring";
 import { createContext } from "react";
 
 import {
@@ -91,11 +90,11 @@ export class ApiClient {
 
   async getSearchResults(params: {
     query: string;
-    limit?: number;
-    startingFrom?: number;
+    limit?: string;
+    startingFrom?: string;
   }): Promise<SearchResults | Problem> {
     const resp = await fetch(
-      `${this.hostname}/api/search?${stringify(params)}`
+      `${this.hostname}/api/search?${new URLSearchParams(params).toString()}`
     );
     const json = await resp.json();
 

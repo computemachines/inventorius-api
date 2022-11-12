@@ -81,8 +81,8 @@ function SearchResults({
       return {
         searchResults: await api.getSearchResults({
           query,
-          startingFrom,
-          limit,
+          startingFrom: startingFrom.toString(),
+          limit: limit.toString(),
         }),
       };
     }
@@ -100,7 +100,7 @@ function SearchResults({
     let isCancelled = false;
     setIsLoading(true);
     api
-      .getSearchResults({ query, startingFrom, limit })
+      .getSearchResults({ query, startingFrom: startingFrom.toString(), limit: limit.toString() })
       .then((newSearchResults) => {
         if (!isCancelled) {
           setData(() => ({ searchResults: newSearchResults }));

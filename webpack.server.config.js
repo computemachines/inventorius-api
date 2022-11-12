@@ -36,7 +36,7 @@ module.exports = {
     },
     plugins: [
         new MiniCssExtractPlugin({
-            filename: "/assets/main.css",
+            filename: "./assets/main.css",
         }),
         new webpack.DefinePlugin({
             'process.env.VERSION': JSON.stringify(version),
