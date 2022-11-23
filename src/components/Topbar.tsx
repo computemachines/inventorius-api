@@ -1,10 +1,16 @@
 import * as React from "react";
-import { } from "react";
+import {} from "react";
 
 import "hamburgers/dist/hamburgers.css";
 import "../styles/Topbar.css"; // must load after hamburgers.css
 
-function Topbar({ isActive, setActive }: { isActive: boolean, setActive: (isActive: boolean) => void }): JSX.Element {
+function Topbar({
+  isActive,
+  setActive,
+}: {
+  isActive: boolean;
+  setActive: (isActive: boolean) => void;
+}): JSX.Element {
   return (
     <div className="top-bar">
       <div className="branding">
@@ -12,7 +18,9 @@ function Topbar({ isActive, setActive }: { isActive: boolean, setActive: (isActi
         <h2>Inventorius</h2>
       </div>
       <button
-        className={`hamburger hamburger--squeeze ${isActive ? "is-active" : ""}`}
+        className={`hamburger hamburger--squeeze ${
+          isActive ? "is-active" : ""
+        }`}
         type="button"
         aria-label="Menu"
         aria-controls="navigation"

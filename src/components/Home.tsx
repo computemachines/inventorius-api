@@ -7,9 +7,9 @@ import ItemLabel from "./ItemLabel";
 
 /**
  * Home page component
- * 
+ *
  * Should show general statistics, recent transactions, information of general interest.
- * 
+ *
  * @returns ReactElement
  */
 function Home() {
@@ -25,7 +25,7 @@ function Home() {
 
   // if (frontloadMeta.pending) return <div>Loading</div>;
   // if (frontloadMeta.error) throw new Error("API Error\n"+frontloadMeta);
-  
+
   // throw new Error("bad");
 
   // return (

@@ -105,12 +105,12 @@ function Batch({ editable = false }: { editable?: boolean }) {
                 value as { unit: string; value: number }
               );
               switch (physical.unit) {
-              case "USD":
-                typed = { kind: "currency", value: physical.value };
-                break;
+                case "USD":
+                  typed = { kind: "currency", value: physical.value };
+                  break;
 
-              default:
-                throw new Error("Unsupported api unit type");
+                default:
+                  throw new Error("Unsupported api unit type");
               }
             }
           } else {

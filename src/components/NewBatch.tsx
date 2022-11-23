@@ -33,7 +33,7 @@ function NewBatch() {
   const [batchIdValue, setBatchIdValue] = useState("");
   const [nameValue, setNameValue] = useState("");
   const [codes, setCodes] = useState<Code[]>([]);
-  
+
   const batchIdRef = useRef(null); // for setting initial focus
 
   useEffect(() => {
@@ -79,16 +79,16 @@ function NewBatch() {
         for (const code of codes) {
           if (code.value == "" || code.inherited) continue;
           switch (code.kind) {
-          case "owned":
-            ownedCodes.push(code.value);
-            break;
+            case "owned":
+              ownedCodes.push(code.value);
+              break;
 
-          case "associated":
-            associatedCodes.push(code.value);
-            break;
+            case "associated":
+              associatedCodes.push(code.value);
+              break;
 
-          default:
-            let _exhaustiveCheck: never; // eslint-disable-line
+            default:
+              let _exhaustiveCheck: never; // eslint-disable-line
           }
         }
         const nextBatch =
@@ -145,18 +145,11 @@ function NewBatch() {
           className="form-single-code-input"
           id="batch_id"
           name="batch_id"
-          placeholder={
-            data.nextBatch.state
-          }
+          placeholder={data.nextBatch.state}
           value={batchIdValue}
           onChange={(e) => setBatchIdValue(e.target.value)}
         />
-        <PrintButton
-          value={
-            batchIdValue ||
-              data.nextBatch.state
-          }
-        />
+        <PrintButton value={batchIdValue || data.nextBatch.state} />
       </div>
       <label htmlFor="name" className="form-label">
         Name

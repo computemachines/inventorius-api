@@ -32,7 +32,6 @@ function Release() {
     if (queryParams["quantity"]) {
       setQuantityValue(queryParams["quantity"] as string);
     }
-
   }, [location.search]);
 
   return (
@@ -50,13 +49,15 @@ function Release() {
           setAlertContent({
             content: (
               <div>
-                                Success, Released {quantityValue} count,{" "}
-                <ItemLabel label={itemIdValue} onClick={(e) => setAlertContent({})} />
-                                , from{" "}
-                <ItemLabel label={fromIdValue} />
+                Success, Released {quantityValue} count,{" "}
+                <ItemLabel
+                  label={itemIdValue}
+                  onClick={(e) => setAlertContent({})}
+                />
+                , from <ItemLabel label={fromIdValue} />
               </div>
             ),
-            mode: "success"
+            mode: "success",
           });
 
           setFromIdValue("");
@@ -66,21 +67,25 @@ function Release() {
         } else {
           setAlertContent({
             content: <div>{resp.title}</div>,
-            mode: "failure"
+            mode: "failure",
           });
         }
-      }} >
+      }}
+    >
       <h2 className="form-title">Release</h2>
-      <label htmlFor="from_id" className="form-label">Bin Label</label>
+      <label htmlFor="from_id" className="form-label">
+        Bin Label
+      </label>
       <input
         type="text"
         className="form-single-code-input"
         id="from_id"
         name="from_id"
         value={fromIdValue}
-        onChange={(e) => setFromIdValue(e.target.value)} />
+        onChange={(e) => setFromIdValue(e.target.value)}
+      />
       <label htmlFor="item_id" className="form-label">
-                Item Label
+        Item Label
       </label>
       <input
         type="text"
@@ -91,7 +96,7 @@ function Release() {
         onChange={(e) => setItemIdValue(e.target.value)}
       />
       <label htmlFor="quantity" className="form-label">
-                Quantity
+        Quantity
       </label>
       <input
         type="number"

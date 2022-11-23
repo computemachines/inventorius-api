@@ -22,7 +22,6 @@ import { version } from "os";
 
 const API_HOSTNAME = "http://localhost:8081";
 
-
 const doc = `
 Usage:
   server.bundle.js [options]
@@ -66,7 +65,6 @@ app.use(Sentry.Handlers.requestHandler());
 // TracingHandler creates a trace for every incoming request
 app.use(Sentry.Handlers.tracingHandler());
 
-
 /**
  * Generate HTML from template.
  * @param app - The complete server-side-rendered app.
@@ -96,14 +94,13 @@ function htmlTemplate(
               // WARNING: See the following for security issues around embedding JSON in HTML:
               // http://redux.js.org/recipes/ServerRendering.html#security-considerations
             window.__FRONTLOAD_SERVER_STATE = ${JSON.stringify(
-    frontloadServerData
-  ).replace(/</g, "\\u003c")}
+              frontloadServerData
+            ).replace(/</g, "\\u003c")}
         </script>
         ${!noclient ? '<script src="/assets/client.bundle.js"></script>' : ""}
     </body>
     </html>`;
 }
-
 
 // TODO: have assets served directly by nginx. issues/1
 app.use(
@@ -119,7 +116,6 @@ app.get("/debug-sentry", function mainHandler(req, res) {
 app.get("/*", cors(), async function (req, res) {
   dev && console.log(req.path);
 
-  
   const frontloadState = createFrontloadState.server({
     context: { api: new ApiClient(API_HOSTNAME) },
     logging: dev,

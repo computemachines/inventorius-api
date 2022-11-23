@@ -44,6 +44,9 @@ function Navbar({
       <NavLink className="navlink" to="/move">
         Move
       </NavLink>
+      <NavLink className="navlink" to="/audit">
+        Audit
+      </NavLink>
       <NavLink className="navlink" to="/receive">
         Receive
       </NavLink>

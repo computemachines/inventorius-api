@@ -35,7 +35,9 @@ function BinContentsTable({
           } else if (id.startsWith("BAT")) {
             item = await api.getBatch(id);
           } else {
-            Sentry.captureException("Bad id provided to bindcontentstable(contents)");
+            Sentry.captureException(
+              "Bad id provided to bindcontentstable(contents)"
+            );
           }
           if (item.kind == "problem")
             return { id, quantity, kind: "problem", problem: item };
@@ -61,12 +63,12 @@ function BinContentsTable({
       if (row.kind == "problem") {
         Sentry.captureException(new Error("bin contents table bad row"));
       }
-      return ({
+      return {
         Identifier: row.id,
         Quantity: row.quantity,
         Type: row.kind,
         Name: row.kind != "problem" ? row.item.state.name : null,
-      });
+      };
     });
   } else {
     tabularData = Object.entries(contents).map(([Identifier, Quantity]) => ({

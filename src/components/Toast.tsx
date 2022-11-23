@@ -11,8 +11,9 @@ export type SetToastContent = ({
   mode?: "success" | "failure";
 }) => void;
 
-export const ToastContext =
-  React.createContext<{ setToastContent: SetToastContent }>(null);
+export const ToastContext = React.createContext<{
+  setToastContent: SetToastContent;
+}>(null);
 
 // render toast component
 // Is rendered as closed/inactive when children is falsy

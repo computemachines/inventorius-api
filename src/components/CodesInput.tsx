@@ -111,10 +111,10 @@ function CodesInput({
         onKeyDown={
           i == codes.length - 1
             ? (e) => {
-              if (e.key == "Tab" && code.value) {
-                setCodes([...codes, { value: "", kind: "owned" }]);
+                if (e.key == "Tab" && code.value) {
+                  setCodes([...codes, { value: "", kind: "owned" }]);
+                }
               }
-            }
             : null
         }
       >

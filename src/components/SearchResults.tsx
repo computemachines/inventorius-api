@@ -100,7 +100,11 @@ function SearchResults({
     let isCancelled = false;
     setIsLoading(true);
     api
-      .getSearchResults({ query, startingFrom: startingFrom.toString(), limit: limit.toString() })
+      .getSearchResults({
+        query,
+        startingFrom: startingFrom.toString(),
+        limit: limit.toString(),
+      })
       .then((newSearchResults) => {
         if (!isCancelled) {
           setData(() => ({ searchResults: newSearchResults }));

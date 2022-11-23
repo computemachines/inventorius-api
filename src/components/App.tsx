@@ -25,13 +25,13 @@ import EULA from "./EULA";
 import NewBatch from "./NewBatch";
 import Batch from "./Batch";
 import Receive from "./Receive";
-import FileUpload from "./_Dummy";
 import MoveItem from "./MoveItem";
 import Release from "./Release";
+import Audit from "./Audit";
 
-/** 
+/**
  * Main app component
- * 
+ *
  * @returns React app component tree
  */
 function App() {
@@ -51,7 +51,10 @@ function App() {
       </div>
       <div className="main-container">
         <div className="main-content" id="main">
-          <Sentry.ErrorBoundary fallback={<h2>Something went wrong.</h2>} showDialog>
+          <Sentry.ErrorBoundary
+            fallback={<h2>Something went wrong.</h2>}
+            showDialog
+          >
             <ToastContext.Provider value={{ setToastContent: setToastContent }}>
               <Toast
                 onClose={() => setToastContent({ content: null })}
@@ -60,7 +63,6 @@ function App() {
                 {toastContent.content}
               </Toast>
               <Switch>
-                
                 <Route exact path="/">
                   <Home />
                 </Route>
@@ -94,6 +96,9 @@ function App() {
                 <Route path="/release">
                   <Release />
                 </Route>
+                <Route path="/audit">
+                  <Audit />
+                </Route>
                 <Route path="/move">
                   <MoveItem />
                 </Route>
@@ -106,7 +111,6 @@ function App() {
                 <Route>
                   <FourOhFour />
                 </Route>
-                
               </Switch>
             </ToastContext.Provider>
           </Sentry.ErrorBoundary>

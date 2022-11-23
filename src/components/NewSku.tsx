@@ -49,12 +49,12 @@ function NewSku() {
         for (const code of codes) {
           if (code.value === "") continue;
           switch (code.kind) {
-          case "owned":
-            ownedCodes.push(code.value);
-            break;
-          case "associated":
-            associatedCodes.push(code.value);
-            break;
+            case "owned":
+              ownedCodes.push(code.value);
+              break;
+            case "associated":
+              associatedCodes.push(code.value);
+              break;
           }
         }
         const resp = await api.createSku({

@@ -12,7 +12,7 @@ import PrintButton from "./PrintButton";
 function NewBin() {
   const { setToastContent } = useContext(ToastContext);
   const api = useContext(ApiContext);
-  
+
   const [binIdValue, setBinIdValue] = useState("");
   let binIdPlaceholder = "Loading";
 
@@ -23,9 +23,7 @@ function NewBin() {
     })
   );
 
-
-  if (frontloadMeta.done)
-    binIdPlaceholder = data.nextBin.state;
+  if (frontloadMeta.done) binIdPlaceholder = data.nextBin.state;
 
   return (
     <form

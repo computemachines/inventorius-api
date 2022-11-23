@@ -34,11 +34,9 @@ declare global {
  * Set up sentry error reporting.
  */
 function init_sentry() {
-
   Sentry.init({
     dsn: "https://b694aa8379e140ab9e94b4e906b17768@o1103275.ingest.sentry.io/6148115",
-    integrations: [new Integrations.BrowserTracing(
-    )],
+    integrations: [new Integrations.BrowserTracing()],
     release: process.env.VERSION,
     environment: process.env.NODE_ENV,
     tracesSampleRate: 1.0,
@@ -51,7 +49,11 @@ function init_sentry() {
  * @param props.frontloadState - A FrontloadState object returned by createFrontloadState
  * @returns client side app wrapped in a BrowserRouter and Providers
  */
-function ClientApp({ frontloadState }: {frontloadState: FrontloadState}): React.ReactElement {
+function ClientApp({
+  frontloadState,
+}: {
+  frontloadState: FrontloadState;
+}): React.ReactElement {
   return (
     <BrowserRouter>
       <FrontloadProvider initialState={frontloadState}>
@@ -63,13 +65,12 @@ function ClientApp({ frontloadState }: {frontloadState: FrontloadState}): React.
   );
 }
 
-
 /**
- * Client-side one-time setup. Either renders to or hydrates the DOM. 
+ * Client-side one-time setup. Either renders to or hydrates the DOM.
  * @remarks
  * Immediately invoked function.
  */
-function initialize_app(){
+function initialize_app() {
   init_sentry();
 
   if (window.__FRONTLOAD_SERVER_STATE) {
@@ -81,7 +82,7 @@ function initialize_app(){
       context: {
         api: new ApiClient(window.__DEV_MODE ? "http://localhost:8080" : ""),
       },
-    
+
       // data returned by frontloadServerRender. This contains the prefetched data.
       serverRenderedData: window.__FRONTLOAD_SERVER_STATE,
       logging: window.__DEV_MODE,
@@ -91,10 +92,9 @@ function initialize_app(){
       <ClientApp frontloadState={frontloadState} />,
       document.getElementById("react-root")
     );
-
   } else {
-  // rendering fresh without server preloading/prerendering
-  // This should NEVER happen in production.
+    // rendering fresh without server preloading/prerendering
+    // This should NEVER happen in production.
 
     // same as the hydrating case, except there is no server rendered data
     const frontloadState = createFrontloadState.client({
