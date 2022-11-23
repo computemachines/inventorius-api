@@ -1,6 +1,6 @@
 {
   "name": "inventorius-frontend",
-  "version": "0.3.5-0",
+  "version": "0.3.5-2",
   "description": "An inventory management system for hobbyists and makers.",
   "scripts": {
     "start": "webpack serve -d source-map",
