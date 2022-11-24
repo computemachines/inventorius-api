@@ -246,6 +246,15 @@ function Sku({ editable = false }: { editable?: boolean }) {
               Receive
             </Link>
             <Link
+              to={stringifyUrl({
+                url: "/release",
+                query: { item: id },
+              })}
+              className="action-link"
+            >
+              Release
+            </Link>
+            <Link
               to="#"
               className="action-link"
               onClick={() => setShowModal(true)}
