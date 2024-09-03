@@ -123,7 +123,7 @@ jobs:
       - name: upload secrets.ini
         run: scp -i github_id_rsa -o UserKnownHostsFile=deployment-ci/known_hosts secrets.ini root@computemachines.com:secrets.ini
       - name: download packaged build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ env.deb_name }}
       - name: upload to production server
