@@ -1,0 +1,70 @@
+/* Moving to BEM naming. Keep old names for compatibility. */
+
+.info-panel {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.info-item,
+.info-panel__item {
+  margin-bottom: 1.5rem;
+}
+
+.info-item-title,
+.info-panel__item-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: grey;
+  font-style: italic;
+  border-bottom: 1px solid grey;
+  margin-bottom: 0.4rem;
+}
+
+.info-item-description,
+.info-panel__item-description {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.info-panel .info-item:first-child .item-label,
+.info-panel__item .item-label {
+  font-size: 1.4em;
+}
+
+.info-edit-save-button,
+.info-panel__edit-save-button {
+  background-color: #26532b;
+  color: white;
+  border-radius: 0.2rem;
+  border: none;
+  padding: 0.3rem 1rem;
+  float: right;
+}
+
+/* This is hard and not worth the effort
+ //Line up the text baselines so that toggling input doesn't push anything.
+.item-description-oneline,
+.info-panel__item-description--single-line {
+  padding: calc(2px + 0.2rem) 2px;
+}
+input.item-description-oneline,
+.info-panel__input-item-description--single-line {
+  padding: 0.2rem 0;
+  width: 100%;
+} */
+
+.action-link,
+.info-panel__action-link {
+  font-style: italic;
+  border-right: 1px solid black;
+  padding-right: 0.5em;
+  margin-right: 0.5em;
+}
+.action-link:last-child,
+.info-panel__action-link:last-child {
+  border-right: unset;
+  padding-right: unset;
+  margin-right: unset;
+}

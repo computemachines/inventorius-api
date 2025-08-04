@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+.cache/
+coverage/
+.env
+.vscode
+*.code-workspace
+stats.json
+docs
+package-root
+*secrets*
+!*.gpg

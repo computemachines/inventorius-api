@@ -1,0 +1,10 @@
+.form-print-button {
+  grid-column: 3;
+
+  background-color: #0c3764; /* $colors.darkaccent */
+  color: white;
+  font-weight: 400;
+  border: unset;
+  border-radius: 0.3em;
+  padding: 0.4em;
+}
