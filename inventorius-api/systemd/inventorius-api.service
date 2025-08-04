@@ -1,0 +1,20 @@
+[Unit]
+Description="Inventorius Api Server"
+After=network.target
+Requires=mongodb.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/uwsgi \
+        --ini /etc/uwsgi/apps-available/pkg_inventorius-api.ini \
+        --socket /run/uwsgi-inventorius-api.socket
+User=www-uwsgi-inventorius-api
+Group=www-data
+Restart=on-failure
+KillSignal=SIGQUIT
+Type=notify
+StandardError=syslog
+NotifyAccess=all
+
+[Install]
+WantedBy=default.target

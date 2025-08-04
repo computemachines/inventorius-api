@@ -1,0 +1,25 @@
+#! /usr/bin/sh
+
+echo "Running postinst script"
+
+useradd -M www-uwsgi-inventorius-api
+
+touch /etc/inventorius/secrets.ini
+
+
+if [ -e /usr/lib/systemd/system/mongod.service ]
+then
+    sed -i 's/mongodb.service/mongod.service/g' /usr/lib/systemd/system/inventorius-api.service
+fi
+
+
+systemctl daemon-reload
+systemctl enable inventorius-api.socket
+systemctl enable inventorius-api.service
+systemctl start inventorius-api.socket
+systemctl start inventorius-api.service
+
+if [ ! -e /etc/uwsgi/apps-enabled/pkg_inventorius-api.ini ]
+then
+    ln -sv /etc/uwsgi/apps-available/pkg_inventorius-api.ini /etc/uwsgi/apps-enabled/pkg_inventorius-api.ini
+fi
