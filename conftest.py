@@ -1,8 +1,14 @@
 import contextlib
+import sys
+from pathlib import Path
+
 import pytest
 from hypothesis import settings
 
 from flask import g, request_started
+
+# Ensure the application package on the src/ path is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from inventorius import app as inventorius_flask_app
 from inventorius.db import get_mongo_client
 
