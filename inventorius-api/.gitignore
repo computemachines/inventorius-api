@@ -17,3 +17,4 @@ package-root/
 *secret*
 !*.gpg
 *.code-workspace
+*.egg-info/

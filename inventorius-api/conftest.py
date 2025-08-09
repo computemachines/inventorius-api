@@ -1,8 +1,14 @@
 import contextlib
+import sys
+from pathlib import Path
+
 import pytest
 from hypothesis import settings
 
 from flask import g, request_started
+
+# Ensure the application package on the src/ path is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from inventorius import app as inventorius_flask_app
 from inventorius.db import get_mongo_client
 
@@ -32,9 +38,10 @@ def client():
 def clientContext():
     inventorius_flask_app.testing = True
     inventorius_flask_app.secret_key = "1234"
-    get_mongo_client().testing.admin.drop()
-    get_mongo_client().testing.batch.drop()
-    get_mongo_client().testing.bin.drop()
-    get_mongo_client().testing.sku.drop()
-    get_mongo_client().testing.user.drop()
+    test_db = get_mongo_client().testing
+    test_db.admin.delete_many({})
+    test_db.batch.delete_many({})
+    test_db.bin.delete_many({})
+    test_db.sku.delete_many({})
+    test_db.user.delete_many({})
     yield inventorius_flask_app.test_client()
