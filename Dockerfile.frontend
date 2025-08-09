@@ -1,0 +1,20 @@
+FROM node:20-alpine AS build
+WORKDIR /app
+
+# only copy the frontend to optimize caching; adjust paths if monorepo root differs
+COPY inventorius-frontend/package*.json ./inventorius-frontend/
+WORKDIR /app/inventorius-frontend
+RUN npm ci
+
+# copy sources and build
+COPY inventorius-frontend/ /app/inventorius-frontend/
+RUN npm run build:client && npm run build:server
+
+# runtime image
+FROM node:20-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app/inventorius-frontend/dist /app/dist
+COPY inventorius-frontend/public /app/public
+EXPOSE 3001
+CMD ["node", "dist/server.bundle.js", "-p", "3001"]

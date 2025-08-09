@@ -1,0 +1,45 @@
+
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks: [inventorius]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      INVENTORIUS_MONGO_HOST: mongo
+      INVENTORIUS_MONGO_PORT: "27017"
+    depends_on: [mongo]
+    networks: [inventorius]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+    networks: [inventorius]
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on: [frontend, api]
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [inventorius]
+
+volumes:
+  mongo_data:
+
+networks:
+  inventorius:
+    driver: bridge
