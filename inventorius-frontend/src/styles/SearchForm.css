@@ -1,7 +1,0 @@
-.search-form form {
-  display: flex;
-}
-
-.search-form input[type="text"] {
-  flex-grow: 1;
-}
