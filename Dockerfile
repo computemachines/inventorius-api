@@ -21,5 +21,4 @@ ENV PYTHONPATH=/app/src
 
 # gunicorn will import inventorius:app
 EXPOSE 8000
-CMD ["gunicorn","-w","4","-k","gthread","-t","60","-b","0.0.0.0:8000","--access-logfile","-","inventorius:app"]
-#CMD ["gunicorn", "-w", "4", "-k", "gthread", "-t", "60", "-b", "0.0.0.0:8000", "inventorius:app"]
+CMD ["gunicorn","-w","2","-k","gthread","-t","60","-b","0.0.0.0:8000","--access-logfile","-","inventorius:app"]
