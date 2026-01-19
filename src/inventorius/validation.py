@@ -1,4 +1,5 @@
 import re
+from functools import wraps
 from json import dumps
 from locale import currency
 from os import stat
@@ -8,6 +9,55 @@ from flask.helpers import url_for
 from voluptuous import ALLOW_EXTRA, All, Length, Range, Required, Schema
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
+
+
+def validate_url_id(prefix, param_name="id"):
+    """
+    Decorator that validates URL path parameters match the expected prefix pattern.
+
+    Prevents MongoDB field traversal attacks by ensuring IDs only contain
+    the expected prefix followed by digits (e.g., SKU123, BIN456, BAT789).
+
+    Usage:
+        @sku.route('/api/sku/<id>')
+        @validate_url_id("SKU")
+        def sku_get(id):
+            ...
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            id_value = kwargs.get(param_name)
+            if id_value is not None:
+                if not re.match(f"^{prefix}[0-9]+$", id_value):
+                    # Import here to avoid circular dependency
+                    import inventorius.util_error_responses as problem
+                    error = Invalid(
+                        f"must start with '{prefix}' followed by digits only",
+                        [param_name]
+                    )
+                    return problem.invalid_params_response(MultipleInvalid([error]))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def validate_url_user_id(param_name="id"):
+    """
+    Decorator that validates user ID URL parameters are alphanumeric.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            id_value = kwargs.get(param_name)
+            if id_value is not None:
+                if not id_value.isalnum() or id_value == "":
+                    import inventorius.util_error_responses as problem
+                    error = Invalid("must be non-empty alphanumeric", [param_name])
+                    return problem.invalid_params_response(MultipleInvalid([error]))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 
 def NoneOr(Else):

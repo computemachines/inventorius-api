@@ -6,7 +6,7 @@ from inventorius.resource_models import BinEndpoint
 from inventorius.util import get_body_type, admin_increment_code, no_cache
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
-from inventorius.validation import bin_patch_schema, new_bin_schema
+from inventorius.validation import bin_patch_schema, new_bin_schema, validate_url_id
 
 import json
 
@@ -32,6 +32,7 @@ def bins_post():
 
 
 @bin.route('/api/bin/<id>', methods=['GET'])
+@validate_url_id("BIN")
 def bin_get(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
     if existing is None:
@@ -41,6 +42,7 @@ def bin_get(id):
 
 
 @bin.route('/api/bin/<id>', methods=['PATCH'])
+@validate_url_id("BIN")
 @no_cache
 def bin_patch(id):
     try:
@@ -60,6 +62,7 @@ def bin_patch(id):
 
 
 @bin.route('/api/bin/<id>', methods=['DELETE'])
+@validate_url_id("BIN")
 @no_cache
 def bin_delete(id):
     existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))

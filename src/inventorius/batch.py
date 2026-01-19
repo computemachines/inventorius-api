@@ -5,7 +5,7 @@ from inventorius.db import db
 from inventorius.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventorius.resource_operations as operation
 from inventorius.util import admin_increment_code, check_code_list, no_cache
-from inventorius.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema
+from inventorius.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema, validate_url_id
 from voluptuous import All, Required
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
@@ -49,6 +49,7 @@ def batches_post():
 
 
 @batch.route("/api/batch/<id>", methods=["GET"])
+@validate_url_id("BAT")
 def batch_get(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
 
@@ -59,6 +60,7 @@ def batch_get(id):
 
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
+@validate_url_id("BAT")
 @no_cache
 def batch_patch(id):
     try:
@@ -112,6 +114,7 @@ def batch_patch(id):
 
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])
+@validate_url_id("BAT")
 @no_cache
 def batch_delete(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
@@ -123,6 +126,7 @@ def batch_delete(id):
 
 
 @batch.route("/api/batch/<id>/bins", methods=["GET"])
+@validate_url_id("BAT")
 def batch_bins_get(id):
     resp = Response()
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))

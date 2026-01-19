@@ -17,7 +17,7 @@ from inventorius.db import db
 from inventorius.util import admin_increment_code, check_code_list, login_manager, no_cache, principals, admin_permission
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
-from inventorius.validation import new_user_schema, user_patch_schema, login_request_schema
+from inventorius.validation import new_user_schema, user_patch_schema, login_request_schema, validate_url_user_id
 from inventorius.resource_models import PrivateProfile, Profile
 
 user = Blueprint("user", __name__)
@@ -197,6 +197,7 @@ def users_post():
 
 
 @ user.route("/api/user/<id>", methods=["PATCH"])
+@validate_url_user_id()
 @no_cache
 def user_patch(id):
     try:
@@ -217,6 +218,7 @@ def user_patch(id):
 
 
 @ user.route("/api/user/<id>", methods=["GET"])
+@validate_url_user_id()
 def user_get(id):
 
     UserPermission = Permission(UserNeed(id))
@@ -234,6 +236,7 @@ def user_get(id):
 
 
 @ user.route("/api/user/<id>", methods=["DELETE"])
+@validate_url_user_id()
 def user_delete(id):
     @ after_this_request
     def no_cache(resp):

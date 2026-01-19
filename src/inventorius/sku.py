@@ -4,7 +4,7 @@ from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
 from inventorius.util import admin_increment_code, check_code_list, no_cache
-from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema
+from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema, validate_url_id
 import inventorius.util_error_responses as problem
 from inventorius.resource_models import SkuEndpoint
 
@@ -41,6 +41,7 @@ def skus_post():
 
 
 @sku.route('/api/sku/<id>', methods=['GET'])
+@validate_url_id("SKU")
 def sku_get(id):
     # detailed = request.args.get("details") == "true"
 
@@ -51,6 +52,7 @@ def sku_get(id):
 
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
+@validate_url_id("SKU")
 @no_cache
 def sku_patch(id):
     try:
@@ -79,6 +81,7 @@ def sku_patch(id):
     return SkuEndpoint.from_sku(updated_sku).updated_success_response()
 
 @ sku.route('/api/sku/<id>', methods=['DELETE'])
+@validate_url_id("SKU")
 def sku_delete(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
@@ -119,6 +122,7 @@ def sku_delete(id):
 
 
 @ sku.route('/api/sku/<id>/bins', methods=['GET'])
+@validate_url_id("SKU")
 def sku_bins_get(id):
     resp = Response()
 
@@ -150,6 +154,7 @@ def sku_bins_get(id):
 
 
 @ sku.route('/api/sku/<id>/batches', methods=['GET'])
+@validate_url_id("SKU")
 def sku_batches_get(id):
     resp = Response()
 

@@ -3,7 +3,7 @@ from flask import Blueprint, request, Response, url_for
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
-from inventorius.validation import item_move_schema, item_release_receive_schema
+from inventorius.validation import item_move_schema, item_release_receive_schema, validate_url_id
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
 from inventorius.util import no_cache
@@ -56,6 +56,7 @@ inventorius = Blueprint("inventorius", __name__)
 
 
 @inventorius.route('/api/bin/<id>/contents/move', methods=['PUT'])
+@validate_url_id("BIN")
 @no_cache
 def move_bin_contents_put(id):
     try:
@@ -170,6 +171,7 @@ def next_bin():
 
 
 @inventorius.route('/api/bin/<bin_id>/contents', methods=["POST"])
+@validate_url_id("BIN", param_name="bin_id")
 @no_cache
 def bin_contents_post(bin_id):
     try:
