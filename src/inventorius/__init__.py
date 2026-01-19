@@ -88,6 +88,16 @@ principals.init_app(app)
 @app.route("/api/status", methods=["GET"])
 @no_cache
 def get_version():
+    from inventorius.db import db
+    # Check database connectivity
+    try:
+        db.command("ping")
+        db_connected = True
+    except Exception:
+        db_connected = False
+
     return StatusEndpoint(
-        version="0.3.11"
+        version="0.4.0",
+        db_connected=db_connected,
+        build_id=os.getenv("BUILD_ID", "dev")
     ).get_response()

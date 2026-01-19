@@ -16,6 +16,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt \
 # copy source
 COPY src /app/src
 
+# Build ID for tracking deployments (passed at build time)
+ARG BUILD_ID=dev
+ENV BUILD_ID=${BUILD_ID}
+
 # env for module discovery
 ENV PYTHONPATH=/app/src
 

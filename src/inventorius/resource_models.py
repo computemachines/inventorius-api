@@ -240,6 +240,13 @@ class SkuEndpoint(HypermediaEndpoint):
 
 
 class StatusEndpoint(HypermediaEndpoint):
-    def __init__(self, version, is_up=True):
-        super().__init__(resource_uri=url_for("get_version"),
-                         state={"version": version, "is-up": is_up})
+    def __init__(self, version, is_up=True, db_connected=None, build_id=None):
+        state = {
+            "version": version,
+            "is-up": is_up,
+        }
+        if db_connected is not None:
+            state["db-connected"] = db_connected
+        if build_id is not None:
+            state["build-id"] = build_id
+        super().__init__(resource_uri=url_for("get_version"), state=state)
