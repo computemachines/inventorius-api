@@ -101,3 +101,35 @@ def get_version():
         db_connected=db_connected,
         build_id=os.getenv("BUILD_ID", "dev")
     ).get_response()
+
+
+@app.route("/api/stats", methods=["GET"])
+@no_cache
+def get_stats():
+    from flask import Response, jsonify
+    from inventorius.db import db
+
+    try:
+        bin_count = db.bin.estimated_document_count()
+        sku_count = db.sku.estimated_document_count()
+        batch_count = db.batch.estimated_document_count()
+
+        # Get 5 most recent bins (by _id which has timestamp)
+        recent_bins = list(db.bin.find({}, {"_id": 1, "props": 1}).sort("_id", -1).limit(5))
+        recent_bins_list = [{"id": doc["_id"], "props": doc.get("props", {})} for doc in recent_bins]
+
+        # Get 5 most recent SKUs
+        recent_skus = list(db.sku.find({}, {"_id": 1, "name": 1}).sort("_id", -1).limit(5))
+        recent_skus_list = [{"id": doc["_id"], "name": doc.get("name", "")} for doc in recent_skus]
+
+        return jsonify({
+            "counts": {
+                "bins": bin_count,
+                "skus": sku_count,
+                "batches": batch_count,
+            },
+            "recent_bins": recent_bins_list,
+            "recent_skus": recent_skus_list,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
