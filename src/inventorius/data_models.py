@@ -88,6 +88,9 @@ class DataModel():
     """
 
     def __init__(self, **kwargs):
+        # Track which kwargs are consumed by defined fields
+        consumed_keys = set()
+
         for field in get_class_variables(type(self)):
             class_variable = getattr(self.__class__, field)
 
@@ -102,6 +105,7 @@ class DataModel():
 
                 if kwargs.get(field) != None:
                     setattr(self, field, kwargs[field])
+                    consumed_keys.add(field)
                 #
                 # elif class_variable.default is set: then self.<field> = field.default.copy()
                 #
@@ -120,6 +124,7 @@ class DataModel():
 
             elif isinstance(class_variable, Subdoc):
                 if field in kwargs:
+                    consumed_keys.add(field)
                     if type(kwargs[field]) is dict:
                         setattr(self, field, class_variable.data_model_type(
                             **kwargs[field]))
@@ -130,6 +135,12 @@ class DataModel():
                         setattr(self, field, class_variable.default.copy())
                     elif class_variable.default is not None:
                         setattr(self, field, class_variable.default)
+
+        # If this class allows additional fields, store remaining kwargs
+        if issubclass(type(self), HasAdditionalFields):
+            for key, value in kwargs.items():
+                if key not in consumed_keys:
+                    setattr(self, key, value)
 
     def __eq__(self, other):
         if type(self) != type(other):
@@ -168,19 +179,19 @@ class DataModel():
                     "db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
 
         def db_value_to_model_value(model_key, db_value):
-            if not issubclass(cls, HasAdditionalFields):
-                if not hasattr(cls, model_key):
+            if not hasattr(cls, model_key):
+                # Additional field - return value as-is
+                if issubclass(cls, HasAdditionalFields):
+                    return db_value
+                else:
                     raise Exception(
                         "db_key not in DataModel schema, and class does not inherit HasAdditionalFields")
-                attribute = getattr(cls, model_key)
-                if isinstance(attribute, DataField):
-                    return attribute.bson_to_value(db_value)
-                if isinstance(attribute, Subdoc):
-                    return attribute.data_model_type.from_mongodb_doc(db_value)
-            else:
-                attribute = getattr(cls, model_key)
+            attribute = getattr(cls, model_key)
+            if isinstance(attribute, DataField):
                 return attribute.bson_to_value(db_value)
-                # return db_value
+            if isinstance(attribute, Subdoc):
+                return attribute.data_model_type.from_mongodb_doc(db_value)
+            return db_value
 
         if mongo_dict is None:
             return None
@@ -189,7 +200,8 @@ class DataModel():
             model_key = db_key_to_model_key(db_key)
             model_value = db_value_to_model_value(
                 model_key=model_key, db_value=db_value)
-            if model_key in model_keys:
+            # Include both defined fields and additional fields
+            if model_key in model_keys or issubclass(cls, HasAdditionalFields):
                 data_model_dict[model_key] = model_value
         return cls(**data_model_dict)
 
@@ -223,12 +235,28 @@ class DataModel():
 
             if db_key is not None and type(db_value) != DataField:
                 transformed_dict[db_key] = db_value
+
+        # Include additional fields for classes that allow them
+        if issubclass(type(self), HasAdditionalFields):
+            for key, value in self.__dict__.items():
+                if key not in model_keys:
+                    # Store additional fields directly (no transformation)
+                    transformed_dict[key] = value
+
         return transformed_dict
 
     def to_dict(self, mask_default=False):
         prepared_dict = {}
         for key, value in self.__dict__.items():
-            class_variable = getattr(type(self), key)
+            class_variable = getattr(type(self), key, None)
+
+            if class_variable is None:
+                # Additional field (not defined as DataField/Subdoc)
+                # Only include if this class allows additional fields
+                if issubclass(type(self), HasAdditionalFields):
+                    prepared_dict[key] = value
+                continue
+
             if isinstance(class_variable, Subdoc):
                 if type(value) == class_variable.data_model_type:
                     subdoc_dict = value.to_dict(mask_default)
