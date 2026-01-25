@@ -22,6 +22,7 @@ from inventorius.sku import sku
 # from inventorius.file_upload import file_upload
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.user import user
+from inventorius.schema.routes import bp as schema_bp
 from inventorius.util import login_manager, no_cache, principals
 from inventorius.resource_models import StatusEndpoint
 
@@ -61,6 +62,7 @@ app.register_blueprint(inventorius)
 app.register_blueprint(sku)
 # app.register_blueprint(file_upload)
 app.register_blueprint(user)
+app.register_blueprint(schema_bp)
 
 if app.debug:
     print("!!! ENVIROMENT SETTING SECRET KEY FOR SESSIONS !!!")

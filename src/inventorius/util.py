@@ -38,53 +38,98 @@ def owned_code_get(id):
 
 
 def admin_increment_code(prefix, code):
-    code_number = int(re.sub('[^0-9]', '', code))
-    next_unused = int(re.sub('[^0-9]', '', admin_get_next(prefix)))
+    """Record that a code was used and update next if needed.
 
-    if code_number >= next_unused:
-        max_code = code_number
-        if prefix == "SKU":
-            db.admin.replace_one({"_id": "SKU"}, {"_id": "SKU",
-                                                  "next": f"SKU{max_code+1:06}"})
-        if prefix == "BAT":
-            db.admin.replace_one({"_id": "BAT"}, {"_id": "BAT",
-                                                  "next": f"BAT{max_code+1:06}"})
-        if prefix == "BIN":
-            db.admin.replace_one({"_id": "BIN"}, {"_id": "BIN",
-                                                  "next": f"BIN{max_code+1:06}"})
+    Maintains an ordered list of all IDs ever used to ensure IDs are never reused,
+    even if items are deleted.
+    """
+    code_number = int(re.sub('[^0-9]', '', code))
+
+    # Ensure admin doc exists
+    admin_get_next(prefix)
+
+    # Add code to used list and update next if this is a new max
+    doc = db.admin.find_one({"_id": prefix})
+    used = doc.get("used", [])
+
+    if code_number not in used:
+        used.append(code_number)
+        used.sort()
+        max_used = max(used)
+        db.admin.update_one(
+            {"_id": prefix},
+            {"$set": {
+                "used": used,
+                "next": f"{prefix}{max_used + 1:06}"
+            }}
+        )
 
 
 def admin_get_next(prefix):
+    """Get the next unused ID for a prefix (SKU, BAT, BIN).
 
-    def max_code_value(collection, prefix=ascii_letters):
-        cursor = collection.find()
-        max_value = 0
+    Returns the next ID that has never been used, tracked via a persistent
+    'used' list that survives item deletions.
+    """
+    def collect_existing_ids(collection, prefix_str):
+        """One-time migration: collect all existing IDs from a collection."""
+        cursor = collection.find({}, {"_id": 1})
+        ids = []
         for doc in cursor:
-            code_number = int(doc['_id'].strip(prefix))
-            if code_number > max_value:
-                max_value = code_number
-        return max_value
+            try:
+                code_number = int(re.sub('[^0-9]', '', doc['_id']))
+                ids.append(code_number)
+            except (ValueError, KeyError):
+                continue
+        return sorted(ids)
 
     next_code_doc = db.admin.find_one({"_id": prefix})
+
     if not next_code_doc:
+        # Initialize: collect existing IDs (one-time migration)
         if prefix == "SKU":
-            max_value = max_code_value(db.sku, "SKU")
-            db.admin.insert_one({"_id": "SKU",
-                                 "next": f"SKU{max_value+1:06}"})
-        if prefix == "BAT":
-            max_value = max_code_value(db.batch)
-            db.admin.insert_one({"_id": "BAT",
-                                 "next": f"BAT{max_value+1:06}"})
-        if prefix == "BIN":
-            max_value = max_code_value(db.bin, "BIN")
-            db.admin.insert_one({"_id": "BIN",
-                                 "next": f"BIN{max_value+1:06}"})
+            used = collect_existing_ids(db.sku, "SKU")
+        elif prefix == "BAT":
+            used = collect_existing_ids(db.batch, "BAT")
+        elif prefix == "BIN":
+            used = collect_existing_ids(db.bin, "BIN")
+        else:
+            raise Exception("bad prefix", prefix)
+
+        max_used = max(used) if used else 0
+        db.admin.insert_one({
+            "_id": prefix,
+            "next": f"{prefix}{max_used + 1:06}",
+            "used": used
+        })
         next_code_doc = db.admin.find_one({"_id": prefix})
 
-    if next_code_doc:
-        return next_code_doc['next']
-    else:
-        raise Exception("bad prefix", prefix)
+    # Migrate old docs that don't have 'used' field
+    if "used" not in next_code_doc:
+        if prefix == "SKU":
+            used = collect_existing_ids(db.sku, "SKU")
+        elif prefix == "BAT":
+            used = collect_existing_ids(db.batch, "BAT")
+        elif prefix == "BIN":
+            used = collect_existing_ids(db.bin, "BIN")
+        else:
+            raise Exception("bad prefix", prefix)
+
+        max_used = max(used) if used else 0
+        current_next = int(re.sub('[^0-9]', '', next_code_doc['next']))
+        # Keep the higher of current next or max_used + 1
+        new_next = max(current_next, max_used + 1)
+
+        db.admin.update_one(
+            {"_id": prefix},
+            {"$set": {
+                "used": used,
+                "next": f"{prefix}{new_next:06}"
+            }}
+        )
+        next_code_doc = db.admin.find_one({"_id": prefix})
+
+    return next_code_doc['next']
 
 
 def check_code_list(codes):
