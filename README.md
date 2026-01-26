@@ -1,117 +1,110 @@
+# Inventorius API
+
 ![Code coverage badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fcomputemachines%2Fc6358499cfa820bcffe8535e6cabd586%2Fraw%2Fcoverage-inventory-v2-api-badge.json)
 
+Flask REST API backend for the Inventorius inventory management system. Provides endpoints for SKU management, batch tracking, search, and the unified trigger schema system.
 
-# Inventorius API backend
-This is the backend component of Inventorius that interacts directly with the database. Both the frontend nodejs server and browser client (inventorius-frontend) make HTTP api queries to this service to retrieve inventory data and perform inventory operations.
+## Quick Start (Development)
 
-## Installation instructions for *inventorius-api* only
-*See [inventorius-frontend] for its installation instructions*
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-1. Download latest .deb packages.
-```sh
-$ wget ???/inventorius-api_0.3.3_all.deb
+# Set up virtual environment and install dependencies
+uv venv .venv
+uv pip install -r requirements.txt
+uv pip install -e .
+
+# Start MongoDB (macOS)
+brew services start mongodb-community
+
+# Run development server
+FLASK_DEBUG=1 uv run flask --app inventorius run --port 8000
 ```
 
-2. Install dependencies.
-```
-$ sudo apt install python3 python3-flask
-```
+The API will be available at http://localhost:8000
 
-3. Install deb package.
-```sh
-$ sudo dpkg -i inventorius-api_0.3.3_all.deb
-```
+## Project Structure
 
-## Directory Structure
-```sh
-$ tree -L 2
 ```
-```sh
-.
-├── config
-│   ├── inventorius-api.service
-│   ├── inventorius-api.socket
-│   ├── inventorius-api-uwsgi.ini
-│   ├── inventorius.conf
-│   └── policy.xml
-├── conftest.py
-├── coverage.svg
-├── DEBIAN
-│   ├── control
-│   └── rules
-├── deployment-ci
-│   ├── github_id_rsa.gpg
-│   ├── github_id_rsa.pub
-│   ├── known_hosts
-│   ├── secrets.ini
-│   └── secrets.ini.gpg
-├── inventorius-api_0.3.3_all.deb
-├── Makefile
-├── __pycache__
-│   ├── conftest.cpython-38-pytest-6.2.5.pyc
-│   └── conftest.cpython-38-PYTEST.pyc
-├── README.md
-├── requirements.txt
-├── setup.cfg
-├── setup.py
-├── src
-│   └── inventorius
-└── tests
-    ├── data_models_strategies.py
-    ├── __init__.py
-    ├── __pycache__
-    ├── test_data_models.py
-    ├── test_inventorius_hardcoded.py
-    └── test_inventorius.py
+src/inventorius/
+├── __init__.py          # Flask app factory
+├── routes.py            # Core REST endpoints (SKU, Batch, Bin)
+├── data_models.py       # MongoDB document models
+├── schema/              # Unified trigger schema system
+│   ├── trigger_engine.py    # Schema evaluation engine
+│   ├── routes.py            # /api/schema/* endpoints
+│   └── sample_schemas.py    # SKU and Batch schema definitions
+└── util.py              # ID generation, helpers
 
-8 directories, 27 files
+tests/
+├── test_inventorius.py  # Integration tests
+├── test_data_models.py  # Model tests
+└── test_schema.py       # Schema system tests
 ```
 
+## Key Endpoints
 
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/sku/<id>` | Get SKU by ID |
+| `POST /api/sku` | Create new SKU |
+| `GET /api/batch/<id>` | Get Batch by ID |
+| `POST /api/batch` | Create new Batch |
+| `GET /api/search?q=` | Full-text search |
+| `POST /api/schema/<name>/evaluate` | Evaluate schema for dynamic forms |
 
+## Schema System
 
-## Encryption/Decryption Reminder
-Decryption (CI)
-```sh
-gpg --quiet --batch --yes --decrypt --passphrase="$SECRET_PASSPHRASE" --output secrets.txt secrets.txt.gpg
-```
-Encryption (User)
-```sh
-gpg -c secrets.txt
-```
+The unified trigger schema system enables dynamic form generation. See the [documentation](https://github.com/computemachines/inventorius-docs) for details.
 
-## Status Codes Reminder
-200 - Ok
-201 - Created (success, show created resource)
-204 - No Content (success, don't change view)
-400 - Bad Request (Client's fault)
-401 - Unauthorized (Unauthenticated)
-403 - Forbidden (Authenticated, but no permissions)
-404 - Not Found
-405 - Method Not Allowed (resource exists but can't delete, change, etc...)
-409 - Conflict (With state of target resource)
-500 - Internal Server Error (Server crashed, unexpected error, etc...)
+```bash
+# List available schemas
+curl http://localhost:8000/api/schema/list
 
-## Development Dependencies
-sudo apt-get install libmagickwand-dev
-ImageMagick-7.1.0-17-Q16-HDRI-x64-dll.exe
-
-## Run dev server (Ubuntu 20.04)
-```sh
-$ cd src
-$ FLASK_ENV="development" FLASK_APP="inventorius" python3 -m flask run -p 8081
+# Evaluate SKU schema with Resistor selected
+curl -X POST http://localhost:8000/api/schema/sku/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"active_mixins": ["ItemTypeSelector"], "field_values": {"item_type": "Resistor"}}'
 ```
 
-## Run dev server, (windows powershell): 
-*may no longer work*
-```powershell
-$Env:FLASK_ENV = "development"
-$Env:FLASK_APP = "inventorius"
-python -m flask run -p 8081
+## Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run coverage run --source=inventorius -m pytest
+uv run coverage report
 ```
 
-## Run tests
-```sh
-pytest
-coverage run --source=inventorius -m pytest
+## Docker Deployment
+
+The API is deployed as a Docker container via GitHub Actions CI/CD:
+
+```bash
+docker pull ghcr.io/computemachines/inventorius-api:latest
 ```
+
+See [inventorius-deploy](https://github.com/computemachines/inventorius-deploy) for the full Docker Compose stack.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MONGO_HOST` | `localhost` | MongoDB hostname |
+| `MONGO_PORT` | `27017` | MongoDB port |
+| `FLASK_DEBUG` | `0` | Enable debug mode (auto-reload) |
+
+## HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | OK |
+| 201 | Created (resource returned) |
+| 204 | No Content (success, no body) |
+| 400 | Bad Request (client error) |
+| 404 | Not Found |
+| 409 | Conflict (duplicate ID, etc.) |
+| 500 | Internal Server Error |
