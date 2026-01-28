@@ -60,6 +60,17 @@ def invalid_params_response(error: MultipleInvalid, type="validation-error", sta
         status_code=status_code)
 
 
+def invalid_params_response_simple(name: str, reason: str, status_code=400):
+    """Simple validation error response without Voluptuous."""
+    return problem_response(
+        json={
+            "type": "validation-error",
+            "title": problem_titles["validation-error"],
+            "invalid-params": [{"name": name, "reason": reason}]
+        },
+        status_code=status_code)
+
+
 def duplicate_resource_response(key, reason="must not already exist", status_code=409):
     return problem_response(json={
         "type": "duplicate-resource",

@@ -14,8 +14,8 @@ import json
 class SchemaField:
     """A field definition within a mixin."""
     name: str
-    field_type: str  # "text", "number", "enum", "bool", "unit"
-    options: list[str] | None = None  # For enum type
+    field_type: str  # "text", "number", "enum", "bool", "unit", "file"
+    options: list[str] | None = None  # For enum type, or MIME types for file type
     unit: str | None = None  # For unit type (e.g., "Ω", "ppm/°C")
     required: bool = False
 
