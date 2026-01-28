@@ -18,3 +18,4 @@ package-root/
 !*.gpg
 *.code-workspace
 *.egg-info/
+.uploads/
