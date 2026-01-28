@@ -225,6 +225,7 @@ class SkuEndpoint(HypermediaEndpoint):
                 operations.sku_update(sku.id),
                 operations.sku_delete(sku.id),
                 operations.sku_bins(sku.id),
+                operations.sku_batches(sku.id),
             ]
         )
         return endpoint
