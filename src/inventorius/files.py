@@ -312,6 +312,38 @@ def file_get(id):
     return response
 
 
+@files.route('/api/files/<id>/meta', methods=['GET'])
+def file_meta_get(id):
+    """Get file metadata as JSON."""
+    # Validate ID format (UUID)
+    try:
+        uuid.UUID(id)
+    except ValueError:
+        return problem.missing_resource_response("file", id)
+
+    # Check if file exists in DB
+    metadata = db.files.find_one({"_id": id})
+    if not metadata:
+        return problem.missing_resource_response("file", id)
+
+    import json
+    response = Response()
+    response.status_code = 200
+    response.mimetype = "application/json"
+    response.data = json.dumps({
+        "id": metadata["_id"],
+        "original_filename": metadata.get("original_filename", "file"),
+        "content_type": metadata.get("content_type", "application/octet-stream"),
+        "size": metadata.get("size", 0),
+        "is_image": metadata.get("is_image", False),
+        "has_thumbnail": metadata.get("has_thumbnail", False),
+        "width": metadata.get("width"),
+        "height": metadata.get("height"),
+    })
+    response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+    return response
+
+
 @files.route('/api/files/<id>/thumb', methods=['GET'])
 def file_thumb_get(id):
     """Serve a thumbnail by file ID."""
