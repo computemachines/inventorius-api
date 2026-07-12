@@ -1,17 +1,24 @@
 
-FROM python:3.13-slim
+FROM python:3.13-slim AS dependencies
+
+WORKDIR /build
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt \
+    && pip install --no-cache-dir --prefix=/install gunicorn
+
+
+FROM python:3.13-slim AS runtime
 
 WORKDIR /app
 
-# system deps for Wand/ImageMagick if used at runtime
+# Wand needs the ImageMagick shared library at runtime, not its headers or
+# compilation toolchain.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagickwand-7.q16-10 libmagickwand-7.q16-dev \
+    libmagickwand-7.q16-10 \
   && rm -rf /var/lib/apt/lists/*
 
-# copy and install python deps
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt \
-    && pip install --no-cache-dir gunicorn
+COPY --from=dependencies /install /usr/local
 
 # copy source
 COPY src /app/src
