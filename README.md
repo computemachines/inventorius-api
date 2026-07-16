@@ -33,6 +33,7 @@ src/inventorius/
 ├── data_models.py       # MongoDB document models
 ├── schema/              # Unified trigger schema system
 │   ├── trigger_engine.py    # Schema evaluation engine
+│   ├── catalog.py           # Built-in schema installation policy
 │   ├── routes.py            # /api/schema/* endpoints
 │   └── sample_schemas.py    # SKU and Batch schema definitions
 └── util.py              # ID generation, helpers
@@ -61,6 +62,9 @@ The unified trigger schema system enables dynamic form generation. See the [docu
 ```bash
 # List available schemas
 curl http://localhost:8000/api/schema/list
+
+# Install missing SKU and Batch schemas without replacing edits
+uv run flask --app inventorius schema bootstrap
 
 # Evaluate SKU schema with Resistor selected
 curl -X POST http://localhost:8000/api/schema/sku/evaluate \

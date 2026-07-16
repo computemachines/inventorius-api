@@ -1,5 +1,6 @@
-"""API routes for schema management."""
+"""API routes and operator commands for schema management."""
 
+import click
 from flask import Blueprint, jsonify, request
 
 from ..db import db
@@ -8,6 +9,11 @@ from .trigger_engine import (
     TriggerEngine,
     schema_to_dict,
     schema_from_dict,
+)
+from .catalog import (
+    DEFAULT_SCHEMA_FACTORIES,
+    EXAMPLE_SCHEMA_FACTORIES,
+    install_schemas,
 )
 
 bp = Blueprint("schema", __name__, url_prefix="/api/schema")
@@ -355,35 +361,34 @@ def seed_schemas():
 
     Use force=true query param to overwrite existing schemas.
     """
-    from .sample_schemas import (
-        get_sku_schema,
-        get_batch_schema,
-        get_electronics_schema,
-        get_decimal_schema,
-    )
-
     force = request.args.get("force", "false").lower() == "true"
-
-    sample_schemas = {
-        "sku": get_sku_schema(),
-        "batch": get_batch_schema(),
-        "electronics": get_electronics_schema(),
-        "decimal": get_decimal_schema(),
-    }
-
-    seeded = []
-    skipped = []
-
-    for name, schema in sample_schemas.items():
-        existing = _get_schema(name)
-        if existing and not force:
-            skipped.append(name)
-        else:
-            _save_schema(name, schema)
-            seeded.append(name)
+    factories = {**DEFAULT_SCHEMA_FACTORIES, **EXAMPLE_SCHEMA_FACTORIES}
+    result = install_schemas(db.schema, factories, force=force)
 
     return jsonify({
         "message": "Seeding complete",
-        "seeded": seeded,
-        "skipped": skipped,
+        "seeded": result.installed,
+        "skipped": result.skipped,
     }), 200
+
+
+@bp.cli.command("bootstrap")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Replace existing SKU and Batch schemas with the built-in versions.",
+)
+@click.option(
+    "--include-examples",
+    is_flag=True,
+    help="Also install the electronics and decimal demonstration schemas.",
+)
+def bootstrap_schemas(force: bool, include_examples: bool) -> None:
+    """Install the schemas required by the SKU and Batch forms."""
+    factories = dict(DEFAULT_SCHEMA_FACTORIES)
+    if include_examples:
+        factories.update(EXAMPLE_SCHEMA_FACTORIES)
+
+    result = install_schemas(db.schema, factories, force=force)
+    click.echo(f"Installed: {', '.join(result.installed) or 'none'}")
+    click.echo(f"Preserved: {', '.join(result.skipped) or 'none'}")

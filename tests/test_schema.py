@@ -80,6 +80,15 @@ class TestTriggerCondition:
         assert t.evaluate({"x": 10}) is False
         assert t.evaluate({"x": 15}) is False
 
+    def test_numeric_comparison_accepts_browser_string_values(self):
+        t = TriggerCondition("wire_gauge", "lt", 20)
+        assert t.evaluate({"wire_gauge": "14"}) is True
+        assert t.evaluate({"wire_gauge": "22"}) is False
+
+    def test_invalid_ordered_value_does_not_crash_evaluation(self):
+        t = TriggerCondition("wire_gauge", "lt", 20)
+        assert t.evaluate({"wire_gauge": "not a number"}) is False
+
     def test_gte(self):
         t = TriggerCondition("x", "gte", 0)
         assert t.evaluate({"x": 0}) is True

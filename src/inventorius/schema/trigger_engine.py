@@ -6,6 +6,7 @@ Mixins are scoped - a child mixin can only trigger if its parent is active.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Any
 import json
 
@@ -26,6 +27,33 @@ class TriggerCondition:
     field_name: str
     operator: str  # "in", "eq", "lt", "gt", "lte", "gte", "neq", "set", "and"
     value: Any  # Single value, list for "in", or list of TriggerConditions for "and"
+
+    @staticmethod
+    def _ordered_values(actual: Any, expected: Any) -> tuple[Any, Any]:
+        """Use numeric ordering when both values look numeric.
+
+        Browser number inputs arrive in JSON as strings.  Converting both sides
+        to Decimal keeps numeric triggers useful without imposing floating-point
+        rounding.  Non-numeric values retain their native ordering semantics.
+        """
+        try:
+            return Decimal(str(actual)), Decimal(str(expected))
+        except (InvalidOperation, TypeError, ValueError):
+            return actual, expected
+
+    @classmethod
+    def _ordered_compare(cls, actual: Any, expected: Any, operator: str) -> bool:
+        actual, expected = cls._ordered_values(actual, expected)
+        try:
+            if operator == "lt":
+                return actual < expected
+            if operator == "gt":
+                return actual > expected
+            if operator == "lte":
+                return actual <= expected
+            return actual >= expected
+        except (InvalidOperation, TypeError, ValueError):
+            return False
 
     def evaluate(self, field_values: dict) -> bool:
         """Check if this condition is met by the given field values."""
@@ -53,14 +81,8 @@ class TriggerCondition:
             return actual != self.value
         elif self.operator == "in":
             return actual in self.value
-        elif self.operator == "lt":
-            return actual < self.value
-        elif self.operator == "gt":
-            return actual > self.value
-        elif self.operator == "lte":
-            return actual <= self.value
-        elif self.operator == "gte":
-            return actual >= self.value
+        elif self.operator in {"lt", "gt", "lte", "gte"}:
+            return self._ordered_compare(actual, self.value, self.operator)
         else:
             raise ValueError(f"Unknown operator: {self.operator}")
 
