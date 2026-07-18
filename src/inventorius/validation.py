@@ -109,6 +109,15 @@ def positive(i: int):
     return i
 
 
+def trimmed_non_empty_string(value: str):
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+    value = value.strip()
+    if not value:
+        raise Invalid("must not be blank")
+    return value
+
+
 def str_dec(s):
     if type(s) is not str:
         raise Invalid("must be a string")
@@ -247,5 +256,14 @@ item_release_receive_schema = Schema(
     {
         Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
         Required("quantity"): int,  # can be positive or negative
+    }
+)
+
+
+quick_capture_schema = Schema(
+    {
+        Required("description"): All(trimmed_non_empty_string, Length(max=500)),
+        Required("bin_id"): prefixed_id("BIN"),
+        Required("quantity", default=1): All(int, positive),
     }
 )

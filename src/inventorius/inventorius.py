@@ -208,12 +208,24 @@ def bin_contents_post(bin_id):
 
 @inventorius.route('/api/search', methods=['GET'])
 def search():
-    query = request.args['query']
-    limit = getIntArgs(request.args, "limit", 20)
-    startingFrom = getIntArgs(request.args, "startingFrom", 0)
+    query = request.args.get('query', '').strip()
+    limit = max(1, min(getIntArgs(request.args, "limit", 20), 100))
+    startingFrom = max(0, getIntArgs(request.args, "startingFrom", 0))
     resp = Response()
 
     results = []
+
+    if not query:
+        resp.status_code = 200
+        resp.mimetype = "application/json"
+        resp.data = json.dumps({'state': {
+            "total_num_results": 0,
+            "starting_from": startingFrom,
+            "limit": limit,
+            "returned_num_results": 0,
+            "results": []
+        }, "operations": []})
+        return resp
 
     # debug flags
     if query == '!ALL':
@@ -266,6 +278,13 @@ def search():
         cursor = db.batch.find({"$text": {"$search": query}})
         for batch_doc in cursor:
             results.append(Batch.from_mongodb_doc(batch_doc))
+
+    # Exact IDs and codes can overlap, so keep one row per resource.
+    unique_results = {}
+    for result in results:
+        if result is not None:
+            unique_results[(type(result).__name__, result.id)] = result
+    results = list(unique_results.values())
 
     if results != []:
         paged = results[startingFrom:(startingFrom + limit)]
