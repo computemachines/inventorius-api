@@ -263,11 +263,8 @@ item_release_receive_schema = Schema(
 quick_capture_schema = Schema(
     {
         Required("description"): All(trimmed_non_empty_string, Length(max=500)),
-        "code": All(
-            trimmed_non_empty_string,
-            non_whitespace,
-            Length(max=200),
-        ),
+        "owned_codes": code_list_schema,
+        "associated_codes": code_list_schema,
         Required("bin_id"): prefixed_id("BIN"),
         Required("quantity", default=1): All(int, positive),
     }
