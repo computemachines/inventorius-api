@@ -35,6 +35,7 @@ def test_capture_creates_searchable_sku_in_existing_bin(client, clean_inventory_
         "bin_id": "BIN000001",
         "quantity": 25,
         "description": "10k resistors, probably 0603",
+        "code": None,
         "provisional": True,
     }
 
@@ -49,6 +50,31 @@ def test_capture_creates_searchable_sku_in_existing_bin(client, clean_inventory_
     search = client.get("/api/search", query_string={"query": "resistors"})
     assert search.status_code == 200
     assert search.json["state"]["total_num_results"] == 1
+    assert search.json["state"]["results"][0]["id"] == "SKU000001"
+
+
+def test_capture_associates_an_optional_searchable_code(client, clean_inventory_database):
+    clean_inventory_database.bin.insert_one({
+        "_id": "BIN000001",
+        "contents": {},
+        "props": {},
+    })
+
+    response = client.post("/api/intake", json={
+        "description": "Oscilloscope probe accessory",
+        "code": "0123456789012",
+        "bin_id": "BIN000001",
+        "quantity": 1,
+    })
+
+    assert response.status_code == 201
+    assert response.json["state"]["code"] == "0123456789012"
+
+    sku = clean_inventory_database.sku.find_one({"_id": "SKU000001"})
+    assert sku["owned_codes"] == ["0123456789012"]
+
+    search = client.get("/api/search", query_string={"query": "0123456789012"})
+    assert search.status_code == 200
     assert search.json["state"]["results"][0]["id"] == "SKU000001"
 
 

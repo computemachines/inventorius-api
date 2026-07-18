@@ -46,6 +46,7 @@ def quick_capture():
     sku = Sku(
         id=sku_id,
         name=capture["description"],
+        owned_codes=[capture["code"]] if "code" in capture else [],
         props={
             "_capture_status": "provisional",
             "_captured_at": datetime.now(timezone.utc).isoformat(),
@@ -79,6 +80,7 @@ def quick_capture():
             "bin_id": bin_id,
             "quantity": capture["quantity"],
             "description": capture["description"],
+            "code": capture.get("code"),
             "provisional": True,
         },
     }), 201
