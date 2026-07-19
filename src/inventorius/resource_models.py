@@ -240,6 +240,36 @@ class SkuEndpoint(HypermediaEndpoint):
         return self.status_response("sku deleted")
 
 
+class ProcessDefinitionEndpoint(HypermediaEndpoint):
+    @classmethod
+    def from_state(cls, state, mutable=True):
+        process_id = state["id"]
+        resource_operations = [operations.process_definition_revisions(process_id)]
+        if mutable:
+            resource_operations = [
+                operations.process_definition_update(process_id),
+                operations.process_definition_delete(process_id),
+                *resource_operations,
+            ]
+        return cls(
+            resource_uri=url_for(
+                "process_definition.process_definition_get",
+                id=process_id,
+            ),
+            state=state,
+            operations=resource_operations,
+        )
+
+    def created_success_response(self):
+        return self.status_response("process definition created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("process definition updated")
+
+    def deleted_success_response(self):
+        return self.status_response("process definition deleted")
+
+
 class StatusEndpoint(HypermediaEndpoint):
     def __init__(self, version, is_up=True, db_connected=None, build_id=None):
         state = {

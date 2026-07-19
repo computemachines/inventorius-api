@@ -116,6 +116,25 @@ def sku_delete(id):
         })
         return resp
 
+    referenced_by_processes = db.process_definition.count_documents({
+        "$or": [
+            {"revisions.inputs.sku_id": id},
+            {"revisions.outputs.sku_id": id},
+        ]
+    })
+    if referenced_by_processes > 0:
+        resp.status_code = 403
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "resource-in-use",
+            "title": "Can not delete a SKU referenced by a process definition.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "remove the SKU from every process definition first",
+            }],
+        })
+        return resp
+
     db.sku.delete_one({"_id": existing.id})
     resp.status_code = 204
     return resp

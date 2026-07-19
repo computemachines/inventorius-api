@@ -93,6 +93,8 @@ def admin_get_next(prefix):
             used = collect_existing_ids(db.batch, "BAT")
         elif prefix == "BIN":
             used = collect_existing_ids(db.bin, "BIN")
+        elif prefix == "PRC":
+            used = collect_existing_ids(db.process_definition, "PRC")
         else:
             raise Exception("bad prefix", prefix)
 
@@ -112,6 +114,8 @@ def admin_get_next(prefix):
             used = collect_existing_ids(db.batch, "BAT")
         elif prefix == "BIN":
             used = collect_existing_ids(db.bin, "BIN")
+        elif prefix == "PRC":
+            used = collect_existing_ids(db.process_definition, "PRC")
         else:
             raise Exception("bad prefix", prefix)
 

@@ -85,6 +85,18 @@ def test_capture_associates_optional_searchable_codes(client, clean_inventory_da
         assert search.status_code == 200
         assert search.json["state"]["results"][0]["id"] == "SKU000001"
 
+    usage = client.get("/api/codes/0123456789012/usage")
+    assert usage.status_code == 200
+    assert usage.json == {
+        "code": "0123456789012",
+        "usedBy": [{
+            "id": "SKU000001",
+            "name": "Oscilloscope probe accessory",
+            "relationship": "owned",
+            "type": "sku",
+        }],
+    }
+
 
 def test_capture_rejects_missing_bin_without_creating_sku(client, clean_inventory_database):
     response = client.post("/api/intake", json={
@@ -126,3 +138,49 @@ def test_blank_search_is_an_empty_result_set(client):
     assert response.status_code == 200
     assert response.json["state"]["results"] == []
     assert response.json["state"]["total_num_results"] == 0
+
+
+def test_search_matches_fragments_and_human_label_shorthand(
+    client, clean_inventory_database
+):
+    clean_inventory_database.bin.insert_one({
+        "_id": "BIN000145",
+        "contents": {},
+        "props": {},
+    })
+    clean_inventory_database.sku.insert_one({
+        "_id": "SKU000145",
+        "name": "Handheld IR thermometer",
+        "owned_codes": ["026000005623"],
+        "associated_codes": [],
+        "props": {},
+    })
+
+    barcode_response = client.get(
+        "/api/search", query_string={"query": "026000005623"}
+    )
+    assert barcode_response.status_code == 200
+    assert [
+        result["id"] for result in barcode_response.json["state"]["results"]
+    ] == ["SKU000145"]
+
+    fragment_response = client.get(
+        "/api/search", query_string={"query": "hand"}
+    )
+    assert fragment_response.status_code == 200
+    assert [
+        result["id"] for result in fragment_response.json["state"]["results"]
+    ] == ["SKU000145"]
+
+    shorthand_response = client.get(
+        "/api/search", query_string={"query": "bin145"}
+    )
+    assert shorthand_response.status_code == 200
+    assert shorthand_response.json["state"]["results"][0]["id"] == "BIN000145"
+
+    numeric_response = client.get(
+        "/api/search", query_string={"query": "145"}
+    )
+    assert {
+        result["id"] for result in numeric_response.json["state"]["results"]
+    } == {"BIN000145", "SKU000145"}

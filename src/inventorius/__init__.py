@@ -24,6 +24,7 @@ from inventorius.intake import intake
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.user import user
 from inventorius.schema.routes import bp as schema_bp
+from inventorius.process_definition import process_definition
 from inventorius.util import login_manager, no_cache, principals
 from inventorius.resource_models import StatusEndpoint
 
@@ -65,6 +66,7 @@ app.register_blueprint(files)
 app.register_blueprint(intake)
 app.register_blueprint(user)
 app.register_blueprint(schema_bp)
+app.register_blueprint(process_definition)
 
 if app.debug:
     print("!!! ENVIROMENT SETTING SECRET KEY FOR SESSIONS !!!")

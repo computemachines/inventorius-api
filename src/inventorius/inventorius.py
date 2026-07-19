@@ -9,8 +9,29 @@ import inventorius.util_success_responses as success
 from inventorius.util import no_cache
 
 import json
+import re
 
 inventorius = Blueprint("inventorius", __name__)
+
+
+@inventorius.route('/api/codes/<path:code>/usage', methods=['GET'])
+@no_cache
+def code_usage_get(code):
+    used_by = []
+    for collection, resource_type in ((db.sku, "sku"), (db.batch, "batch")):
+        for relationship, field in (
+            ("owned", "owned_codes"),
+            ("associated", "associated_codes"),
+        ):
+            for document in collection.find({field: code}):
+                used_by.append({
+                    "type": resource_type,
+                    "id": document["_id"],
+                    "name": document.get("name"),
+                    "relationship": relationship,
+                })
+
+    return {"code": code, "usedBy": used_by}
 
 
 # @inventorius.route('/api/move', methods=['POST'])
@@ -209,6 +230,7 @@ def bin_contents_post(bin_id):
 @inventorius.route('/api/search', methods=['GET'])
 def search():
     query = request.args.get('query', '').strip()
+    upper_query = query.upper()
     limit = max(1, min(getIntArgs(request.args, "limit", 20), 100))
     startingFrom = max(0, getIntArgs(request.args, "startingFrom", 0))
     resp = Response()
@@ -228,26 +250,41 @@ def search():
         return resp
 
     # debug flags
-    if query == '!ALL':
+    if upper_query == '!ALL':
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
-    if query == '!BINS':
+    if upper_query == '!BINS':
         results.extend([Bin.from_mongodb_doc(e) for e in db.bin.find()])
-    if query == '!SKUS':
+    if upper_query == '!SKUS':
         results.extend([Sku.from_mongodb_doc(e) for e in db.sku.find()])
-    if query == '!BATCHES':
+    if upper_query == '!BATCHES':
         results.extend([Batch.from_mongodb_doc(e) for e in db.batch.find()])
 
-    # search by label
-    if query.startswith('SKU'):
-        results.append(Sku.from_mongodb_doc(db.sku.find_one({'_id': query})))
-    if query.startswith('BIN'):
-        results.append(Bin.from_mongodb_doc(db.bin.find_one({'_id': query})))
-    if query.startswith('BAT'):
-        results.append(Batch.from_mongodb_doc(
-            db.batch.find_one({'_id': query})))
+    # Human shorthand such as BIN145 resolves to the canonical stored label.
+    label_match = re.fullmatch(r"(SKU|BIN|BAT)([0-9]{1,6})", upper_query)
+    if label_match:
+        prefix, number = label_match.groups()
+        canonical_id = f"{prefix}{number.zfill(6)}"
+        collection, model = {
+            "SKU": (db.sku, Sku),
+            "BIN": (db.bin, Bin),
+            "BAT": (db.batch, Batch),
+        }[prefix]
+        results.append(model.from_mongodb_doc(
+            collection.find_one({'_id': canonical_id})))
     results = [result for result in results if result != None]
+
+    # Identifier fragments rank before descriptive fragments. A bare numeric
+    # query such as 145 can therefore find BIN000145 as well as SKU/BAT labels
+    # and other records containing 145.
+    fragment = re.compile(re.escape(query), re.IGNORECASE)
+    for document in db.bin.find({"_id": fragment}):
+        results.append(Bin.from_mongodb_doc(document))
+    for document in db.sku.find({"_id": fragment}):
+        results.append(Sku.from_mongodb_doc(document))
+    for document in db.batch.find({"_id": fragment}):
+        results.append(Batch.from_mongodb_doc(document))
 
     # search for skus with owned_codes
     cursor = db.sku.find({"owned_codes": query})
@@ -278,6 +315,24 @@ def search():
         cursor = db.batch.find({"$text": {"$search": query}})
         for batch_doc in cursor:
             results.append(Batch.from_mongodb_doc(batch_doc))
+
+    # Mongo text indexes match complete terms. Add a safe escaped fragment
+    # pass for the small personal inventory corpus so `hand` finds `handheld`.
+    sku_fragment_fields = [
+        {"name": fragment},
+        {"owned_codes": fragment},
+        {"associated_codes": fragment},
+    ]
+    for sku_doc in db.sku.find({"$or": sku_fragment_fields}):
+        results.append(Sku.from_mongodb_doc(sku_doc))
+
+    batch_fragment_fields = [
+        {"name": fragment},
+        {"owned_codes": fragment},
+        {"associated_codes": fragment},
+    ]
+    for batch_doc in db.batch.find({"$or": batch_fragment_fields}):
+        results.append(Batch.from_mongodb_doc(batch_doc))
 
     # Exact IDs and codes can overlap, so keep one row per resource.
     unique_results = {}

@@ -10,6 +10,24 @@ from voluptuous import ALLOW_EXTRA, All, Length, Range, Required, Schema
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
 
+CANONICAL_ID_SUFFIX_WIDTH = 6
+
+
+def normalize_prefixed_id(value, prefix):
+    """Return the fixed-width form used for storage, URLs, and QR payloads."""
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+
+    value = value.strip().upper()
+    match = re.fullmatch(f"{prefix}([0-9]{{1,{CANONICAL_ID_SUFFIX_WIDTH}}})", value)
+    if not match:
+        raise Invalid(
+            f"must start with '{prefix}' followed by at most "
+            f"{CANONICAL_ID_SUFFIX_WIDTH} digits"
+        )
+
+    return f"{prefix}{match.group(1).zfill(CANONICAL_ID_SUFFIX_WIDTH)}"
+
 
 def validate_url_id(prefix, param_name="id"):
     """
@@ -29,11 +47,13 @@ def validate_url_id(prefix, param_name="id"):
         def decorated_function(*args, **kwargs):
             id_value = kwargs.get(param_name)
             if id_value is not None:
-                if not re.match(f"^{prefix}[0-9]+$", id_value):
+                try:
+                    kwargs[param_name] = normalize_prefixed_id(id_value, prefix)
+                except Invalid as validation_error:
                     # Import here to avoid circular dependency
                     import inventorius.util_error_responses as problem
                     error = Invalid(
-                        f"must start with '{prefix}' followed by digits only",
+                        validation_error.msg,
                         [param_name]
                     )
                     return problem.invalid_params_response(MultipleInvalid([error]))
@@ -66,9 +86,7 @@ def NoneOr(Else):
 
 def prefixed_id(prefix="", matching=None):
     def numeric_with_prefix(id):
-        if not re.match(f"^{prefix}[0-9]+$", id):
-            raise Invalid(f"must start with '{prefix}' followed by digits")
-        return id
+        return normalize_prefixed_id(id, prefix)
 
     # def must_have_prefix(id):
     #     if not id.startswith(prefix):
@@ -115,6 +133,20 @@ def trimmed_non_empty_string(value: str):
     value = value.strip()
     if not value:
         raise Invalid("must not be blank")
+    return value
+
+
+def trimmed_string(value: str):
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+    return value.strip()
+
+
+def positive_number(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise Invalid("must be a number")
+    if value <= 0:
+        raise Invalid("must be greater than 0")
     return value
 
 
@@ -267,5 +299,58 @@ quick_capture_schema = Schema(
         "associated_codes": code_list_schema,
         Required("bin_id"): prefixed_id("BIN"),
         Required("quantity", default=1): All(int, positive),
+    }
+)
+
+
+PROCESS_DEFINITION_KINDS = (
+    "repackaging",
+    "assembly",
+    "disassembly",
+    "transformation",
+    "blending",
+)
+
+process_requirement_schema = Schema(
+    {
+        Required("role"): All(trimmed_non_empty_string, Length(max=120)),
+        "sku_id": NoneOr(prefixed_id("SKU")),
+        "quantity": NoneOr(positive_number),
+        Required("unit", default="each"): All(
+            trimmed_non_empty_string,
+            Length(max=40),
+        ),
+    }
+)
+
+process_requirements_schema = All(
+    [process_requirement_schema],
+    Length(min=1, max=50),
+)
+
+process_instructions_schema = All(
+    [All(trimmed_non_empty_string, Length(max=500))],
+    Length(max=100),
+)
+
+process_definition_create_schema = Schema(
+    {
+        Required("name"): All(trimmed_non_empty_string, Length(max=200)),
+        Required("kind"): Any(*PROCESS_DEFINITION_KINDS),
+        Required("inputs"): process_requirements_schema,
+        Required("outputs"): process_requirements_schema,
+        "description": All(trimmed_string, Length(max=2000)),
+        "instructions": process_instructions_schema,
+    }
+)
+
+process_definition_patch_schema = Schema(
+    {
+        "name": All(trimmed_non_empty_string, Length(max=200)),
+        "kind": Any(*PROCESS_DEFINITION_KINDS),
+        "inputs": process_requirements_schema,
+        "outputs": process_requirements_schema,
+        "description": All(trimmed_string, Length(max=2000)),
+        "instructions": process_instructions_schema,
     }
 )
