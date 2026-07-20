@@ -2,7 +2,7 @@ import os
 
 from flask import g
 from gridfs import GridFS
-from pymongo import TEXT, MongoClient
+from pymongo import ASCENDING, TEXT, MongoClient
 from werkzeug.local import LocalProxy
 
 # memoize mongo_client
@@ -22,6 +22,27 @@ def get_mongo_client():
         _mongo_client.inventoriusdb.sku.create_index([("name", TEXT)])
         _mongo_client.inventoriusdb.batch.create_index([("name", TEXT)])
         _mongo_client.inventoriusdb.user.create_index([("name", TEXT)])
+        # Source-aware inventory resolution has a different access path from
+        # the batch-first holding identity index used by ledger projection.
+        _mongo_client.inventoriusdb.inventory_holdings.create_index(
+            [
+                ("location_id", ASCENDING),
+                ("unit", ASCENDING),
+                ("packaging_configuration_id", ASCENDING),
+                ("batch_id", ASCENDING),
+            ],
+            name="inventory_candidates_by_source",
+        )
+        _mongo_client.inventoriusdb.batch.create_index(
+            [("sku_id", ASCENDING)], name="batch_by_sku"
+        )
+        for collection_name in ("sku", "batch"):
+            collection = _mongo_client.inventoriusdb[collection_name]
+            for relationship in ("owned", "associated"):
+                collection.create_index(
+                    [(f"{relationship}_codes", ASCENDING)],
+                    name=f"{collection_name}_{relationship}_codes",
+                )
 
     return _mongo_client
 
