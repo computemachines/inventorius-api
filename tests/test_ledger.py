@@ -118,49 +118,32 @@ def test_retry_is_idempotent_but_reusing_key_for_new_command_is_not():
         ledger.post(conflicting)
 
 
-def test_correction_is_explicit_and_references_committed_history():
-    ledger = InventoryLedger()
-    receive = operation(
-        "OP-duplicate-receive",
-        OperationKind.RECEIVE,
-        (HoldingLeg(BIN_A, 1),),
-    )
-    ledger.post(receive)
+def test_only_validated_operation_kinds_are_exposed_at_this_stage():
+    assert {kind.value for kind in OperationKind} == {
+        "receive", "release", "transfer", "repackage", "transformation",
+        "assembly", "correction",
+    }
 
-    correction = operation(
-        "OP-correct-duplicate",
-        OperationKind.CORRECTION,
-        (HoldingLeg(BIN_A, -1),),
-        corrects_operation_id=receive.operation_id,
-    )
-    ledger.post(correction)
-    assert ledger.balance(BIN_A) == Decimal(0)
+    with pytest.raises(ValueError, match="unsupported inventory operation kind"):
+        InventoryOperation(
+            operation_id="OP-correction",
+            idempotency_key="correction-1",
+            kind=OperationKind.CORRECTION,
+            legs=(HoldingLeg(BIN_A, -1),),
+            corrects_operation_id="OP-original",
+        )
 
 
-def test_packaging_states_are_distinct_holdings():
-    sealed = HoldingKey(
-        "BAT000001",
-        "BIN000001",
-        "case",
-        "PACK-10x12",
-    )
-    loose = HoldingKey(
-        "BAT000001",
-        "BIN000001",
-        "item",
-        "PACK-10x12",
-    )
+def test_packaging_states_are_distinct_holdings_with_supported_receives():
+    sealed = HoldingKey("BAT000001", "BIN000001", "case", "PACK-10x12")
+    loose = HoldingKey("BAT000001", "BIN000001", "each", "PACK-10x12")
     ledger = InventoryLedger()
     ledger.post(operation(
-        "OP-receive-case",
-        OperationKind.RECEIVE,
-        (HoldingLeg(sealed, 1),),
+        "OP-receive-case", OperationKind.RECEIVE, (HoldingLeg(sealed, 1),),
     ))
     ledger.post(operation(
-        "OP-open-case",
-        OperationKind.REPACKAGE,
-        (HoldingLeg(sealed, -1), HoldingLeg(loose, 120)),
+        "OP-receive-loose", OperationKind.RECEIVE, (HoldingLeg(loose, 120),),
     ))
 
-    assert ledger.balance(sealed) == Decimal(0)
+    assert ledger.balance(sealed) == Decimal(1)
     assert ledger.balance(loose) == Decimal(120)

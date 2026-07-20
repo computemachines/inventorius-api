@@ -4,6 +4,7 @@ from flask_login import current_user
 from flask_login.utils import encode_cookie
 
 from inventorius.db import db
+from inventorius.holding_queries import locations_for_batch
 from inventorius.data_models import DataModel, DataModelJSONEncoder, UserData, Batch, Bin
 import inventorius.resource_operations as operations
 
@@ -177,13 +178,7 @@ class BatchBinsEndpoint(HypermediaEndpoint):
         if not retrieve:
             raise NotImplementedError()
 
-        contained_by_bins = [
-            Bin.from_mongodb_doc(bson)
-            for bson in db.bin.find({
-                f"contents.{batch_id}": {"$exists": True}
-            })]
-        locations = {bin.id: {batch_id: bin.contents[batch_id]}
-                     for bin in contained_by_bins}
+        locations = locations_for_batch(batch_id)
 
         endpoint = BatchBinsEndpoint(
             resource_uri=url_for("batch.batch_bins_get", id=batch_id),

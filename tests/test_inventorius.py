@@ -303,6 +303,9 @@ class InventoriusStateMachine(RuleBasedStateMachine):
     @rule(sku_id=consumes(a_sku_id))
     def delete_unused_sku(self, sku_id):
         assume(not any([sku_id in bin.contents.keys() for bin in self.model_bins.values()]))
+        assume(not any([
+            batch.sku_id == sku_id for batch in self.model_batches.values()
+        ]))
         rp = self.client.delete(f"/api/sku/{sku_id}")
         assert rp.status_code == 204
         assert rp.cache_control.no_cache

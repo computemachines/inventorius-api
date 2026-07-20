@@ -120,9 +120,26 @@ def batch_delete(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
     if not existing:
         return problem.missing_batch_response(id)
-    else:
-        db.batch.delete_one({"_id": id})
-        return BatchEndpoint.from_batch(existing).deleted_success_response()
+
+    reference_checks = (
+        (db.bin.count_documents({f"contents.{id}": {"$exists": True}}), "legacy bin contents"),
+        (db.inventory_holdings.count_documents({"batch_id": id}), "inventory holdings"),
+        (db.inventory_operations.count_documents({"legs.batch_id": id}), "inventory operations"),
+        (db.inventory_code_observations.count_documents({"batch_id": id}), "code observations"),
+    )
+    for count, reference_name in reference_checks:
+        if count > 0:
+            return problem.problem_response(status_code=403, json={
+                "type": "resource-in-use",
+                "title": "Can not delete a batch referenced by inventory history.",
+                "invalid-params": [{
+                    "name": "id",
+                    "reason": f"batch is referenced by {reference_name}",
+                }],
+            })
+
+    db.batch.delete_one({"_id": id})
+    return BatchEndpoint.from_batch(existing).deleted_success_response()
 
 
 @batch.route("/api/batch/<id>/bins", methods=["GET"])

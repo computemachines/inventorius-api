@@ -3,6 +3,7 @@ from flask import Blueprint, request, Response, url_for
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.holding_queries import identity_has_ledger_history
 from inventorius.validation import item_move_schema, item_release_receive_schema, validate_url_id
 import inventorius.util_error_responses as problem
 import inventorius.util_success_responses as success
@@ -30,6 +31,19 @@ def code_usage_get(code):
                     "name": document.get("name"),
                     "relationship": relationship,
                 })
+
+    # This is deliberately a separate relationship from the legacy code
+    # arrays: an observed external code is evidence about a batch, not a claim
+    # that it is owned by or associated with that batch.
+    for observation in db.inventory_code_observations.find({"code": code}):
+        batch_document = db.batch.find_one({"_id": observation["batch_id"]})
+        if batch_document is not None:
+            used_by.append({
+                "type": "batch",
+                "id": batch_document["_id"],
+                "name": batch_document.get("name"),
+                "relationship": "observed",
+            })
 
     return {"code": code, "usedBy": used_by}
 
@@ -100,6 +114,11 @@ def move_bin_contents_put(id):
     elif item_id.startswith("BAT"):
         if not db.batch.find_one({"_id": item_id}):
             return problem.missing_batch_response(item_id)
+
+    if identity_has_ledger_history(item_id):
+        return problem.ledger_history_conflict_response(
+            "id", "use the ledger operation flow for an identity with inventory history"
+        )
 
     availible_quantity = Bin.from_mongodb_doc(
         db.bin.find_one({"_id": id})).contents.get(item_id, 0)
@@ -213,6 +232,11 @@ def bin_contents_post(bin_id):
         if not db.batch.find_one({"_id": item_id}):
             return problem.missing_batch_response(item_id)
 
+    if identity_has_ledger_history(item_id):
+        return problem.ledger_history_conflict_response(
+            "id", "use the ledger operation flow for an identity with inventory history"
+        )
+
     old_quantity = db.bin.find_one(
         {"_id": bin_id}, {f"contents.{item_id}": 1})["contents"].get(item_id, 0)
     if quantity + old_quantity < 0:
@@ -247,6 +271,46 @@ def search():
             "returned_num_results": 0,
             "results": []
         }, "operations": []})
+        return resp
+
+    # An exact external code is stronger evidence than a coincidental text or
+    # identifier match.  A scanner should return only the resources that
+    # explicitly carry the code, even where the code is shared.
+    exact_code_results = []
+    exact_resource_ids = set()
+
+    def add_exact_code_result(model, document):
+        if document is None:
+            return
+        resource_key = (model.__name__, document["_id"])
+        if resource_key not in exact_resource_ids:
+            exact_resource_ids.add(resource_key)
+            exact_code_results.append(model.from_mongodb_doc(document))
+
+    for sku_document in db.sku.find({"$or": [
+        {"owned_codes": query}, {"associated_codes": query},
+    ]}):
+        add_exact_code_result(Sku, sku_document)
+    for batch_document in db.batch.find({"$or": [
+        {"owned_codes": query}, {"associated_codes": query},
+    ]}):
+        add_exact_code_result(Batch, batch_document)
+    for observation in db.inventory_code_observations.find({"code": query}):
+        add_exact_code_result(
+            Batch, db.batch.find_one({"_id": observation["batch_id"]})
+        )
+
+    if exact_code_results:
+        paged = exact_code_results[startingFrom:(startingFrom + limit)]
+        resp.status_code = 200
+        resp.mimetype = "application/json"
+        resp.data = json.dumps({'state': {
+            "total_num_results": len(exact_code_results),
+            "starting_from": startingFrom,
+            "limit": limit,
+            "returned_num_results": len(paged),
+            "results": paged
+        }, "operations": []}, cls=Encoder)
         return resp
 
     # debug flags
@@ -286,26 +350,6 @@ def search():
     for document in db.batch.find({"_id": fragment}):
         results.append(Batch.from_mongodb_doc(document))
 
-    # search for skus with owned_codes
-    cursor = db.sku.find({"owned_codes": query})
-    for sku_doc in cursor:
-        results.append(Sku.from_mongodb_doc(sku_doc))
-
-    # search for skus with associated codes
-    cursor = db.sku.find({"associated_codes": query})
-    for sku_doc in cursor:
-        results.append(Sku.from_mongodb_doc(sku_doc))
-
-    # search for skus with owned_codes
-    cursor = db.batch.find({"owned_codes": query})
-    for batch_doc in cursor:
-        results.append(Batch.from_mongodb_doc(batch_doc))
-
-    # search for batchs with associated codes
-    cursor = db.batch.find({"associated_codes": query})
-    for batch_doc in cursor:
-        results.append(Batch.from_mongodb_doc(batch_doc))
-
     # if not DEV_ENV: # maybe use global flag + env variable instead. Shouldn't need to check this every time in production/
     if "name_text" in db.sku.index_information().keys():
         cursor = db.sku.find({"$text": {"$search": query}})
@@ -333,6 +377,11 @@ def search():
     ]
     for batch_doc in db.batch.find({"$or": batch_fragment_fields}):
         results.append(Batch.from_mongodb_doc(batch_doc))
+
+    for observation in db.inventory_code_observations.find({"code": fragment}):
+        results.append(Batch.from_mongodb_doc(
+            db.batch.find_one({"_id": observation["batch_id"]})
+        ))
 
     # Exact IDs and codes can overlap, so keep one row per resource.
     unique_results = {}

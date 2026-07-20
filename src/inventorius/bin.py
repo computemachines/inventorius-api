@@ -2,6 +2,12 @@ from flask import Blueprint, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Bin, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.holding_queries import contents_for_bin
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedBin,
+    MissingBin,
+)
 from inventorius.resource_models import BinEndpoint
 from inventorius.util import get_body_type, admin_increment_code, no_cache
 import inventorius.util_error_responses as problem
@@ -38,6 +44,7 @@ def bin_get(id):
     if existing is None:
         return problem.missing_bin_response(id)
     else:
+        existing.contents = contents_for_bin({"_id": existing.id, "contents": existing.contents})
         return BinEndpoint.from_bin(existing).get_response()
 
 
@@ -65,12 +72,16 @@ def bin_patch(id):
 @validate_url_id("BIN")
 @no_cache
 def bin_delete(id):
-    existing = Bin.from_mongodb_doc(db.bin.find_one({"_id": id}))
-    if existing is None:
+    force = request.args.get('force', 'false') == 'true'
+    try:
+        deleted = InventoryRepository(db).delete_legacy_bin(id, force=force)
+    except MissingBin:
         return problem.missing_bin_response(id)
-        
-    if request.args.get('force', 'false') == 'true' or len(existing.contents.keys()) == 0:
-        db.bin.delete_one({"_id": id})
+    except LedgerReferencedBin:
+        return problem.ledger_history_conflict_response(
+            "id", "bin is referenced by immutable inventory operation history"
+        )
+
+    if deleted:
         return success.bin_deleted_response(id)
-    else:
-        return problem.dangerous_operation_unforced_response("id", "bin must be empty")
+    return problem.dangerous_operation_unforced_response("id", "bin must be empty")

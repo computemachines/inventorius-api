@@ -150,6 +150,28 @@ def positive_number(value):
     return value
 
 
+def positive_whole_number(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise Invalid("must be a whole number")
+    if value <= 0:
+        raise Invalid("must be greater than 0")
+    return value
+
+
+def observed_code(value):
+    value = trimmed_non_empty_string(value)
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise Invalid("must not contain control characters")
+    return value
+
+
+def each_unit(value):
+    value = trimmed_non_empty_string(value)
+    if value != "each":
+        raise Invalid("must be 'each' at this stage")
+    return value
+
+
 def str_dec(s):
     if type(s) is not str:
         raise Invalid("must be a string")
@@ -295,10 +317,13 @@ item_release_receive_schema = Schema(
 quick_capture_schema = Schema(
     {
         Required("description"): All(trimmed_non_empty_string, Length(max=500)),
-        "owned_codes": code_list_schema,
-        "associated_codes": code_list_schema,
         Required("bin_id"): prefixed_id("BIN"),
-        Required("quantity", default=1): All(int, positive),
+        Required("quantity"): positive_whole_number,
+        Required("unit", default="each"): each_unit,
+        "observed_codes": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=50),
+        ),
     }
 )
 

@@ -3,6 +3,7 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.holding_queries import locations_for_sku
 from inventorius.util import admin_increment_code, check_code_list, no_cache
 from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema, validate_url_id
 import inventorius.util_error_responses as problem
@@ -116,6 +117,20 @@ def sku_delete(id):
         })
         return resp
 
+    linked_batch_count = db.batch.count_documents({"sku_id": id})
+    if linked_batch_count > 0:
+        resp.status_code = 403
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "resource-in-use",
+            "title": "Can not delete a SKU with linked batches.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "SKU identity must remain while linked batches exist",
+            }],
+        })
+        return resp
+
     referenced_by_processes = db.process_definition.count_documents({
         "$or": [
             {"revisions.inputs.sku_id": id},
@@ -159,9 +174,7 @@ def sku_bins_get(id):
         })
         return resp
 
-    contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
-        {f"contents.{id}": {"$exists": True}})]
-    locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
+    locations = locations_for_sku(id)
 
     resp.status_code = 200
     resp.mimetype = "application/json"

@@ -80,7 +80,7 @@ def cors_allow_all(response):
         # TODO: this is a little embarassing, but it will work for now
         print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
         response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Idempotency-Key'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
 
     return response

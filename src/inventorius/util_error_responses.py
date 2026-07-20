@@ -12,7 +12,8 @@ problem_titles = {
     "insufficient-quantity": "Requested greater quantity than is available.",
     "invalid-credentials": "Identity not authorized.",
     "account-deactivated": "Account is deactivated.",
-    "dangerous-operation": "This operation requires force=true."
+    "dangerous-operation": "This operation requires force=true.",
+    "ledger-history-conflict": "Requested change conflicts with immutable inventory history.",
 }
 
 
@@ -77,6 +78,15 @@ def duplicate_resource_response(key, reason="must not already exist", status_cod
         "title": problem_titles["duplicate-resource"],
         "invalid-params": [{"name": key, "reason": reason}],
     }, status_code=status_code)
+
+
+def ledger_history_conflict_response(name, reason):
+    """A legacy mutation would split an identity from its ledger history."""
+    return problem_response(status_code=409, json={
+        "type": "ledger-history-conflict",
+        "title": problem_titles["ledger-history-conflict"],
+        "invalid-params": [{"name": name, "reason": reason}],
+    })
 
 
 def missing_resource_response(uri, create_operation=None):

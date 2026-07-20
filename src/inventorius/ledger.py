@@ -25,6 +25,13 @@ class OperationKind(str, Enum):
     CORRECTION = "correction"
 
 
+SUPPORTED_OPERATION_KINDS = {
+    OperationKind.RECEIVE,
+    OperationKind.TRANSFER,
+    OperationKind.RELEASE,
+}
+
+
 @dataclass(frozen=True)
 class HoldingKey:
     batch_id: str
@@ -67,11 +74,12 @@ class InventoryOperation:
             raise ValueError("operation identity must not be empty")
         if not self.legs:
             raise ValueError("an operation needs holding legs")
-        if self.kind == OperationKind.CORRECTION:
-            if not self.corrects_operation_id:
-                raise ValueError("a correction must reference an operation")
-        elif self.corrects_operation_id is not None:
-            raise ValueError("only corrections may reference an operation")
+        if self.kind not in SUPPORTED_OPERATION_KINDS:
+            raise ValueError(
+                f"unsupported inventory operation kind: {self.kind.value}"
+            )
+        if self.corrects_operation_id is not None:
+            raise ValueError("corrections are not supported yet")
 
         if self.kind == OperationKind.RECEIVE:
             if any(leg.amount < 0 for leg in self.legs):
@@ -128,12 +136,6 @@ class InventoryLedger:
             )
         if operation.operation_id in self._operations:
             raise ValueError(f"duplicate operation: {operation.operation_id}")
-        if (
-            operation.corrects_operation_id is not None
-            and operation.corrects_operation_id not in self._operations
-        ):
-            raise ValueError("correction references an unknown operation")
-
         deltas: dict[HoldingKey, Decimal] = defaultdict(Decimal)
         for leg in operation.legs:
             deltas[leg.holding] += leg.amount
