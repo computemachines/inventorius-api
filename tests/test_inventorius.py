@@ -565,39 +565,22 @@ class InventoriusStateMachine(RuleBasedStateMachine):
     @rule(bin_id=a_bin_id, sku_id=a_sku_id, quantity=st.integers(1, 100))
     def receive_sku(self, bin_id, sku_id, quantity):
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={"id": sku_id, "quantity": quantity})
-        rp.status_code == 201
-        self.model_bins[bin_id].contents[sku_id] = self.model_bins[bin_id].contents.get(sku_id, 0) + quantity
+        assert rp.status_code == 410
 
     @rule(bin_id=dst.label_("BIN"), sku_id=dst.label_("SKU"), quantity=st.integers(1, 100))
     def receive_missing_sku_bin(self, bin_id, sku_id, quantity):
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={"id": sku_id, "quantity": quantity})
-        if bin_id not in self.model_bins.keys():
-            assert rp.status_code == 404
-            assert rp.is_json
-            assert rp.json["type"] == "missing-resource"
-        elif sku_id not in self.model_skus.keys():
-            assert rp.status_code == 409
-            assert rp.is_json
-            assert rp.json["type"] == "missing-resource"
+        assert rp.status_code == 410
 
     @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
     def receive_batch(self, bin_id, batch_id, quantity):
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={"id": batch_id, "quantity": quantity})
-        rp.status_code == 201
-        self.model_bins[bin_id].contents[batch_id] = self.model_bins[bin_id].contents.get(batch_id, 0) + quantity
+        assert rp.status_code == 410
 
     @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(1, 100))
     def receive_missing_batch_bin(self, bin_id, batch_id, quantity):
-        assume(bin_id not in self.model_bins.keys() or batch_id not in self.model_batches.keys())
         rp = self.client.post(f"/api/bin/{bin_id}/contents", json={"id": batch_id, "quantity": quantity})
-        if bin_id not in self.model_bins.keys():
-            assert rp.status_code == 404
-            assert rp.is_json
-            assert rp.json["type"] == "missing-resource"
-        elif batch_id not in self.model_batches.keys():
-            assert rp.status_code == 409
-            assert rp.is_json
-            assert rp.json["type"] == "missing-resource"
+        assert rp.status_code == 410
 
     @rule(bin_id=a_bin_id, sku_id=a_sku_id, quantity=st.integers(-100, 0))
     def release_sku(self, bin_id, sku_id, quantity):
@@ -608,15 +591,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
                 "quantity": quantity,
             },
         )
-        if quantity + self.model_bins[bin_id].contents.get(sku_id, 0) < 0:
-            assert rp.status_code == 405
-            assert rp.is_json
-            assert rp.json["type"] == "insufficient-quantity"
-        else:
-            assert rp.status_code == 201
-            self.model_bins[bin_id].contents[sku_id] = self.model_bins[bin_id].contents.get(sku_id, 0) + quantity
-            if self.model_bins[bin_id].contents[sku_id] == 0:
-                del self.model_bins[bin_id].contents[sku_id]
+        assert rp.status_code == 410
 
     @rule(bin_id=a_bin_id, batch_id=a_batch_id, quantity=st.integers(-100, 0))
     def release_batch(self, bin_id, batch_id, quantity):
@@ -627,37 +602,19 @@ class InventoriusStateMachine(RuleBasedStateMachine):
                 "quantity": quantity,
             },
         )
-        if quantity + self.model_bins[bin_id].contents.get(batch_id, 0) < 0:
-            assert rp.status_code == 405
-            assert rp.is_json
-            assert rp.json["type"] == "insufficient-quantity"
-        else:
-            assert rp.status_code == 201
-            self.model_bins[bin_id].contents[batch_id] = self.model_bins[bin_id].contents.get(batch_id, 0) + quantity
-            if self.model_bins[bin_id].contents[batch_id] == 0:
-                del self.model_bins[bin_id].contents[batch_id]
+        assert rp.status_code == 410
 
     @rule(source_binId=a_bin_id, destination_binId=a_bin_id, data=st.data())
     def move(self, source_binId, destination_binId, data):
         assume(source_binId != destination_binId)
-        # assume(sku_id in self.model_bins[source_binId].contents.keys())
-        assume(self.model_bins[source_binId].contents != {})
-        sku_id = data.draw(st.sampled_from(list(self.model_bins[source_binId].contents.keys())))
-        # assume(quantity >= self.model_bins[source_binId].contents[sku_id])
-        quantity = data.draw(st.integers(1, self.model_bins[source_binId].contents[sku_id]))
+        sku_id = data.draw(dst.label_("SKU"))
+        quantity = data.draw(st.integers(1, 100))
         rp = self.client.put(
             f"/api/bin/{source_binId}/contents/move",
             json={"id": sku_id, "quantity": quantity, "destination": destination_binId},
         )
-        assert rp.status_code == 200
+        assert rp.status_code == 410
         assert rp.cache_control.no_cache
-
-        self.model_bins[source_binId].contents[sku_id] -= quantity
-        self.model_bins[destination_binId].contents[sku_id] = quantity + self.model_bins[
-            destination_binId
-        ].contents.get(sku_id, 0)
-        if self.model_bins[source_binId].contents[sku_id] == 0:
-            del self.model_bins[source_binId].contents[sku_id]
 
     @rule()
     def api_next(self):

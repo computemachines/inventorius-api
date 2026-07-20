@@ -2,12 +2,12 @@
 
 import pytest
 
-from inventorius.db import get_mongo_client
+from tests.database import get_test_database
 
 
 @pytest.fixture(autouse=True)
 def clean_process_database():
-    database = get_mongo_client().testing
+    database = get_test_database()
     for collection in (
         database.admin,
         database.bin,

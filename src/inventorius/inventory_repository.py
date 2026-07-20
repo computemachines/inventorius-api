@@ -37,8 +37,16 @@ class MissingBin(ValueError):
     """The requested physical location was not present at commit time."""
 
 
+class MissingBatch(ValueError):
+    """The requested inventory identity was not present at commit time."""
+
+
 class LedgerReferencedBin(ValueError):
     """A bin has immutable ledger history and therefore cannot be deleted."""
+
+
+class LedgerReferencedBatch(ValueError):
+    """A batch is named by inventory state or immutable evidence."""
 
 
 @dataclass(frozen=True)
@@ -279,6 +287,32 @@ class InventoryRepository:
             )
         return existing
 
+    def _reserve_batch_for_ledger_write(
+        self, batch_id: str, session
+    ) -> dict[str, Any] | None:
+        """Keep a batch present through an operation's transaction commit.
+
+        Batch deletion already refuses ledger history, but merely reading a
+        batch would leave a narrow race before this operation writes that
+        history.  This is the same transaction-local write point used for
+        bins: it serializes a concurrent delete without creating durable
+        application state.
+        """
+        token = uuid4().hex
+        existing = self.db.batch.find_one_and_update(
+            {"_id": batch_id},
+            {"$set": {"_ledger_write_lock": token}},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        if existing is not None:
+            self.db.batch.update_one(
+                {"_id": batch_id, "_ledger_write_lock": token},
+                {"$unset": {"_ledger_write_lock": ""}},
+                session=session,
+            )
+        return existing
+
     def _bin_has_ledger_reference(self, bin_id: str, session) -> bool:
         """Whether any ledger record, including a zero holding, names a bin."""
         return (
@@ -289,6 +323,25 @@ class InventoryRepository:
                 {"location_id": bin_id}, {"_id": 1}, session=session
             ) is not None
         )
+
+    def _batch_has_inventory_reference(self, batch_id: str, session) -> bool:
+        """Whether a batch is named by either legacy or ledger inventory data."""
+        return any((
+            self.db.bin.find_one(
+                {f"contents.{batch_id}": {"$exists": True}},
+                {"_id": 1},
+                session=session,
+            ),
+            self.db.inventory_holdings.find_one(
+                {"batch_id": batch_id}, {"_id": 1}, session=session
+            ),
+            self.db.inventory_operations.find_one(
+                {"legs.batch_id": batch_id}, {"_id": 1}, session=session
+            ),
+            self.db.inventory_code_observations.find_one(
+                {"batch_id": batch_id}, {"_id": 1}, session=session
+            ),
+        ))
 
     def delete_legacy_bin(self, bin_id: str, *, force: bool) -> bool:
         """Delete a genuinely legacy bin, or report that force is still needed.
@@ -310,6 +363,22 @@ class InventoryRepository:
             return True
 
         return self._run_transaction(write)
+
+    def delete_legacy_batch(self, batch_id: str) -> None:
+        """Delete a genuinely unreferenced batch, atomically with its checks.
+
+        This shares the same batch write point as command execution.  Without
+        it, a receipt could observe a batch and append an operation after a
+        concurrent non-transactional delete had already removed it.
+        """
+        def write(session):
+            if self._reserve_batch_for_ledger_write(batch_id, session) is None:
+                raise MissingBatch(batch_id)
+            if self._batch_has_inventory_reference(batch_id, session):
+                raise LedgerReferencedBatch(batch_id)
+            self.db.batch.delete_one({"_id": batch_id}, session=session)
+
+        self._run_transaction(write)
 
     def post(
         self,
@@ -338,6 +407,140 @@ class InventoryRepository:
         except DuplicateKeyError as error:
             return self._recover_racing_idempotency(
                 operation.idempotency_key, request_fingerprint, error
+            )
+
+    def execute_inventory_command(
+        self,
+        command: dict[str, Any],
+        *,
+        idempotency_key: str,
+    ) -> RepositoryResult:
+        """Execute one validated physical inventory command atomically.
+
+        This is intentionally narrower than :meth:`post`: callers specify a
+        batch and the physical locations involved, never arbitrary ledger
+        legs.  The public command is therefore easy to audit while the ledger
+        retains the full immutable debit/credit representation.
+        """
+        request_fingerprint = canonical_fingerprint(command)
+
+        def write(session):
+            existing = self._existing_request(
+                idempotency_key, request_fingerprint, session
+            )
+            if existing is not None:
+                return existing
+
+            batch_id = command["batch_id"]
+            if self._reserve_batch_for_ledger_write(batch_id, session) is None:
+                raise MissingBatch(batch_id)
+
+            # Acquiring physical-location write points in a stable order keeps
+            # simultaneous opposing transfers from relying on accidental lock
+            # order.  Mongo may still retry a transaction; it will never
+            # commit a ledger operation naming a deleted bin.
+            bin_ids = sorted({
+                bin_id
+                for bin_id in (
+                    command.get("location_id"),
+                    command.get("source_location_id"),
+                    command.get("destination_location_id"),
+                )
+                if bin_id is not None
+            })
+            for bin_id in bin_ids:
+                if self._reserve_bin_for_ledger_write(bin_id, session) is None:
+                    raise MissingBin(bin_id)
+
+            kind = OperationKind(command["kind"])
+            quantity = command["quantity"]
+            unit = command["unit"]
+            packaging_configuration_id = command.get("packaging_configuration_id")
+            operation_id = f"OP{uuid4().hex}"
+            location_id = command.get("location_id")
+            source_location_id = command.get("source_location_id")
+            destination_location_id = command.get("destination_location_id")
+
+            if kind == OperationKind.RECEIVE:
+                legs = (
+                    HoldingLeg(
+                        HoldingKey(
+                            batch_id,
+                            location_id,
+                            unit,
+                            packaging_configuration_id,
+                        ),
+                        quantity,
+                    ),
+                )
+            elif kind == OperationKind.RELEASE:
+                legs = (
+                    HoldingLeg(
+                        HoldingKey(
+                            batch_id,
+                            location_id,
+                            unit,
+                            packaging_configuration_id,
+                        ),
+                        -quantity,
+                    ),
+                )
+            else:
+                legs = (
+                    HoldingLeg(
+                        HoldingKey(
+                            batch_id,
+                            source_location_id,
+                            unit,
+                            packaging_configuration_id,
+                        ),
+                        -quantity,
+                    ),
+                    HoldingLeg(
+                        HoldingKey(
+                            batch_id,
+                            destination_location_id,
+                            unit,
+                            packaging_configuration_id,
+                        ),
+                        quantity,
+                    ),
+                )
+
+            operation = InventoryOperation(
+                operation_id=operation_id,
+                idempotency_key=idempotency_key,
+                kind=kind,
+                legs=legs,
+            )
+            now = datetime.now(timezone.utc)
+            result = {
+                "operation_id": operation_id,
+                "kind": kind.value,
+                "batch_id": batch_id,
+                "quantity": quantity,
+                "unit": unit,
+                "packaging_configuration_id": packaging_configuration_id,
+            }
+            if location_id is not None:
+                result["location_id"] = location_id
+            if source_location_id is not None:
+                result["source_location_id"] = source_location_id
+            if destination_location_id is not None:
+                result["destination_location_id"] = destination_location_id
+
+            self._apply_projection(operation, session, now)
+            self.db.inventory_operations.insert_one(
+                self._operation_document(operation, request_fingerprint, result, now),
+                session=session,
+            )
+            return RepositoryResult(result, replayed=False)
+
+        try:
+            return self._run_transaction(write)
+        except DuplicateKeyError as error:
+            return self._recover_racing_idempotency(
+                idempotency_key, request_fingerprint, error
             )
 
     def capture_intake(

@@ -14,6 +14,7 @@ problem_titles = {
     "account-deactivated": "Account is deactivated.",
     "dangerous-operation": "This operation requires force=true.",
     "ledger-history-conflict": "Requested change conflicts with immutable inventory history.",
+    "operation-retired": "This inventory mutation endpoint has been retired.",
 }
 
 
@@ -89,6 +90,15 @@ def ledger_history_conflict_response(name, reason):
     })
 
 
+def operation_retired_response():
+    """Direct callers to the canonical append-only command endpoint."""
+    return problem_response(status_code=410, json={
+        "type": "operation-retired",
+        "title": problem_titles["operation-retired"],
+        "replacement": "/api/inventory-operations",
+    })
+
+
 def missing_resource_response(uri, create_operation=None):
     if create_operation:
         return problem_response(status_code=404, json={
@@ -117,7 +127,6 @@ def missing_bin_response(id):
         operations.bin_create()
     )
 
-
 def missing_batch_response(id):
     return missing_resource_response(
         url_for("batch.batch_get", id=id),
@@ -145,7 +154,6 @@ def bad_username_password_response(name, reason=None):
             "invalid-params": [{"name": name, reason: reason or ""}]
         }
     )
-
 
 def deactivated_account(id):
     return problem_response(
@@ -183,44 +191,5 @@ def dangerous_operation_unforced_response(name=None, reason=""):
             "type": "dangerous-operation",
             "title": problem_titles["dangerous-operation"],
             "invalid-params": invalid_params
-        }
-    )
-
-
-def move_insufficient_quantity(name=None, availible=None, requested=None):
-    if name:
-        reason = "quantity too high"
-        if requested is not None and availible is not None:
-            reason = f"requested {requested}, but only {availible} is availible"
-
-        invalid_params = [{
-            "name": name,
-            "reason": reason,
-        }]
-
-        return problem_response(
-            status_code=405,
-            json={
-                "type": "insufficient-quantity",
-                "title": problem_titles["insufficient-quantity"],
-                "invalid-params": name,
-            }
-        )
-    else:
-        return problem_response(
-            status_code=405,
-            json={
-                "type": "insufficient-quantity",
-                "title": problem_titles["insufficient-quantity"],
-            }
-        )
-
-
-def release_insufficient_quantity():
-    return problem_response(
-        status_code=405,
-        json={
-            "type": "insufficient-quantity",
-            "title": problem_titles["insufficient-quantity"],
         }
     )

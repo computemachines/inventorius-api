@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 from pathlib import Path
 
@@ -9,8 +10,17 @@ from flask import g, request_started
 
 # Ensure the application package on the src/ path is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+# The local Mongo replica set advertises its Compose hostname (``mongo``),
+# which a host pytest process cannot resolve.  Direct connection keeps local
+# tests on the published port; CI or another caller can still supply its own
+# explicit URI.
+os.environ.setdefault(
+    "INVENTORIUS_MONGO_URI",
+    "mongodb://localhost:27017/?replicaSet=inventorius-rs&directConnection=true",
+)
 from inventorius import app as inventorius_flask_app
 from inventorius.db import get_mongo_client
+from tests.database import get_test_database
 
 
 # These integration/property tests exercise a real MongoDB database. Their
@@ -23,7 +33,7 @@ settings.load_profile("ci")
 
 
 def subscriber(sender):
-    g.db = get_mongo_client().testing
+    g.db = get_test_database()
 
 
 request_started.connect(subscriber, inventorius_flask_app)
@@ -36,11 +46,20 @@ def client():
     # close app
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolated_test_database():
+    """Start clean and remove this pytest process's private database."""
+    database = get_test_database()
+    get_mongo_client().drop_database(database.name)
+    yield
+    get_mongo_client().drop_database(database.name)
+
+
 @contextlib.contextmanager
 def clientContext():
     inventorius_flask_app.testing = True
     inventorius_flask_app.secret_key = "1234"
-    test_db = get_mongo_client().testing
+    test_db = get_test_database()
     test_db.admin.delete_many({})
     test_db.batch.delete_many({})
     test_db.bin.delete_many({})

@@ -6,7 +6,6 @@ from threading import Barrier
 
 import pytest
 
-from inventorius.db import get_mongo_client
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedBin,
@@ -14,11 +13,12 @@ from inventorius.inventory_repository import (
     canonical_fingerprint,
 )
 from inventorius.ledger import HoldingKey, HoldingLeg, InventoryOperation, OperationKind
+from tests.database import get_test_database
 
 
 @pytest.fixture(autouse=True)
 def clean_inventory_database():
-    database = get_mongo_client().testing
+    database = get_test_database()
     for collection in (
         database.admin,
         database.batch,
@@ -77,7 +77,7 @@ def _seed_released_ledger_batch(database):
     return holding
 
 
-def test_legacy_contents_endpoints_reject_ledger_identities_at_zero_balance(
+def test_legacy_contents_endpoints_are_retired_at_zero_balance(
     client, clean_inventory_database
 ):
     holding = _seed_released_ledger_batch(clean_inventory_database)
@@ -99,9 +99,12 @@ def test_legacy_contents_endpoints_reject_ledger_identities_at_zero_balance(
             json={"id": item_id, "quantity": 1, "destination": "BIN000002"},
         )
         for response in (*receive_or_release, move):
-            assert response.status_code == 409
-            assert response.json["type"] == "ledger-history-conflict"
-            assert response.json["invalid-params"][0]["name"] == "id"
+            assert response.status_code == 410
+            assert response.json == {
+                "type": "operation-retired",
+                "title": "This inventory mutation endpoint has been retired.",
+                "replacement": "/api/inventory-operations",
+            }
 
     # Neither rejected legacy request has written a second accounting record.
     assert clean_inventory_database.bin.find_one({"_id": "BIN000001"})["contents"] == {}

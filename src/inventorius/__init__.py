@@ -21,6 +21,7 @@ from inventorius.inventorius import inventorius
 from inventorius.sku import sku
 from inventorius.files import files
 from inventorius.intake import intake
+from inventorius.inventory_operations import inventory_operations
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.user import user
 from inventorius.schema.routes import bp as schema_bp
@@ -64,6 +65,7 @@ app.register_blueprint(inventorius)
 app.register_blueprint(sku)
 app.register_blueprint(files)
 app.register_blueprint(intake)
+app.register_blueprint(inventory_operations)
 app.register_blueprint(user)
 app.register_blueprint(schema_bp)
 app.register_blueprint(process_definition)

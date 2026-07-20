@@ -121,12 +121,6 @@ def alphanum(s: str):
     return s
 
 
-def positive(i: int):
-    if i <= 0:
-        raise Invalid("must be greater than or equal to 1")
-    return i
-
-
 def trimmed_non_empty_string(value: str):
     if not isinstance(value, str):
         raise Invalid("must be a string")
@@ -298,22 +292,6 @@ sku_patch_schema = Schema(
     }
 )
 
-item_move_schema = Schema(
-    {
-        Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
-        Required("destination"): prefixed_id("BIN"),
-        Required("quantity"): All(int, positive),
-    }
-)
-
-item_release_receive_schema = Schema(
-    {
-        Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
-        Required("quantity"): int,  # can be positive or negative
-    }
-)
-
-
 quick_capture_schema = Schema(
     {
         Required("description"): All(trimmed_non_empty_string, Length(max=500)),
@@ -324,6 +302,23 @@ quick_capture_schema = Schema(
             [All(observed_code, Length(max=500))],
             Length(max=50),
         ),
+    }
+)
+
+
+inventory_operation_command_schema = Schema(
+    {
+        Required("kind"): Any("receive", "transfer", "release"),
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("quantity"): positive_whole_number,
+        Required("unit", default="each"): each_unit,
+        # Packaging is deliberately not a command dimension yet.  Requiring
+        # null when a client sends the field makes that boundary explicit
+        # rather than silently coalescing package identities.
+        "packaging_configuration_id": Any(None),
+        "location_id": prefixed_id("BIN"),
+        "source_location_id": prefixed_id("BIN"),
+        "destination_location_id": prefixed_id("BIN"),
     }
 )
 

@@ -6,8 +6,13 @@ from threading import Barrier, Lock
 
 import pytest
 
-from inventorius.db import get_mongo_client
-from inventorius.inventory_repository import InventoryRepository, canonical_fingerprint
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedBatch,
+    MissingBatch,
+    canonical_fingerprint,
+)
+from tests.database import get_test_database
 from inventorius.ledger import (
     HoldingKey,
     HoldingLeg,
@@ -19,7 +24,7 @@ from inventorius.ledger import (
 
 @pytest.fixture
 def inventory_database():
-    database = get_mongo_client().testing
+    database = get_test_database()
     collections = (
         database.batch,
         database.bin,
@@ -199,3 +204,95 @@ def test_concurrent_same_key_on_different_holdings_replays_the_winner(
     assert sorted(result.replayed for result in results) == [False, True]
     assert inventory_database.inventory_operations.count_documents({}) == 1
     assert inventory_database.inventory_holdings.count_documents({}) == 1
+
+
+def test_command_reserves_transfer_bins_in_stable_order(inventory_database, monkeypatch):
+    inventory_database.batch.insert_one({"_id": "BAT000001"})
+    inventory_database.bin.insert_many([
+        {"_id": "BIN000001", "contents": {}},
+        {"_id": "BIN000002", "contents": {}},
+    ])
+    repository = InventoryRepository(inventory_database)
+    reserved = []
+    reserve = repository._reserve_bin_for_ledger_write
+
+    def record_reservation(bin_id, session):
+        reserved.append(bin_id)
+        return reserve(bin_id, session)
+
+    monkeypatch.setattr(repository, "_reserve_bin_for_ledger_write", record_reservation)
+    repository.execute_inventory_command(
+        {
+            "kind": "receive",
+            "batch_id": "BAT000001",
+            "location_id": "BIN000002",
+            "quantity": 3,
+            "unit": "each",
+            "packaging_configuration_id": None,
+        },
+        idempotency_key="seed-command",
+    )
+    repository.execute_inventory_command(
+        {
+            "kind": "transfer",
+            "batch_id": "BAT000001",
+            "source_location_id": "BIN000002",
+            "destination_location_id": "BIN000001",
+            "quantity": 1,
+            "unit": "each",
+            "packaging_configuration_id": None,
+        },
+        idempotency_key="ordered-transfer",
+    )
+
+    assert reserved == ["BIN000002", "BIN000001", "BIN000002"]
+
+
+def test_command_and_batch_delete_leave_no_orphaned_operation(inventory_database):
+    inventory_database.batch.insert_one({"_id": "BAT000001"})
+    inventory_database.bin.insert_one({"_id": "BIN000001", "contents": {}})
+    command_repository = InventoryRepository(inventory_database)
+    delete_repository = InventoryRepository(inventory_database)
+    start = Barrier(2)
+
+    def receive():
+        start.wait(timeout=10)
+        try:
+            command_repository.execute_inventory_command(
+                {
+                    "kind": "receive",
+                    "batch_id": "BAT000001",
+                    "location_id": "BIN000001",
+                    "quantity": 1,
+                    "unit": "each",
+                    "packaging_configuration_id": None,
+                },
+                idempotency_key="concurrent-command",
+            )
+            return "received"
+        except MissingBatch:
+            return "missing-batch"
+
+    def delete():
+        start.wait(timeout=10)
+        try:
+            delete_repository.delete_legacy_batch("BAT000001")
+            return "deleted"
+        except LedgerReferencedBatch:
+            return "ledger-protected"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = set(executor.map(lambda action: action(), (receive, delete)))
+
+    assert outcomes in (
+        {"received", "ledger-protected"},
+        {"missing-batch", "deleted"},
+    )
+    operation = inventory_database.inventory_operations.find_one({})
+    batch = inventory_database.batch.find_one({"_id": "BAT000001"})
+    if operation is None:
+        assert batch is None
+        assert inventory_database.inventory_holdings.count_documents({}) == 0
+    else:
+        assert batch is not None
+        assert operation["legs"][0]["batch_id"] == "BAT000001"

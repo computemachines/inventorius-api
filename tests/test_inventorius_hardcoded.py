@@ -40,53 +40,6 @@ def test_delete_sku():
     state.teardown()
 
 
-def test_delete_used_sku():
-    state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    v2 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[]))
-    state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
-    state.attempt_delete_used_sku(sku_id=v2)
-    state.teardown()
-
-
-def test_move_sku():
-    state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000001'))
-    v3 = state.new_sku(sku=Sku(id='SKU000000'))
-    state.receive_sku(bin_id=v1, sku_id=v3, quantity=1)
-
-    data = dst.DataProxy('SKU000000', 1)
-    state.move(data=data, destination_binId=v2, source_binId=v1)
-
-    state.get_existing_bin(bin_id=v1)
-    state.get_existing_bin(bin_id=v2)
-    state.teardown()
-
-
-def test_sku_locations():
-    state = InventoriusStateMachine()
-    state.delete_missing_sku(sku_id='SKU000000')
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    v2 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[]))
-    state.receive_sku(bin_id=v1, quantity=1, sku_id=v2)
-    state.sku_locations(sku_id=v2)
-    state.teardown()
-
-
-def test_delete_sku_after_force_delete_bin():
-    state = InventoriusStateMachine()
-    v1 = state.new_sku(sku=Sku(associated_codes=[],
-                               id='SKU000000', name='', owned_codes=[]))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    state.receive_sku(bin_id=v2, quantity=1, sku_id=v1)
-    state.delete_nonempty_bin_force(bin_id=v2)
-    state.delete_unused_sku(sku_id=v1)
-    state.teardown()
-
-
 def test_update_nonexisting_batch():
     state = InventoriusStateMachine()
     state.update_nonexisting_batch(batch_id='BAT000000', patch={})
@@ -151,26 +104,6 @@ def test_change_batch_sku():
     state.attempt_update_nonanonymous_batch_sku_id(
         batch_id=batch0, patch={}, sku_id=sku1)
     state.teardown()
-
-
-def test_delete_bin_with_batch():
-    state = InventoriusStateMachine()
-    # state.delete_missing_bin(bin_id='BIN000000')
-    v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
-    state.delete_nonempty_bin_noforce(bin_id=v2)
-    state.teardown()
-
-
-def test_receive_batch():
-    state = InventoriusStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', owned_codes=[], sku_id=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000'))
-    state.receive_batch(batch_id=v1, bin_id=v2, quantity=1)
-    state.get_existing_bin(v2)
 
 
 # def test_search_name():
@@ -313,17 +246,6 @@ def test_update_batch_existing_sku():
 #     state.teardown()
 
 
-def test_was_undefined_key_error_01():
-    state = InventoriusStateMachine()
-    v1 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={'_': None}))
-    v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
-    ], id='BAT575165', name='A', owned_codes=[], props={'': None}, sku_id=None))
-    state.batch_locations(batch_id=v2)
-    state.receive_batch(batch_id=v2, bin_id=v1, quantity=1)
-    state.batch_locations(batch_id=v2)
-    state.teardown()
-
-
 def test_update_sku():
     state = InventoriusStateMachine()
     v1 = state.new_sku(sku=Sku(associated_codes=[],
@@ -353,16 +275,6 @@ def test_change_password():
     state.update_existing_user(user_id=v1, user_patch={
                                'password': '000000000'})
     state.whoami()
-    state.teardown()
-
-
-def test_release_anonymous_nothing():
-    state = InventoriusStateMachine()
-    v1 = state.new_anonymous_batch(batch=Batch(
-        associated_codes=[], id='BAT000000', name='', owned_codes=[], props={}, sku_id=None))
-    v2 = state.new_bin(bin=Bin(contents={}, id='BIN000000', props={}))
-    state.release_batch(batch_id=v1, bin_id=v2, quantity=0)
-    state.positive_quantities()
     state.teardown()
 
 

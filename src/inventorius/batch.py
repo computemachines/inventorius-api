@@ -2,6 +2,11 @@ from flask import Blueprint, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedBatch,
+    MissingBatch,
+)
 from inventorius.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventorius.resource_operations as operation
 from inventorius.util import admin_increment_code, check_code_list, no_cache
@@ -121,24 +126,25 @@ def batch_delete(id):
     if not existing:
         return problem.missing_batch_response(id)
 
-    reference_checks = (
-        (db.bin.count_documents({f"contents.{id}": {"$exists": True}}), "legacy bin contents"),
-        (db.inventory_holdings.count_documents({"batch_id": id}), "inventory holdings"),
-        (db.inventory_operations.count_documents({"legs.batch_id": id}), "inventory operations"),
-        (db.inventory_code_observations.count_documents({"batch_id": id}), "code observations"),
-    )
-    for count, reference_name in reference_checks:
-        if count > 0:
-            return problem.problem_response(status_code=403, json={
-                "type": "resource-in-use",
-                "title": "Can not delete a batch referenced by inventory history.",
-                "invalid-params": [{
-                    "name": "id",
-                    "reason": f"batch is referenced by {reference_name}",
-                }],
-            })
+    try:
+        InventoryRepository(db).delete_legacy_batch(id)
+    except MissingBatch:
+        # A concurrent command/delete transaction removed it after the
+        # preliminary response-shaping read above.
+        return problem.missing_batch_response(id)
+    except LedgerReferencedBatch:
+        # The precise reference is deliberately not exposed here: it can
+        # change during a transaction retry, while the durable fact is that
+        # this batch is no longer deletable.
+        return problem.problem_response(status_code=403, json={
+            "type": "resource-in-use",
+            "title": "Can not delete a batch referenced by inventory history.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "batch is referenced by inventory state or history",
+            }],
+        })
 
-    db.batch.delete_one({"_id": id})
     return BatchEndpoint.from_batch(existing).deleted_success_response()
 
 
