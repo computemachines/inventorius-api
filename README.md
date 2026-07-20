@@ -78,6 +78,9 @@ curl -X POST http://localhost:8000/api/schema/sku/evaluate \
 # Run all tests
 uv run pytest
 
+# Deliberate state-machine soak run (10,000 examples instead of 100)
+HYPOTHESIS_SLOW=true uv run pytest tests/test_inventorius.py::TestInventorius
+
 # Run with coverage
 uv run coverage run --source=inventorius -m pytest
 uv run coverage report

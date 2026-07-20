@@ -19,6 +19,15 @@ import base64
 ids = text(ascii_letters + digits, min_size=1)
 
 fieldNames = text(ascii_lowercase + '_', min_size=1)
+typedPropertyNames = {
+    "cost_per_case",
+    "count_per_case",
+    "original_cost_per_case",
+    "original_count_per_case",
+}
+additionalPropertyNames = fieldNames.filter(
+    lambda name: name not in typedPropertyNames
+)
 # Constrain integers to the 64-bit signed range supported by MongoDB
 simpleTypes = one_of(
     none(),
@@ -33,7 +42,7 @@ json = recursive(simpleTypes,
                      lists(children)),
                  max_leaves=1)
 
-propertyDicts = dictionaries(fieldNames, json)
+propertyDicts = dictionaries(additionalPropertyNames, json)
 
 
 @composite

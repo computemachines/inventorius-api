@@ -25,3 +25,10 @@ def test_prefixed_id_validator_returns_canonical_value():
 def test_normalize_prefixed_id_rejects_invalid_values(entered):
     with pytest.raises(Invalid):
         normalize_prefixed_id(entered, "BIN")
+
+
+def test_user_url_id_rejects_non_alphanumeric_values(client):
+    response = client.delete("/api/user/%3B")
+
+    assert response.status_code == 400
+    assert response.json["type"] == "validation-error"

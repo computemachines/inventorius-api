@@ -13,8 +13,10 @@ from inventorius import app as inventorius_flask_app
 from inventorius.db import get_mongo_client
 
 
-# give tests longer to complete on ci server
-settings.register_profile("ci", deadline=500)
+# These integration/property tests exercise a real MongoDB database. Their
+# correctness is not time-dependent, and machine or disk load makes per-example
+# deadlines inherently flaky.
+settings.register_profile("ci", deadline=None)
 settings.load_profile("ci")
 
 # from contextlib import contextmanager

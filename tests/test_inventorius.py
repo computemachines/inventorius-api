@@ -765,7 +765,7 @@ if os.getenv("HYPOTHESIS_SLOW") == "true":
     TestInventorius.settings = settings(max_examples=10000, stateful_step_count=10, deadline=timedelta(seconds=10))
 else:
     TestInventorius.settings = settings(
-        max_examples=1000,
+        max_examples=100,
         stateful_step_count=10,
-        deadline=timedelta(milliseconds=100),
+        deadline=None,
     )

@@ -286,7 +286,6 @@ def test_new_batch_bad_format_owned_codes():
 def test_update_batch_missing_sku():
     state = InventoriusStateMachine()
     state.delete_missing_user(user_id='00')
-    state.delete_missing_user(user_id=';')
     v1 = state.new_user(user={'id': '1', 'name': '', 'password': '00000000'})
     state.delete_missing_sku(sku_id='SKU066304')
     state.delete_missing_sku(sku_id='SKU000256')
