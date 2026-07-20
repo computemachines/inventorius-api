@@ -65,6 +65,7 @@ def test_capture_creates_batch_operation_holding_and_observed_evidence(
         "description": "10k resistors, probably 0603",
         "observed_codes": ["RC0603-10K"],
         "provisional": True,
+        "created_sku": True,
     }
 
     sku = clean_inventory_database.sku.find_one({"_id": "SKU000001"})
@@ -185,6 +186,85 @@ def test_capture_rejects_missing_bin_without_creating_sku(client, clean_inventor
 
     assert response.status_code == 404
     assert clean_inventory_database.sku.count_documents({}) == 0
+
+
+def test_capture_under_an_existing_sku_creates_only_a_new_provisional_batch(
+    client, clean_inventory_database
+):
+    clean_inventory_database.bin.insert_one({
+        "_id": "BIN000001", "contents": {}, "props": {},
+    })
+    clean_inventory_database.sku.insert_one({
+        "_id": "SKU000001",
+        "name": "Known JST connectors",
+        "owned_codes": [],
+        "associated_codes": [],
+        "props": {"stable": True},
+    })
+
+    response = client.post(
+        "/api/intake",
+        headers={"Idempotency-Key": "capture-known-sku"},
+        json={
+            "sku_id": "sku1",
+            "bin_id": "BIN1",
+            "quantity": 4,
+            "observed_codes": ["MFG-042", "MFG-042", "BOX-7"],
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json["state"] == {
+        "sku_id": "SKU000001",
+        "batch_id": "BAT000001",
+        "operation_id": response.json["state"]["operation_id"],
+        "bin_id": "BIN000001",
+        "quantity": 4,
+        "unit": "each",
+        "observed_codes": ["MFG-042", "BOX-7"],
+        "provisional": True,
+        "created_sku": False,
+    }
+    assert clean_inventory_database.sku.count_documents({}) == 1
+    assert clean_inventory_database.sku.find_one({"_id": "SKU000001"})["props"] == {
+        "stable": True,
+    }
+    batch = clean_inventory_database.batch.find_one({"_id": "BAT000001"})
+    assert batch["sku_id"] == "SKU000001"
+    assert batch["name"] == "Known JST connectors"
+    assert {
+        observation["code"]
+        for observation in clean_inventory_database.inventory_code_observations.find({})
+    } == {"MFG-042", "BOX-7"}
+    assert clean_inventory_database.bin.find_one({"_id": "BIN000001"})["contents"] == {}
+
+
+@pytest.mark.parametrize("body", [
+    {"bin_id": "BIN1", "quantity": 1},
+    {"description": "new", "sku_id": "SKU1", "bin_id": "BIN1", "quantity": 1},
+])
+def test_capture_requires_exactly_one_identity_mode(client, clean_inventory_database, body):
+    response = client.post(
+        "/api/intake", headers={"Idempotency-Key": "identity-mode"}, json=body
+    )
+
+    assert response.status_code == 400
+    assert response.json["type"] == "validation-error"
+
+
+def test_capture_reports_missing_existing_sku(client, clean_inventory_database):
+    clean_inventory_database.bin.insert_one({
+        "_id": "BIN000001", "contents": {}, "props": {},
+    })
+
+    response = client.post(
+        "/api/intake",
+        headers={"Idempotency-Key": "missing-sku"},
+        json={"sku_id": "SKU999999", "bin_id": "BIN1", "quantity": 1},
+    )
+
+    assert response.status_code == 404
+    assert clean_inventory_database.batch.count_documents({}) == 0
 
 
 @pytest.mark.parametrize("body", [

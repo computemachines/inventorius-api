@@ -253,10 +253,126 @@ def _resolve_one(database, evidence):
         # code happens to have the same bytes or the Batch does not exist.
         return candidates, True, []
 
+    sku_label_match = re.fullmatch(r"SKU[0-9]{1,6}", evidence, re.IGNORECASE)
+    if sku_label_match:
+        sku_id = normalize_prefixed_id(evidence, "SKU")
+        candidates = defaultdict(list)
+        if database.sku.find_one({"_id": sku_id}, {"_id": 1}) is not None:
+            for batch_document in database.batch.find({"sku_id": sku_id}, {"_id": 1}):
+                _add_match(candidates, batch_document["_id"], _match(
+                    evidence,
+                    kind="sku-id",
+                    scope="sku",
+                    relationship="identity",
+                    resource_id=sku_id,
+                    value=sku_id,
+                ))
+        # Internal SKU spellings suppress external-code collisions even if no
+        # Batch has been created for that product yet.
+        return candidates, True, []
+
     candidates, exact_found, conflicts = _exact_code_resolution(database, evidence)
     if exact_found:
         return candidates, True, conflicts
     return _text_resolution(database, evidence), False, []
+
+
+def _resolve_sku_one(database, evidence):
+    """Resolve evidence directly to SKUs without expanding through Batches.
+
+    This deliberately answers a different question from ``_resolve_one``.
+    A receive may have enough evidence to identify the product family while
+    still needing to create a new Batch, so linked Batch evidence must not
+    manufacture a SKU candidate here.
+    """
+    label_match = re.fullmatch(r"SKU[0-9]{1,6}", evidence, re.IGNORECASE)
+    if label_match:
+        sku_id = normalize_prefixed_id(evidence, "SKU")
+        candidates = defaultdict(list)
+        if database.sku.find_one({"_id": sku_id}, {"_id": 1}) is not None:
+            _add_match(candidates, sku_id, _match(
+                evidence,
+                kind="sku-id",
+                scope="sku",
+                relationship="identity",
+                resource_id=sku_id,
+                value=sku_id,
+            ))
+        # SKU syntax is reserved for an internal identity, exactly as BAT is
+        # for Batch resolution.  It does not fall through to an external code.
+        return candidates, True, []
+
+    candidates = defaultdict(list)
+    exact_found = False
+    owned_claimants = []
+    for sku_document in database.sku.find({"$or": [
+        {"owned_codes": evidence},
+        {"associated_codes": evidence},
+    ]}):
+        exact_found = True
+        sku_id = sku_document["_id"]
+        for relationship in ("owned", "associated"):
+            if evidence in sku_document.get(f"{relationship}_codes", []):
+                _add_match(candidates, sku_id, _match(
+                    evidence,
+                    kind="code",
+                    scope="sku",
+                    relationship=relationship,
+                    resource_id=sku_id,
+                    value=evidence,
+                ))
+                if relationship == "owned":
+                    owned_claimants.append(_claimant("sku", sku_document))
+    if exact_found:
+        owned_claimants.sort(key=lambda claimant: claimant["resource_id"])
+        conflicts = []
+        if len(owned_claimants) > 1:
+            conflicts.append({
+                "evidence": evidence,
+                "kind": "duplicate-owned-code",
+                "claimants": owned_claimants,
+            })
+        return candidates, True, conflicts
+
+    fragment = re.compile(re.escape(evidence), re.IGNORECASE)
+    for sku_document in database.sku.find({"$or": [
+        {"_id": fragment},
+        {"name": fragment},
+        {"owned_codes": fragment},
+        {"associated_codes": fragment},
+    ]}):
+        sku_id = sku_document["_id"]
+        if fragment.search(sku_id):
+            _add_match(candidates, sku_id, _match(
+                evidence,
+                kind="text",
+                scope="sku",
+                relationship="identity",
+                resource_id=sku_id,
+                value=sku_id,
+            ))
+        name = sku_document.get("name")
+        if isinstance(name, str) and fragment.search(name):
+            _add_match(candidates, sku_id, _match(
+                evidence,
+                kind="text",
+                scope="sku",
+                relationship="name",
+                resource_id=sku_id,
+                value=name,
+            ))
+        for relationship in ("owned", "associated"):
+            for value in sku_document.get(f"{relationship}_codes", []):
+                if isinstance(value, str) and fragment.search(value):
+                    _add_match(candidates, sku_id, _match(
+                        evidence,
+                        kind="text",
+                        scope="sku",
+                        relationship=relationship,
+                        resource_id=sku_id,
+                        value=value,
+                    ))
+    return candidates, False, []
 
 
 def _decimal(value):
@@ -293,15 +409,16 @@ def _source_holdings(database, source_location_id):
 
 _MATCH_STRENGTH = {
     ("batch-id", "batch", "identity"): 0,
-    ("code", "batch", "owned"): 1,
-    ("code", "batch", "associated"): 2,
-    ("code", "batch", "observed"): 3,
-    ("code", "sku", "owned"): 4,
-    ("code", "sku", "associated"): 5,
-    ("text", "batch", "identity"): 6,
-    ("text", "batch", "name"): 7,
-    ("text", "sku", "identity"): 8,
-    ("text", "sku", "name"): 9,
+    ("sku-id", "sku", "identity"): 1,
+    ("code", "batch", "owned"): 2,
+    ("code", "batch", "associated"): 3,
+    ("code", "batch", "observed"): 4,
+    ("code", "sku", "owned"): 5,
+    ("code", "sku", "associated"): 6,
+    ("text", "batch", "identity"): 7,
+    ("text", "batch", "name"): 8,
+    ("text", "sku", "identity"): 9,
+    ("text", "sku", "name"): 10,
 }
 
 
@@ -321,6 +438,122 @@ def _sort_matches(matches, evidence_order):
         match["resource_id"],
         match["value"],
     ))
+
+
+def _resolve_sku_candidates(database, evidence_values, *, limit, starting_from):
+    """Return a parallel, direct-SKU resolution for receive flows.
+
+    Unknown physical evidence is intentionally ignored here.  A scanned
+    ``SKU1`` plus a previously unseen manufacturer code should identify the
+    SKU and preserve that new code as observation on the newly created Batch;
+    it should not turn a useful receive into a false conflict.
+    """
+    direct_terms = []
+    unmatched_evidence = []
+    conflicts = []
+    for evidence in evidence_values:
+        candidates, exact, term_conflicts = _resolve_sku_one(database, evidence)
+        if candidates:
+            direct_terms.append((evidence, candidates, exact))
+        else:
+            unmatched_evidence.append(evidence)
+        conflicts.extend(term_conflicts)
+
+    if direct_terms:
+        global_ids = set(direct_terms[0][1])
+        for _, candidates, _ in direct_terms[1:]:
+            global_ids.intersection_update(candidates)
+    else:
+        global_ids = set()
+
+    if len(direct_terms) > 1 and not global_ids:
+        conflicts.append({
+            "kind": "sku-evidence-conflict",
+            "evidence": [evidence for evidence, _, _ in direct_terms],
+            "candidate_sets": [
+                {
+                    "evidence": evidence,
+                    "total_num_candidates": len(candidates),
+                    "sku_ids": sorted(candidates)[:MAX_CONFLICT_BATCH_IDS],
+                }
+                for evidence, candidates, _ in direct_terms
+            ],
+        })
+
+    evidence_order = {value: index for index, value in enumerate(evidence_values)}
+    matches_by_sku = {
+        sku_id: [
+            match
+            for _, candidates, _ in direct_terms
+            for match in candidates[sku_id]
+        ]
+        for sku_id in global_ids
+    }
+    sku_documents = {
+        document["_id"]: document
+        for document in database.sku.find({"_id": {"$in": sorted(global_ids)}})
+    }
+    results = [
+        {
+            "sku_id": sku_id,
+            "sku_name": sku_documents[sku_id].get("name"),
+            "matches": _sort_matches(matches_by_sku[sku_id], evidence_order),
+        }
+        for sku_id in global_ids
+        if sku_id in sku_documents
+    ]
+
+    def result_order(result):
+        return (
+            *[
+                min(
+                    _match_strength(match)
+                    for match in result["matches"]
+                    if match["evidence"] == evidence
+                )
+                for evidence, _, _ in direct_terms
+            ],
+            result["sku_id"],
+        )
+
+    results.sort(key=result_order)
+    total_num_results = len(results)
+    identifying = bool(results) and any(
+        match["kind"] == "sku-id"
+        or (
+            match["kind"] == "code"
+            and match["scope"] == "sku"
+            and match["relationship"] == "owned"
+        )
+        for match in results[0]["matches"]
+    )
+    if conflicts:
+        status = "conflict"
+    elif not results:
+        status = "unknown"
+    elif len(results) == 1 and identifying:
+        status = "identified"
+    else:
+        status = "candidates"
+
+    resolution = (
+        "none" if total_num_results == 0
+        else "unique" if total_num_results == 1
+        else "ambiguous"
+    )
+    paged_results = results[starting_from:(starting_from + limit)]
+    return {
+        "status": status,
+        "resolution": resolution,
+        "total_num_results": total_num_results,
+        "starting_from": starting_from,
+        "limit": limit,
+        "returned_num_results": len(paged_results),
+        "truncated": len(paged_results) < total_num_results,
+        "results": paged_results,
+        "conflicts": conflicts,
+        "unmatched_evidence": unmatched_evidence,
+    }
 
 
 def resolve_inventory_candidates(
@@ -507,4 +740,13 @@ def resolve_inventory_candidates(
         "conflicts": conflicts,
         "total_context_mismatches": len(context_mismatches),
         "context_mismatches": context_mismatches[:MAX_CONTEXT_MISMATCHES],
+        # This is deliberately independent of source filtering.  A location
+        # constrains selectable Batch holdings, not the SKU a physical code
+        # describes.
+        "sku_candidates": _resolve_sku_candidates(
+            database,
+            evidence_values,
+            limit=limit,
+            starting_from=starting_from,
+        ),
     }

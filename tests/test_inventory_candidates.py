@@ -98,6 +98,18 @@ def test_empty_request_is_an_empty_resolution(client):
         "conflicts": [],
         "total_context_mismatches": 0,
         "context_mismatches": [],
+        "sku_candidates": {
+            "status": "unknown",
+            "resolution": "none",
+            "total_num_results": 0,
+            "starting_from": 0,
+            "limit": 50,
+            "returned_num_results": 0,
+            "truncated": False,
+            "results": [],
+            "conflicts": [],
+            "unmatched_evidence": [],
+        },
     }
 
 
@@ -522,3 +534,139 @@ def test_candidate_limit_is_bounded_after_ambiguity_is_computed(
     assert state["returned_num_results"] == 1
     assert state["truncated"] is True
     assert [row["batch_id"] for row in state["results"]] == ["BAT000002"]
+
+
+def test_sku_candidates_identify_an_internal_sku_and_ignore_new_evidence(
+    client, inventory_database
+):
+    insert_sku(inventory_database, "SKU000001", name="Known connector")
+
+    response = resolve(client, "sku1", "new-package-code", source="BIN1")
+
+    sku_candidates = response.json["state"]["sku_candidates"]
+    assert sku_candidates == {
+        "status": "identified",
+        "resolution": "unique",
+        "total_num_results": 1,
+        "starting_from": 0,
+        "limit": 50,
+        "returned_num_results": 1,
+        "truncated": False,
+        "results": [{
+            "sku_id": "SKU000001",
+            "sku_name": "Known connector",
+            "matches": [{
+                "evidence": "sku1",
+                "kind": "sku-id",
+                "scope": "sku",
+                "relationship": "identity",
+                "resource_id": "SKU000001",
+                "value": "SKU000001",
+            }],
+        }],
+        "conflicts": [],
+        "unmatched_evidence": ["new-package-code"],
+    }
+    # There is no existing Batch to receive into, and source context does not
+    # distort the direct SKU resolution.
+    assert response.json["state"]["results"] == []
+
+
+def test_sku_candidates_intersect_direct_evidence_and_report_disagreement(
+    client, inventory_database
+):
+    insert_sku(
+        inventory_database,
+        "SKU000001",
+        name="First",
+        owned=("FIRST-OWNED",),
+        associated=("SHARED",),
+    )
+    insert_sku(
+        inventory_database,
+        "SKU000002",
+        name="Second",
+        associated=("SECOND-ASSOCIATED", "SHARED"),
+    )
+
+    intersected = resolve(client, "FIRST-OWNED", "SHARED")
+    conflict = resolve(client, "FIRST-OWNED", "SECOND-ASSOCIATED")
+
+    intersected_state = intersected.json["state"]["sku_candidates"]
+    assert intersected_state["status"] == "identified"
+    assert [row["sku_id"] for row in intersected_state["results"]] == ["SKU000001"]
+
+    conflict_state = conflict.json["state"]["sku_candidates"]
+    assert conflict_state["status"] == "conflict"
+    assert conflict_state["resolution"] == "none"
+    assert conflict_state["conflicts"] == [{
+        "kind": "sku-evidence-conflict",
+        "evidence": ["FIRST-OWNED", "SECOND-ASSOCIATED"],
+        "candidate_sets": [
+            {
+                "evidence": "FIRST-OWNED",
+                "total_num_candidates": 1,
+                "sku_ids": ["SKU000001"],
+            },
+            {
+                "evidence": "SECOND-ASSOCIATED",
+                "total_num_candidates": 1,
+                "sku_ids": ["SKU000002"],
+            },
+        ],
+    }]
+
+
+def test_sku_label_is_reserved_for_both_batch_and_sku_candidate_families(
+    client, inventory_database
+):
+    insert_sku(inventory_database, "SKU000001", name="Intended SKU")
+    insert_batch(inventory_database, "BAT000001", sku_id="SKU000001")
+    insert_batch(
+        inventory_database,
+        "BAT000002",
+        name="External collision",
+        owned=("SKU000001",),
+    )
+
+    response = resolve(client, "sku1")
+
+    state = response.json["state"]
+    assert [candidate["batch_id"] for candidate in state["results"]] == [
+        "BAT000001",
+    ]
+    assert state["results"][0]["matches"] == [{
+        "evidence": "sku1",
+        "kind": "sku-id",
+        "scope": "sku",
+        "relationship": "identity",
+        "resource_id": "SKU000001",
+        "value": "SKU000001",
+    }]
+    assert state["sku_candidates"]["status"] == "identified"
+    assert [candidate["sku_id"] for candidate in state["sku_candidates"]["results"]] == [
+        "SKU000001",
+    ]
+
+
+def test_sku_owned_duplicate_is_visible_without_linked_batches(
+    client, inventory_database
+):
+    insert_sku(inventory_database, "SKU000001", name="First", owned=("DUP",))
+    insert_sku(inventory_database, "SKU000002", name="Second", owned=("DUP",))
+
+    response = resolve(client, "DUP")
+
+    state = response.json["state"]
+    assert state["results"] == []
+    sku_candidates = state["sku_candidates"]
+    assert sku_candidates["status"] == "conflict"
+    assert sku_candidates["resolution"] == "ambiguous"
+    assert sku_candidates["conflicts"] == [{
+        "evidence": "DUP",
+        "kind": "duplicate-owned-code",
+        "claimants": [
+            {"scope": "sku", "resource_id": "SKU000001", "name": "First"},
+            {"scope": "sku", "resource_id": "SKU000002", "name": "Second"},
+        ],
+    }]

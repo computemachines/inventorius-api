@@ -9,7 +9,9 @@ import pytest
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedBatch,
+    LedgerReferencedSku,
     MissingBatch,
+    MissingSku,
     canonical_fingerprint,
 )
 from tests.database import get_test_database
@@ -296,3 +298,55 @@ def test_command_and_batch_delete_leave_no_orphaned_operation(inventory_database
     else:
         assert batch is not None
         assert operation["legs"][0]["batch_id"] == "BAT000001"
+
+
+def test_existing_sku_intake_and_delete_leave_no_orphaned_batch(inventory_database):
+    inventory_database.sku.insert_one({
+        "_id": "SKU000001", "name": "Known", "owned_codes": [],
+        "associated_codes": [], "props": {},
+    })
+    inventory_database.bin.insert_one({"_id": "BIN000001", "contents": {}})
+    intake_repository = InventoryRepository(inventory_database)
+    delete_repository = InventoryRepository(inventory_database)
+    start = Barrier(2)
+
+    def intake():
+        start.wait(timeout=10)
+        try:
+            intake_repository.capture_intake(
+                {
+                    "sku_id": "SKU000001",
+                    "bin_id": "BIN000001",
+                    "quantity": 1,
+                    "unit": "each",
+                    "observed_codes": [],
+                },
+                idempotency_key="concurrent-existing-sku-intake",
+            )
+            return "captured"
+        except MissingSku:
+            return "missing-sku"
+
+    def delete():
+        start.wait(timeout=10)
+        try:
+            delete_repository.delete_legacy_sku("SKU000001")
+            return "deleted"
+        except LedgerReferencedSku:
+            return "sku-protected"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = set(executor.map(lambda action: action(), (intake, delete)))
+
+    assert outcomes in (
+        {"captured", "sku-protected"},
+        {"missing-sku", "deleted"},
+    )
+    sku = inventory_database.sku.find_one({"_id": "SKU000001"})
+    batch = inventory_database.batch.find_one({})
+    if batch is None:
+        assert sku is None
+        assert inventory_database.inventory_operations.count_documents({}) == 0
+    else:
+        assert sku is not None
+        assert batch["sku_id"] == "SKU000001"

@@ -111,6 +111,34 @@ def test_legacy_contents_endpoints_are_retired_at_zero_balance(
     assert clean_inventory_database.bin.find_one({"_id": "BIN000002"})["contents"] == {}
 
 
+def test_legacy_contents_endpoints_are_unconditionally_retired(
+    client, clean_inventory_database
+):
+    """Retired mutation routes must not expose their old validation contract."""
+    responses = (
+        client.post(
+            "/api/bin/not-a-bin/contents",
+            json={"id": "not-an-item", "quantity": 1},
+        ),
+        client.put(
+            "/api/bin/not-a-bin/contents/move",
+            json={
+                "id": "not-an-item",
+                "quantity": 1,
+                "destination": "also-not-a-bin",
+            },
+        ),
+    )
+
+    for response in responses:
+        assert response.status_code == 410
+        assert response.json == {
+            "type": "operation-retired",
+            "title": "This inventory mutation endpoint has been retired.",
+            "replacement": "/api/inventory-operations",
+        }
+
+
 def test_ledger_referenced_bin_cannot_be_force_deleted_at_zero_balance(
     client, clean_inventory_database
 ):

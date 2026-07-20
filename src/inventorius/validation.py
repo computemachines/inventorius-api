@@ -294,7 +294,8 @@ sku_patch_schema = Schema(
 
 quick_capture_schema = Schema(
     {
-        Required("description"): All(trimmed_non_empty_string, Length(max=500)),
+        "description": All(trimmed_non_empty_string, Length(max=500)),
+        "sku_id": prefixed_id("SKU"),
         Required("bin_id"): prefixed_id("BIN"),
         Required("quantity"): positive_whole_number,
         Required("unit", default="each"): each_unit,
@@ -304,6 +305,19 @@ quick_capture_schema = Schema(
         ),
     }
 )
+
+
+def intake_capture_schema(value):
+    """Validate one low-friction intake command without guessing its identity."""
+    capture = quick_capture_schema(value)
+    has_description = "description" in capture
+    has_sku_id = "sku_id" in capture
+    if has_description == has_sku_id:
+        raise MultipleInvalid([Invalid(
+            "must provide exactly one of description or sku_id",
+            ["description"],
+        )])
+    return capture
 
 
 inventory_operation_command_schema = Schema(
@@ -319,6 +333,10 @@ inventory_operation_command_schema = Schema(
         "location_id": prefixed_id("BIN"),
         "source_location_id": prefixed_id("BIN"),
         "destination_location_id": prefixed_id("BIN"),
+        "observed_codes": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=50),
+        ),
     }
 )
 

@@ -8,9 +8,10 @@ from inventorius.inventory_repository import (
     IdempotencyConflict,
     InventoryRepository,
     MissingBin,
+    MissingSku,
 )
 from inventorius.util import no_cache
-from inventorius.validation import quick_capture_schema
+from inventorius.validation import intake_capture_schema
 import inventorius.util_error_responses as problem
 
 
@@ -42,7 +43,7 @@ def quick_capture():
             "body", "must be a JSON object"
         )
     try:
-        capture = quick_capture_schema(body)
+        capture = intake_capture_schema(body)
     except MultipleInvalid as error:
         return problem.invalid_params_response(error)
     # One observation per exact external value.  Never normalize its case or
@@ -57,6 +58,8 @@ def quick_capture():
         )
     except MissingBin as error:
         return problem.missing_bin_response(str(error))
+    except MissingSku as error:
+        return problem.missing_sku_response(str(error))
     except IdempotencyConflict:
         return problem.duplicate_resource_response(
             "Idempotency-Key",

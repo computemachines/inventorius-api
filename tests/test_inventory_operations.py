@@ -144,6 +144,66 @@ def test_command_replays_exactly_and_rejects_a_reused_key(
     assert holding["quantity"].to_decimal() == Decimal(3)
 
 
+def test_receive_records_observed_codes_as_transactional_evidence(
+    client, clean_inventory_database
+):
+    response = post_command(
+        client,
+        "receive-evidence",
+        kind="receive",
+        batch_id="BAT000001",
+        location_id="BIN000001",
+        quantity=2,
+        observed_codes=["MANUFACTURER-1", "MANUFACTURER-1", "BOX-7"],
+    )
+    replay = post_command(
+        client,
+        "receive-evidence",
+        kind="receive",
+        batch_id="BAT000001",
+        location_id="BIN000001",
+        quantity=2,
+        observed_codes=["BOX-7", "MANUFACTURER-1"],
+    )
+
+    assert response.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json == response.json
+    assert response.json["state"]["observed_codes"] == [
+        "MANUFACTURER-1", "BOX-7",
+    ]
+    observations = list(clean_inventory_database.inventory_code_observations.find({}))
+    assert {observation["code"] for observation in observations} == {
+        "MANUFACTURER-1", "BOX-7",
+    }
+    assert {observation["batch_id"] for observation in observations} == {"BAT000001"}
+    assert {observation["operation_id"] for observation in observations} == {
+        response.json["state"]["operation_id"],
+    }
+
+
+@pytest.mark.parametrize("kind, locations", [
+    ("transfer", {
+        "source_location_id": "BIN000001",
+        "destination_location_id": "BIN000002",
+    }),
+    ("release", {"location_id": "BIN000001"}),
+])
+def test_only_receive_accepts_observed_codes(client, clean_inventory_database, kind, locations):
+    response = post_command(
+        client,
+        f"{kind}-evidence",
+        kind=kind,
+        batch_id="BAT000001",
+        quantity=1,
+        observed_codes=["not-valid-here"],
+        **locations,
+    )
+
+    assert response.status_code == 400
+    assert response.json["invalid-params"][0]["name"] == "observed_codes"
+
+
 @pytest.mark.parametrize("command, parameter", [
     ({"kind": "receive", "batch_id": "BAT1", "quantity": 1}, "location_id"),
     ({"kind": "release", "batch_id": "BAT1", "quantity": 1}, "location_id"),

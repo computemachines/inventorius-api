@@ -100,6 +100,15 @@ def inventory_operations_post():
         return problem.invalid_params_response(error)
 
     command.setdefault("packaging_configuration_id", None)
+    if command["kind"] != "receive" and "observed_codes" in command:
+        return problem.invalid_params_response_simple(
+            "observed_codes", "is only valid for receive"
+        )
+    if "observed_codes" in command:
+        # The physical evidence is retained exactly as scanned (aside from the
+        # input schema's trimming), while command equality treats its order
+        # and repeats as incidental.
+        command["observed_codes"] = list(dict.fromkeys(command["observed_codes"]))
     location_error = _location_contract_error(command)
     if location_error is not None:
         return location_error

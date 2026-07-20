@@ -41,12 +41,20 @@ class MissingBatch(ValueError):
     """The requested inventory identity was not present at commit time."""
 
 
+class MissingSku(ValueError):
+    """The requested product identity was not present at commit time."""
+
+
 class LedgerReferencedBin(ValueError):
     """A bin has immutable ledger history and therefore cannot be deleted."""
 
 
 class LedgerReferencedBatch(ValueError):
     """A batch is named by inventory state or immutable evidence."""
+
+
+class LedgerReferencedSku(ValueError):
+    """A SKU is still named by inventory state, history, or a process."""
 
 
 @dataclass(frozen=True)
@@ -313,6 +321,25 @@ class InventoryRepository:
             )
         return existing
 
+    def _reserve_sku_for_ledger_write(
+        self, sku_id: str, session
+    ) -> dict[str, Any] | None:
+        """Keep an existing SKU present while intake creates its new Batch."""
+        token = uuid4().hex
+        existing = self.db.sku.find_one_and_update(
+            {"_id": sku_id},
+            {"$set": {"_ledger_write_lock": token}},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        if existing is not None:
+            self.db.sku.update_one(
+                {"_id": sku_id, "_ledger_write_lock": token},
+                {"$unset": {"_ledger_write_lock": ""}},
+                session=session,
+            )
+        return existing
+
     def _bin_has_ledger_reference(self, bin_id: str, session) -> bool:
         """Whether any ledger record, including a zero holding, names a bin."""
         return (
@@ -380,6 +407,34 @@ class InventoryRepository:
 
         self._run_transaction(write)
 
+    def _sku_reference_reason(self, sku_id: str, session) -> str | None:
+        if self.db.bin.find_one(
+            {f"contents.{sku_id}": {"$exists": True}}, {"_id": 1}, session=session
+        ) is not None:
+            return "legacy bin contents"
+        if self.db.batch.find_one({"sku_id": sku_id}, {"_id": 1}, session=session) is not None:
+            return "linked batches"
+        if self.db.process_definition.find_one({
+            "$or": [
+                {"revisions.inputs.sku_id": sku_id},
+                {"revisions.outputs.sku_id": sku_id},
+            ]
+        }, {"_id": 1}, session=session) is not None:
+            return "process definitions"
+        return None
+
+    def delete_legacy_sku(self, sku_id: str) -> None:
+        """Delete an unreferenced SKU using intake's serialization point."""
+        def write(session):
+            if self._reserve_sku_for_ledger_write(sku_id, session) is None:
+                raise MissingSku(sku_id)
+            reference_reason = self._sku_reference_reason(sku_id, session)
+            if reference_reason is not None:
+                raise LedgerReferencedSku(reference_reason)
+            self.db.sku.delete_one({"_id": sku_id}, session=session)
+
+        self._run_transaction(write)
+
     def post(
         self,
         operation: InventoryOperation,
@@ -432,7 +487,8 @@ class InventoryRepository:
                 return existing
 
             batch_id = command["batch_id"]
-            if self._reserve_batch_for_ledger_write(batch_id, session) is None:
+            batch_document = self._reserve_batch_for_ledger_write(batch_id, session)
+            if batch_document is None:
                 raise MissingBatch(batch_id)
 
             # Acquiring physical-location write points in a stable order keeps
@@ -456,6 +512,7 @@ class InventoryRepository:
             quantity = command["quantity"]
             unit = command["unit"]
             packaging_configuration_id = command.get("packaging_configuration_id")
+            observed_codes = command.get("observed_codes", [])
             operation_id = f"OP{uuid4().hex}"
             location_id = command.get("location_id")
             source_location_id = command.get("source_location_id")
@@ -522,6 +579,8 @@ class InventoryRepository:
                 "unit": unit,
                 "packaging_configuration_id": packaging_configuration_id,
             }
+            if kind == OperationKind.RECEIVE and "observed_codes" in command:
+                result["observed_codes"] = observed_codes
             if location_id is not None:
                 result["location_id"] = location_id
             if source_location_id is not None:
@@ -534,6 +593,21 @@ class InventoryRepository:
                 self._operation_document(operation, request_fingerprint, result, now),
                 session=session,
             )
+            if observed_codes:
+                self.db.inventory_code_observations.insert_many(
+                    [
+                        {
+                            "_id": f"OBS{uuid4().hex}",
+                            "code": code,
+                            "batch_id": batch_id,
+                            "sku_id": batch_document.get("sku_id"),
+                            "operation_id": operation_id,
+                            "observed_at": now,
+                        }
+                        for code in observed_codes
+                    ],
+                    session=session,
+                )
             return RepositoryResult(result, replayed=False)
 
         try:
@@ -562,11 +636,26 @@ class InventoryRepository:
             if self._reserve_bin_for_ledger_write(capture["bin_id"], session) is None:
                 raise MissingBin(capture["bin_id"])
 
-            sku_id = self._allocate_label("SKU", self.db.sku, session)
+            description = capture.get("description")
+            created_sku = description is not None
+            if created_sku:
+                sku_id = self._allocate_label("SKU", self.db.sku, session)
+                sku_document = None
+            else:
+                sku_id = capture["sku_id"]
+                sku_document = self._reserve_sku_for_ledger_write(sku_id, session)
+                if sku_document is None:
+                    raise MissingSku(sku_id)
+
             batch_id = self._allocate_label("BAT", self.db.batch, session)
             operation_id = f"OP{uuid4().hex}"
             now = datetime.now(timezone.utc)
             observed_codes = capture.get("observed_codes", [])
+            batch_name = (
+                description
+                if description is not None
+                else sku_document.get("name") or sku_id
+            )
             result = {
                 "sku_id": sku_id,
                 "batch_id": batch_id,
@@ -574,29 +663,32 @@ class InventoryRepository:
                 "bin_id": capture["bin_id"],
                 "quantity": capture["quantity"],
                 "unit": capture["unit"],
-                "description": capture["description"],
                 "observed_codes": observed_codes,
                 "provisional": True,
+                "created_sku": created_sku,
             }
+            if description is not None:
+                result["description"] = description
 
-            self.db.sku.insert_one(
-                {
-                    "_id": sku_id,
-                    "name": capture["description"],
-                    "owned_codes": [],
-                    "associated_codes": [],
-                    "props": {
-                        "_capture_status": "provisional",
-                        "_captured_at": now.isoformat(),
+            if created_sku:
+                self.db.sku.insert_one(
+                    {
+                        "_id": sku_id,
+                        "name": description,
+                        "owned_codes": [],
+                        "associated_codes": [],
+                        "props": {
+                            "_capture_status": "provisional",
+                            "_captured_at": now.isoformat(),
+                        },
                     },
-                },
-                session=session,
-            )
+                    session=session,
+                )
             self.db.batch.insert_one(
                 {
                     "_id": batch_id,
                     "sku_id": sku_id,
-                    "name": capture["description"],
+                    "name": batch_name,
                     "owned_codes": [],
                     "associated_codes": [],
                     "props": {"_capture_status": "provisional"},

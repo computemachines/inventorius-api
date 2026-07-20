@@ -3,6 +3,11 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedSku,
+    MissingSku,
+)
 from inventorius.holding_queries import locations_for_sku
 from inventorius.util import admin_increment_code, check_code_list, no_cache
 from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema, validate_url_id
@@ -102,55 +107,33 @@ def sku_delete(id):
         })
         return resp
 
-    num_contained_by_bins = db.bin.count_documents(
-        {f"contents.{id}": {"$exists": True}})
-    if num_contained_by_bins > 0:
-        resp.status_code = 403
+    try:
+        InventoryRepository(db).delete_legacy_sku(id)
+    except MissingSku:
+        resp.status_code = 404
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
-            "type": "resource-in-use",
-            "title": "Can not delete sku that is being used. Try releasing all instances of this sku.",
-            "invalid-params": {
-                "name": "id",
-                "reason": "must be an unused sku"
-            }
-        })
-        return resp
-
-    linked_batch_count = db.batch.count_documents({"sku_id": id})
-    if linked_batch_count > 0:
-        resp.status_code = 403
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "resource-in-use",
-            "title": "Can not delete a SKU with linked batches.",
+            "type": "missing-resource",
+            "title": "Can not delete sku that does not exist.",
             "invalid-params": [{
                 "name": "id",
-                "reason": "SKU identity must remain while linked batches exist",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
+    except LedgerReferencedSku as error:
+        resp.status_code = 403
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "resource-in-use",
+            "title": "Can not delete a SKU that is still referenced.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": f"SKU is referenced by {error}",
             }],
         })
         return resp
 
-    referenced_by_processes = db.process_definition.count_documents({
-        "$or": [
-            {"revisions.inputs.sku_id": id},
-            {"revisions.outputs.sku_id": id},
-        ]
-    })
-    if referenced_by_processes > 0:
-        resp.status_code = 403
-        resp.mimetype = "application/problem+json"
-        resp.data = json.dumps({
-            "type": "resource-in-use",
-            "title": "Can not delete a SKU referenced by a process definition.",
-            "invalid-params": [{
-                "name": "id",
-                "reason": "remove the SKU from every process definition first",
-            }],
-        })
-        return resp
-
-    db.sku.delete_one({"_id": existing.id})
     resp.status_code = 204
     return resp
 
