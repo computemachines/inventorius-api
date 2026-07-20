@@ -15,6 +15,7 @@ problem_titles = {
     "dangerous-operation": "This operation requires force=true.",
     "ledger-history-conflict": "Requested change conflicts with immutable inventory history.",
     "operation-retired": "This inventory mutation endpoint has been retired.",
+    "identifier-space-exhausted": "Identifier namespace is exhausted.",
 }
 
 
@@ -96,6 +97,16 @@ def operation_retired_response():
         "type": "operation-retired",
         "title": problem_titles["operation-retired"],
         "replacement": "/api/inventory-operations",
+    })
+
+
+def identifier_space_exhausted_response(prefix):
+    """Report that a monotonic fixed-width namespace has no next value."""
+    return problem_response(status_code=409, json={
+        "type": "identifier-space-exhausted",
+        "title": problem_titles["identifier-space-exhausted"],
+        "prefix": prefix,
+        "detail": f"No unused six-digit {prefix} identifiers remain.",
     })
 
 

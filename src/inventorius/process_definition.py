@@ -9,7 +9,12 @@ from voluptuous.error import MultipleInvalid
 
 from inventorius.db import db
 from inventorius.resource_models import ProcessDefinitionEndpoint
-from inventorius.util import admin_get_next, admin_increment_code, no_cache
+from inventorius.util import (
+    IdentifierSpaceExhausted,
+    admin_get_next,
+    admin_increment_code,
+    no_cache,
+)
 from inventorius.validation import (
     process_definition_create_schema,
     process_definition_patch_schema,
@@ -131,7 +136,10 @@ def process_definitions_post():
     if reference_error is not None:
         return reference_error
 
-    process_id = admin_get_next("PRC")
+    try:
+        process_id = admin_get_next("PRC")
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
     timestamp = _now()
     revision = {
         **content,

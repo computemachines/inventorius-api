@@ -1,4 +1,8 @@
-from inventorius.util import getIntArgs, admin_get_next
+from inventorius.util import (
+    IdentifierSpaceExhausted,
+    admin_get_next,
+    getIntArgs,
+)
 from flask import Blueprint, request, Response, url_for
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
@@ -56,12 +60,17 @@ def move_bin_contents_put(id):
 
 @inventorius.route('/api/next/sku', methods=['GET'])
 def next_sku():
+    try:
+        next_id = admin_get_next("SKU")
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
+
     resp = Response()
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_sku"),
-        "state": admin_get_next("SKU"),
+        "state": next_id,
         "operations": [{
             "rel": "create",
             "method": "POST",
@@ -73,12 +82,17 @@ def next_sku():
 
 @inventorius.route('/api/next/batch', methods=['GET'])
 def next_batch():
+    try:
+        next_id = admin_get_next("BAT")
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
+
     resp = Response()
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_batch"),
-        "state": admin_get_next("BAT"),
+        "state": next_id,
         "operations": [{
             "rel": "create",
             "method": "POST",
@@ -91,12 +105,17 @@ def next_batch():
 
 @inventorius.route('/api/next/bin', methods=['GET'])
 def next_bin():
+    try:
+        next_id = admin_get_next("BIN")
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
+
     resp = Response()
     resp.status_code == 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_bin"),
-        "state": admin_get_next("BIN"),
+        "state": next_id,
         "operations": [{
             "rel": "create",
             "method": "POST",

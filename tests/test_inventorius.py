@@ -33,6 +33,11 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             self.model_batches = {}
             self.model_users = {}
             self.logged_in_as = None
+            self.exhausted_identifier_prefixes = set()
+
+    def record_identifier(self, identifier):
+        if identifier.endswith("999999"):
+            self.exhausted_identifier_prefixes.add(identifier[:3])
 
     a_bin_id = Bundle("bin_id")
     a_sku_id = Bundle("sku_id")
@@ -172,6 +177,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         else:
             assert resp.status_code == 201
             self.model_bins[bin.id] = bin
+            self.record_identifier(bin.id)
             return bin.id
 
     @rule(bin_id=a_bin_id)
@@ -251,6 +257,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         else:
             assert resp.status_code == 201
             self.model_skus[sku.id] = sku
+            self.record_identifier(sku.id)
             return sku.id
 
     @rule(sku=dst.skus_(), bad_code=st.sampled_from(["", " ", "\t", "     ", " 123", "1 2 3", "123 abc"]))
@@ -373,6 +380,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         else:
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
+            self.record_identifier(batch.id)
             return batch.id
 
     @rule(
@@ -422,6 +430,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             assert rp.json.get("type") is None
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
+            self.record_identifier(batch.id)
             return batch.id
 
     @rule(batch_id=a_batch_id)
@@ -618,29 +627,25 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
     @rule()
     def api_next(self):
-        rp = self.client.get("/api/next/bin")
-        assert rp.status_code == 200
-        assert rp.is_json
-        next_bin = rp.json["state"]
-        assert next_bin not in self.model_bins.keys()
-        assert next_bin.startswith("BIN")
-        assert len(next_bin) == 9
+        for path, prefix, model in (
+            ("/api/next/bin", "BIN", self.model_bins),
+            ("/api/next/sku", "SKU", self.model_skus),
+            ("/api/next/batch", "BAT", self.model_batches),
+        ):
+            rp = self.client.get(path)
+            assert rp.is_json
+            if prefix in self.exhausted_identifier_prefixes:
+                assert rp.status_code == 409
+                assert rp.mimetype == "application/problem+json"
+                assert rp.json["type"] == "identifier-space-exhausted"
+                assert rp.json["prefix"] == prefix
+                continue
 
-        rp = self.client.get("/api/next/sku")
-        assert rp.status_code == 200
-        assert rp.is_json
-        next_sku = rp.json["state"]
-        assert next_sku not in self.model_skus.keys()
-        assert next_sku.startswith("SKU")
-        assert len(next_sku) == 9
-
-        rp = self.client.get("/api/next/batch")
-        assert rp.status_code == 200
-        assert rp.is_json
-        next_batch = rp.json["state"]
-        assert next_batch not in self.model_bins.keys()
-        assert next_batch.startswith("BAT")
-        assert len(next_batch) == 9
+            assert rp.status_code == 200
+            next_id = rp.json["state"]
+            assert next_id not in model.keys()
+            assert next_id.startswith(prefix)
+            assert len(next_id) == 9
 
     def search_results_generator(self, query):
         def json_to_data_model(in_json_dict):
