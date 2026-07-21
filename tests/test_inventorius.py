@@ -32,6 +32,8 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             self.model_bins = {}
             self.model_batches = {}
             self.model_users = {}
+            self.used_bin_ids = set()
+            self.bin_command_number = 0
             self.logged_in_as = None
             self.exhausted_identifier_prefixes = set()
 
@@ -168,15 +170,24 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_bin_id, bin=dst.bins_())
     def new_bin(self, bin):
-        resp = self.client.post("/api/bins", json=bin.to_dict(mask_default=True))
-        if bin.id in self.model_bins.keys():
+        self.bin_command_number += 1
+        resp = self.client.post(
+            "/api/bins",
+            headers={
+                "Idempotency-Key": f"state-bin-{self.bin_command_number}"
+            },
+            json=bin.to_dict(mask_default=True),
+        )
+        if bin.id in self.used_bin_ids:
             assert resp.status_code == 409
             assert resp.is_json
             assert resp.json["type"] == "duplicate-resource"
             return multiple()
         else:
             assert resp.status_code == 201
+            bin.props = resp.json["state"]["props"]
             self.model_bins[bin.id] = bin
+            self.used_bin_ids.add(bin.id)
             self.record_identifier(bin.id)
             return bin.id
 

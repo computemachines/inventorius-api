@@ -12,7 +12,10 @@ def clean_identifier_database():
         database.admin,
         database.batch,
         database.bin,
+        database.identifier_counters,
         database.process_definition,
+        database.resource_commands,
+        database.resource_identifiers,
         database.sku,
     ):
         collection.delete_many({})
@@ -21,7 +24,10 @@ def clean_identifier_database():
         database.admin,
         database.batch,
         database.bin,
+        database.identifier_counters,
         database.process_definition,
+        database.resource_commands,
+        database.resource_identifiers,
         database.sku,
     ):
         collection.delete_many({})
@@ -42,7 +48,11 @@ def test_maximum_bin_id_is_valid_and_exhausts_monotonic_preview(
     client,
     clean_identifier_database,
 ):
-    created = client.post("/api/bins", json={"id": "BIN999999"})
+    created = client.post(
+        "/api/bins",
+        headers={"Idempotency-Key": "maximum-bin"},
+        json={"id": "BIN999999"},
+    )
 
     assert created.status_code == 201
     assert clean_identifier_database.bin.find_one({"_id": "BIN999999"})

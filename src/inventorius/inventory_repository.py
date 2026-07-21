@@ -378,6 +378,9 @@ class InventoryRepository:
         retains the old force-delete escape hatch until the legacy flows are
         retired.
         """
+        from inventorius.bin_repository import BinRepository
+        bin_repository = BinRepository(self.db)
+
         def write(session):
             existing = self._reserve_bin_for_ledger_write(bin_id, session)
             if existing is None:
@@ -386,6 +389,10 @@ class InventoryRepository:
                 raise LedgerReferencedBin(bin_id)
             if existing.get("contents", {}) and not force:
                 return False
+            # A physical label must never acquire a new meaning.  New Bin
+            # creation already has a permanent claim; this also tombstones
+            # bins that predate that allocator before removing their document.
+            bin_repository.preserve_identifier(bin_id, session)
             self.db.bin.delete_one({"_id": bin_id}, session=session)
             return True
 

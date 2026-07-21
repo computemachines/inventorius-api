@@ -259,7 +259,7 @@ batch_patch_schema = Schema(
 
 new_bin_schema = Schema(
     {
-        Required("id"): prefixed_id("BIN"),
+        "id": prefixed_id("BIN"),
         "props": props_schema,
     }
 )

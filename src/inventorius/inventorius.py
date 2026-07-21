@@ -5,6 +5,7 @@ from inventorius.util import (
 )
 from flask import Blueprint, request, Response, url_for
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
+from inventorius.bin_repository import BinRepository
 from inventorius.db import db
 import inventorius.util_error_responses as problem
 from inventorius.util import no_cache
@@ -106,7 +107,7 @@ def next_batch():
 @inventorius.route('/api/next/bin', methods=['GET'])
 def next_bin():
     try:
-        next_id = admin_get_next("BIN")
+        next_id = BinRepository(db).next_available_id()
     except IdentifierSpaceExhausted as error:
         return problem.identifier_space_exhausted_response(error.prefix)
 
