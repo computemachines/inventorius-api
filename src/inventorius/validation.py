@@ -152,6 +152,14 @@ def positive_whole_number(value):
     return value
 
 
+def nonnegative_whole_number(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise Invalid("must be a whole number")
+    if value < 0:
+        raise Invalid("must be at least 0")
+    return value
+
+
 def observed_code(value):
     value = trimmed_non_empty_string(value)
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
@@ -337,6 +345,20 @@ inventory_operation_command_schema = Schema(
             [All(observed_code, Length(max=500))],
             Length(max=50),
         ),
+    }
+)
+
+
+inventory_correction_command_schema = Schema(
+    {
+        Required("quantity"): All(
+            nonnegative_whole_number,
+            # Keep correction input exactly representable by browser clients
+            # and comfortably inside MongoDB Decimal128. Receipt reads still
+            # render larger historical exact values as strings.
+            Range(max=9_007_199_254_740_991),
+        ),
+        Required("location_id"): prefixed_id("BIN"),
     }
 )
 

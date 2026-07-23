@@ -31,6 +31,10 @@ SUPPORTED_OPERATION_KINDS = {
     OperationKind.RELEASE,
 }
 
+INTERNAL_OPERATION_KINDS = SUPPORTED_OPERATION_KINDS | {
+    OperationKind.CORRECTION,
+}
+
 
 @dataclass(frozen=True)
 class HoldingKey:
@@ -74,12 +78,19 @@ class InventoryOperation:
             raise ValueError("operation identity must not be empty")
         if not self.legs:
             raise ValueError("an operation needs holding legs")
-        if self.kind not in SUPPORTED_OPERATION_KINDS:
+        if self.kind not in INTERNAL_OPERATION_KINDS:
             raise ValueError(
                 f"unsupported inventory operation kind: {self.kind.value}"
             )
+
+        if self.kind == OperationKind.CORRECTION:
+            if not self.corrects_operation_id:
+                raise ValueError("correction must reference an earlier operation")
+            if self.corrects_operation_id == self.operation_id:
+                raise ValueError("correction cannot reference itself")
+            return
         if self.corrects_operation_id is not None:
-            raise ValueError("corrections are not supported yet")
+            raise ValueError("only a correction may reference another operation")
 
         if self.kind == OperationKind.RECEIVE:
             if any(leg.amount < 0 for leg in self.legs):
@@ -123,6 +134,7 @@ class InventoryLedger:
     def __init__(self):
         self._operations: dict[str, InventoryOperation] = {}
         self._operation_id_by_key: dict[str, str] = {}
+        self._correction_id_by_original: dict[str, str] = {}
         self._balances: dict[HoldingKey, Decimal] = {}
 
     def post(self, operation: InventoryOperation) -> InventoryOperation:
@@ -136,6 +148,17 @@ class InventoryLedger:
             )
         if operation.operation_id in self._operations:
             raise ValueError(f"duplicate operation: {operation.operation_id}")
+        if operation.kind == OperationKind.CORRECTION:
+            original_id = operation.corrects_operation_id
+            original = self._operations.get(original_id)
+            if original is None:
+                raise ValueError(
+                    "correction must reference an earlier stored operation"
+                )
+            if original.kind == OperationKind.CORRECTION:
+                raise ValueError("a correction cannot correct another correction")
+            if original_id in self._correction_id_by_original:
+                raise ValueError("operation already has a correction")
         deltas: dict[HoldingKey, Decimal] = defaultdict(Decimal)
         for leg in operation.legs:
             deltas[leg.holding] += leg.amount
@@ -163,6 +186,10 @@ class InventoryLedger:
         self._operation_id_by_key[operation.idempotency_key] = (
             operation.operation_id
         )
+        if operation.kind == OperationKind.CORRECTION:
+            self._correction_id_by_original[operation.corrects_operation_id] = (
+                operation.operation_id
+            )
         return operation
 
     def balance(self, holding: HoldingKey) -> Decimal:
@@ -171,6 +198,7 @@ class InventoryLedger:
     def rebuild(self, operations: Iterable[InventoryOperation]) -> None:
         self._operations.clear()
         self._operation_id_by_key.clear()
+        self._correction_id_by_original.clear()
         self._balances.clear()
         for operation in operations:
             self.post(operation)

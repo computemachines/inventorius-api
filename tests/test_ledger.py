@@ -118,20 +118,46 @@ def test_retry_is_idempotent_but_reusing_key_for_new_command_is_not():
         ledger.post(conflicting)
 
 
-def test_only_validated_operation_kinds_are_exposed_at_this_stage():
+def test_correction_is_internal_and_requires_a_real_prior_reference():
     assert {kind.value for kind in OperationKind} == {
         "receive", "release", "transfer", "repackage", "transformation",
         "assembly", "correction",
     }
 
-    with pytest.raises(ValueError, match="unsupported inventory operation kind"):
+    with pytest.raises(ValueError, match="must reference an earlier operation"):
         InventoryOperation(
             operation_id="OP-correction",
             idempotency_key="correction-1",
             kind=OperationKind.CORRECTION,
             legs=(HoldingLeg(BIN_A, -1),),
-            corrects_operation_id="OP-original",
         )
+
+    correction = InventoryOperation(
+        operation_id="OP-correction",
+        idempotency_key="correction-1",
+        kind=OperationKind.CORRECTION,
+        legs=(HoldingLeg(BIN_A, -1),),
+        corrects_operation_id="OP-original",
+    )
+    ledger = InventoryLedger()
+    with pytest.raises(ValueError, match="earlier stored operation"):
+        ledger.post(correction)
+
+    ledger.post(operation(
+        "OP-original",
+        OperationKind.RECEIVE,
+        (HoldingLeg(BIN_A, 2),),
+    ))
+    ledger.post(correction)
+    assert ledger.balance(BIN_A) == Decimal(1)
+    with pytest.raises(ValueError, match="already has a correction"):
+        ledger.post(InventoryOperation(
+            operation_id="OP-another-correction",
+            idempotency_key="correction-2",
+            kind=OperationKind.CORRECTION,
+            legs=(HoldingLeg(BIN_A, 1),),
+            corrects_operation_id="OP-original",
+        ))
 
 
 def test_packaging_states_are_distinct_holdings_with_supported_receives():
