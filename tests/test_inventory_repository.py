@@ -28,12 +28,15 @@ from inventorius.ledger import (
 def inventory_database():
     database = get_test_database()
     collections = (
+        database.admin,
         database.batch,
         database.bin,
+        database.identifier_counters,
         database.inventory_code_observations,
         database.inventory_counters,
         database.inventory_holdings,
         database.inventory_operations,
+        database.resource_identifiers,
         database.sku,
     )
     for collection in collections:

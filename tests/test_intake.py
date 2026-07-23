@@ -16,6 +16,8 @@ def clean_inventory_database():
         database.inventory_counters,
         database.inventory_holdings,
         database.inventory_operations,
+        database.identifier_counters,
+        database.resource_identifiers,
         database.sku,
     ):
         collection.delete_many({})
@@ -28,6 +30,8 @@ def clean_inventory_database():
         database.inventory_counters,
         database.inventory_holdings,
         database.inventory_operations,
+        database.identifier_counters,
+        database.resource_identifiers,
         database.sku,
     ):
         collection.delete_many({})

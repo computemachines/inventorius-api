@@ -237,7 +237,7 @@ props_schema = Schema(
 
 new_batch_schema = Schema(
     {
-        Required("id"): prefixed_id("BAT"),
+        "id": prefixed_id("BAT"),
         "owned_codes": code_list_schema,
         "associated_codes": code_list_schema,
         "name": str,
@@ -274,7 +274,7 @@ bin_patch_schema = Schema(
 
 new_sku_schema = Schema(
     {
-        Required("id"): prefixed_id("SKU"),
+        "id": prefixed_id("SKU"),
         "owned_codes": code_list_schema,
         "associated_codes": code_list_schema,
         "name": str,

@@ -1,11 +1,10 @@
 from inventorius.util import (
     IdentifierSpaceExhausted,
-    admin_get_next,
     getIntArgs,
 )
 from flask import Blueprint, request, Response, url_for
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
-from inventorius.bin_repository import BinRepository
+from inventorius.resource_repository import ResourceRepository
 from inventorius.db import db
 import inventorius.util_error_responses as problem
 from inventorius.util import no_cache
@@ -62,44 +61,32 @@ def move_bin_contents_put(id):
 @inventorius.route('/api/next/sku', methods=['GET'])
 def next_sku():
     try:
-        next_id = admin_get_next("SKU")
+        next_id = ResourceRepository(db).next_available_id("SKU")
     except IdentifierSpaceExhausted as error:
         return problem.identifier_space_exhausted_response(error.prefix)
 
     resp = Response()
-    resp.status_code == 200
+    resp.status_code = 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_sku"),
         "state": next_id,
-        "operations": [{
-            "rel": "create",
-            "method": "POST",
-            "href": url_for("sku.skus_post"),
-            "Expects-a": "Sku patch",
-        }]
     })
     return resp
 
 @inventorius.route('/api/next/batch', methods=['GET'])
 def next_batch():
     try:
-        next_id = admin_get_next("BAT")
+        next_id = ResourceRepository(db).next_available_id("BAT")
     except IdentifierSpaceExhausted as error:
         return problem.identifier_space_exhausted_response(error.prefix)
 
     resp = Response()
-    resp.status_code == 200
+    resp.status_code = 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_batch"),
         "state": next_id,
-        "operations": [{
-            "rel": "create",
-            "method": "POST",
-            "href": url_for("batch.batches_post"),
-            "Expects-a": "Batch patch",
-        }]
     })
     return resp
 
@@ -107,22 +94,16 @@ def next_batch():
 @inventorius.route('/api/next/bin', methods=['GET'])
 def next_bin():
     try:
-        next_id = BinRepository(db).next_available_id()
+        next_id = ResourceRepository(db).next_available_id("BIN")
     except IdentifierSpaceExhausted as error:
         return problem.identifier_space_exhausted_response(error.prefix)
 
     resp = Response()
-    resp.status_code == 200
+    resp.status_code = 200
     resp.mimetype = "application/json"
     resp.data = json.dumps({
         "Id": url_for("inventorius.next_bin"),
         "state": next_id,
-        "operations": [{
-            "rel": "create",
-            "method": "POST",
-            "href": url_for("bin.bins_post"),
-            "Expects-a": "Bin patch",
-        }]
     })
     return resp
 

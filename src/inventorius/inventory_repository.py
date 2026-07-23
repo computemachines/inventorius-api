@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
 import json
-import re
 from typing import Any, Callable
 from uuid import uuid4
 
@@ -31,6 +30,7 @@ from inventorius.ledger import (
     InventoryOperation,
     OperationKind,
 )
+from inventorius.resource_repository import PermanentIdentifierAllocator
 
 
 class MissingBin(ValueError):
@@ -91,15 +91,12 @@ def _decimal(value: Decimal128 | Decimal | int | str | None) -> Decimal:
     return Decimal(str(value))
 
 
-def _next_label(prefix: str, number: int) -> str:
-    return f"{prefix}{number:06d}"
-
-
 class InventoryRepository:
     """Transaction-only writer for inventory operations and holdings."""
 
     def __init__(self, database):
         self.db = database
+        self.identifiers = PermanentIdentifierAllocator(database)
         self.ensure_indexes()
 
     def ensure_indexes(self) -> None:
@@ -165,43 +162,6 @@ class InventoryRepository:
                 "idempotency key already belongs to a different command"
             )
         return RepositoryResult(existing["result"], replayed=True)
-
-    @staticmethod
-    def _max_legacy_label_number(collection, prefix: str, session) -> int:
-        maximum = 0
-        pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
-        for document in collection.find({}, {"_id": 1}, session=session):
-            match = pattern.fullmatch(str(document["_id"]))
-            if match:
-                maximum = max(maximum, int(match.group(1)))
-        return maximum
-
-    def _allocate_label(self, prefix: str, collection, session) -> str:
-        """Allocate a never-reused numeric label within the current transaction.
-
-        The counter is deliberately separate from legacy ``admin`` documents.
-        The one-time starting point merely avoids colliding with labels that
-        already exist; it does not migrate or alter their legacy bookkeeping.
-        """
-        counter = self.db.inventory_counters.find_one({"_id": prefix}, session=session)
-        if counter is None:
-            # Initialization is the only legacy scan.  A competing first
-            # capture can force a transaction retry, which then sees the
-            # committed counter and takes the O(1) branch below.
-            next_number = self._max_legacy_label_number(collection, prefix, session) + 1
-            self.db.inventory_counters.update_one(
-                {"_id": prefix},
-                {"$setOnInsert": {"next_number": next_number}},
-                upsert=True,
-                session=session,
-            )
-        before = self.db.inventory_counters.find_one_and_update(
-            {"_id": prefix},
-            {"$inc": {"next_number": 1}},
-            return_document=ReturnDocument.BEFORE,
-            session=session,
-        )
-        return _next_label(prefix, before["next_number"])
 
     @staticmethod
     def _operation_document(
@@ -378,9 +338,6 @@ class InventoryRepository:
         retains the old force-delete escape hatch until the legacy flows are
         retired.
         """
-        from inventorius.bin_repository import BinRepository
-        bin_repository = BinRepository(self.db)
-
         def write(session):
             existing = self._reserve_bin_for_ledger_write(bin_id, session)
             if existing is None:
@@ -392,7 +349,7 @@ class InventoryRepository:
             # A physical label must never acquire a new meaning.  New Bin
             # creation already has a permanent claim; this also tombstones
             # bins that predate that allocator before removing their document.
-            bin_repository.preserve_identifier(bin_id, session)
+            self.identifiers.preserve("BIN", bin_id, session)
             self.db.bin.delete_one({"_id": bin_id}, session=session)
             return True
 
@@ -410,6 +367,7 @@ class InventoryRepository:
                 raise MissingBatch(batch_id)
             if self._batch_has_inventory_reference(batch_id, session):
                 raise LedgerReferencedBatch(batch_id)
+            self.identifiers.preserve("BAT", batch_id, session)
             self.db.batch.delete_one({"_id": batch_id}, session=session)
 
         self._run_transaction(write)
@@ -438,6 +396,7 @@ class InventoryRepository:
             reference_reason = self._sku_reference_reason(sku_id, session)
             if reference_reason is not None:
                 raise LedgerReferencedSku(reference_reason)
+            self.identifiers.preserve("SKU", sku_id, session)
             self.db.sku.delete_one({"_id": sku_id}, session=session)
 
         self._run_transaction(write)
@@ -646,7 +605,7 @@ class InventoryRepository:
             description = capture.get("description")
             created_sku = description is not None
             if created_sku:
-                sku_id = self._allocate_label("SKU", self.db.sku, session)
+                sku_id = self.identifiers.allocate("SKU", session)
                 sku_document = None
             else:
                 sku_id = capture["sku_id"]
@@ -654,7 +613,7 @@ class InventoryRepository:
                 if sku_document is None:
                     raise MissingSku(sku_id)
 
-            batch_id = self._allocate_label("BAT", self.db.batch, session)
+            batch_id = self.identifiers.allocate("BAT", session)
             operation_id = f"OP{uuid4().hex}"
             now = datetime.now(timezone.utc)
             observed_codes = capture.get("observed_codes", [])

@@ -15,6 +15,7 @@ def clean_bin_database():
         database.admin,
         database.bin,
         database.identifier_counters,
+        database.inventory_counters,
         database.inventory_holdings,
         database.inventory_operations,
         database.resource_commands,
@@ -177,7 +178,7 @@ def test_failed_receipt_insert_rolls_back_bin_identifier_and_counter(
     def fail_receipt(*args, **kwargs):
         raise RuntimeError("simulate failure after Bin insert")
 
-    monkeypatch.setattr(repository, "_insert_receipt", fail_receipt)
+    monkeypatch.setattr(repository.repository, "_insert_receipt", fail_receipt)
     with pytest.raises(RuntimeError, match="after Bin insert"):
         repository.create({}, idempotency_key="failed-create")
 

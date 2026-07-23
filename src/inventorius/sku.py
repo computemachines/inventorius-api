@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, url_for
+from flask import Blueprint, jsonify, request, Response, url_for
 from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
@@ -9,7 +9,12 @@ from inventorius.inventory_repository import (
     MissingSku,
 )
 from inventorius.holding_queries import locations_for_sku
-from inventorius.util import admin_increment_code, check_code_list, no_cache
+from inventorius.resource_repository import (
+    ResourceIdempotencyConflict,
+    ResourceIdentifierAlreadyUsed,
+    ResourceRepository,
+)
+from inventorius.util import IdentifierSpaceExhausted, no_cache
 from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema, validate_url_id
 import inventorius.util_error_responses as problem
 from inventorius.resource_models import SkuEndpoint
@@ -24,25 +29,54 @@ sku = Blueprint("sku", __name__)
 @ sku.route('/api/skus', methods=['POST'])
 @no_cache
 def skus_post():
+    idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+    if not idempotency_key:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "header is required"
+        )
+    if len(idempotency_key) > 200:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "must be at most 200 characters"
+        )
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return problem.invalid_params_response_simple(
+            "body", "must be a JSON object"
+        )
     try:
-        json = new_sku_schema(request.json)
+        command = new_sku_schema(body)
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    if db.sku.find_one({'_id': json['id']}):
-        return problem.duplicate_resource_response("id")
-
-    sku = Sku.from_json(json)
-    admin_increment_code("SKU", sku.id)
-    db.sku.insert_one(sku.to_mongodb_doc())
-    # dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
+    try:
+        stored = ResourceRepository(db).create(
+            "SKU",
+            command,
+            idempotency_key=idempotency_key,
+        )
+    except ResourceIdempotencyConflict:
+        return problem.duplicate_resource_response(
+            "Idempotency-Key",
+            "must not be reused for a different request",
+        )
+    except ResourceIdentifierAlreadyUsed:
+        return problem.duplicate_resource_response(
+            "id", "has already been used"
+        )
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
 
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.sku.index_information().keys():
         # print("Creating text index for sku#name") # was too noisy
         db.sku.create_index([("name", TEXT)])
-    return SkuEndpoint.from_sku(sku).created_success_response()
+    return jsonify({
+        "Id": url_for("sku.sku_get", id=stored.state["id"]),
+        "status": "sku created",
+        "state": stored.state,
+    }), 200 if stored.replayed else 201
 
 
 

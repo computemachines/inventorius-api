@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, url_for, after_this_request
+from flask import Blueprint, jsonify, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
@@ -9,7 +9,13 @@ from inventorius.inventory_repository import (
 )
 from inventorius.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventorius.resource_operations as operation
-from inventorius.util import admin_increment_code, check_code_list, no_cache
+from inventorius.resource_repository import (
+    MissingResourceReference,
+    ResourceIdempotencyConflict,
+    ResourceIdentifierAlreadyUsed,
+    ResourceRepository,
+)
+from inventorius.util import IdentifierSpaceExhausted, no_cache
 from inventorius.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema, validate_url_id
 from voluptuous import All, Required
 import inventorius.util_error_responses as problem
@@ -26,31 +32,58 @@ batch = Blueprint("batch", __name__)
 @batch.route("/api/batches", methods=['POST'])
 @no_cache
 def batches_post():
+    idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+    if not idempotency_key:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "header is required"
+        )
+    if len(idempotency_key) > 200:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "must be at most 200 characters"
+        )
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return problem.invalid_params_response_simple(
+            "body", "must be a JSON object"
+        )
     try:
-        json = new_batch_schema(request.json)
+        command = new_batch_schema(body)
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    batch = Batch.from_json(json)
-
-    existing_batch = db.batch.find_one({"_id": batch.id})
-    if existing_batch:
-        return problem.duplicate_resource_response("id")
-
-    if batch.sku_id:
-        existing_sku = db.sku.find_one({"_id": batch.sku_id})
-        if not existing_sku:
-            return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
-
-    admin_increment_code("BAT", batch.id)
-    db.batch.insert_one(batch.to_mongodb_doc())
+    try:
+        stored = ResourceRepository(db).create(
+            "BAT",
+            command,
+            idempotency_key=idempotency_key,
+        )
+    except ResourceIdempotencyConflict:
+        return problem.duplicate_resource_response(
+            "Idempotency-Key",
+            "must not be reused for a different request",
+        )
+    except ResourceIdentifierAlreadyUsed:
+        return problem.duplicate_resource_response(
+            "id", "has already been used"
+        )
+    except MissingResourceReference as error:
+        return problem.invalid_params_response_simple(
+            "sku_id", "must be an existing sku id"
+        )
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
 
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.batch.index_information().keys():
-        db.sku.create_index([("name", TEXT)])
+        db.batch.create_index([("name", TEXT)])
 
-    return BatchEndpoint.from_batch(batch).created_success_response()
+    return jsonify({
+        "Id": url_for("batch.batch_get", id=stored.state["id"]),
+        "status": "batch created",
+        "state": stored.state,
+    }), 200 if stored.replayed else 201
 
 
 @batch.route("/api/batch/<id>", methods=["GET"])

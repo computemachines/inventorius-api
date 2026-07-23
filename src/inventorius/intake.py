@@ -10,7 +10,7 @@ from inventorius.inventory_repository import (
     MissingBin,
     MissingSku,
 )
-from inventorius.util import no_cache
+from inventorius.util import IdentifierSpaceExhausted, no_cache
 from inventorius.validation import intake_capture_schema
 import inventorius.util_error_responses as problem
 
@@ -65,6 +65,8 @@ def quick_capture():
             "Idempotency-Key",
             "must not be reused for a different request",
         )
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
 
     return jsonify({
         "status": "item captured",

@@ -33,13 +33,27 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             self.model_batches = {}
             self.model_users = {}
             self.used_bin_ids = set()
-            self.bin_command_number = 0
+            self.used_sku_ids = set()
+            self.used_batch_ids = set()
+            self.resource_command_number = 0
             self.logged_in_as = None
             self.exhausted_identifier_prefixes = set()
 
     def record_identifier(self, identifier):
         if identifier.endswith("999999"):
             self.exhausted_identifier_prefixes.add(identifier[:3])
+
+    def post_resource(self, path, body):
+        self.resource_command_number += 1
+        return self.client.post(
+            path,
+            headers={
+                "Idempotency-Key": (
+                    f"state-resource-{self.resource_command_number}"
+                )
+            },
+            json=body,
+        )
 
     a_bin_id = Bundle("bin_id")
     a_sku_id = Bundle("sku_id")
@@ -170,13 +184,9 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_bin_id, bin=dst.bins_())
     def new_bin(self, bin):
-        self.bin_command_number += 1
-        resp = self.client.post(
+        resp = self.post_resource(
             "/api/bins",
-            headers={
-                "Idempotency-Key": f"state-bin-{self.bin_command_number}"
-            },
-            json=bin.to_dict(mask_default=True),
+            bin.to_dict(mask_default=True),
         )
         if bin.id in self.used_bin_ids:
             assert resp.status_code == 409
@@ -259,8 +269,8 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
     @rule(target=a_sku_id, sku=dst.skus_())
     def new_sku(self, sku):
-        resp = self.client.post("/api/skus", json=sku.to_dict(mask_default=True))
-        if sku.id in self.model_skus.keys():
+        resp = self.post_resource("/api/skus", sku.to_dict(mask_default=True))
+        if sku.id in self.used_sku_ids:
             assert resp.status_code == 409
             assert resp.is_json
             assert resp.json["type"] == "duplicate-resource"
@@ -268,6 +278,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         else:
             assert resp.status_code == 201
             self.model_skus[sku.id] = sku
+            self.used_sku_ids.add(sku.id)
             self.record_identifier(sku.id)
             return sku.id
 
@@ -276,14 +287,14 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         assume(sku.id not in self.model_skus.keys())
         temp_sku = Sku.from_json(sku.to_json())
         temp_sku.owned_codes.append(bad_code)
-        resp = self.client.post("/api/skus", json=temp_sku.to_dict())
+        resp = self.post_resource("/api/skus", temp_sku.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
         assert resp.json["type"] == "validation-error"
 
         temp_sku = Sku.from_json(sku.to_json())
         temp_sku.associated_codes.append(bad_code)
-        resp = self.client.post("/api/skus", json=temp_sku.to_dict())
+        resp = self.post_resource("/api/skus", temp_sku.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
         assert resp.json["type"] == "validation-error"
@@ -381,9 +392,9 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         # assume(self.model_skus != {})  # TODO: check if this is necessary
         batch = data.draw(dst.batches_(sku_id=sku_id))
 
-        rp = self.client.post("/api/batches", json=batch.to_dict(mask_default=True))
+        rp = self.post_resource("/api/batches", batch.to_dict(mask_default=True))
 
-        if batch.id in self.model_batches.keys():
+        if batch.id in self.used_batch_ids:
             assert rp.status_code == 409
             assert rp.json["type"] == "duplicate-resource"
             assert rp.is_json
@@ -391,6 +402,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
         else:
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
+            self.used_batch_ids.add(batch.id)
             self.record_identifier(batch.id)
             return batch.id
 
@@ -405,14 +417,14 @@ class InventoriusStateMachine(RuleBasedStateMachine):
 
         temp_batch = Batch.from_json(batch.to_json())
         temp_batch.owned_codes.append(bad_code)
-        resp = self.client.post("/api/batches", json=temp_batch.to_dict())
+        resp = self.post_resource("/api/batches", temp_batch.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
         assert resp.json["type"] == "validation-error"
 
         temp_batch = Batch.from_json(batch.to_json())
         temp_batch.associated_codes.append(bad_code)
-        resp = self.client.post("/api/batches", json=temp_batch.to_dict())
+        resp = self.post_resource("/api/batches", temp_batch.to_dict())
         assert resp.status_code == 400
         assert resp.is_json
         assert resp.json["type"] == "validation-error"
@@ -421,18 +433,18 @@ class InventoriusStateMachine(RuleBasedStateMachine):
     def new_batch_new_sku(self, batch):
         assume(batch.sku_id)
         assume(batch.sku_id not in self.model_skus.keys())
-        rp = self.client.post("/api/batches", json=batch.to_json())
+        rp = self.post_resource("/api/batches", batch.to_dict(mask_default=True))
 
-        assert rp.status_code == 409
+        assert rp.status_code == 400
         assert rp.is_json
         assert rp.json["type"] == "missing-resource"
 
     @rule(target=a_batch_id, batch=dst.batches_(sku_id=None))
     def new_anonymous_batch(self, batch):
         assert not batch.sku_id
-        rp = self.client.post("/api/batches", json=batch.to_dict(mask_default=True))
+        rp = self.post_resource("/api/batches", batch.to_dict(mask_default=True))
 
-        if batch.id in self.model_batches.keys():
+        if batch.id in self.used_batch_ids:
             assert rp.status_code == 409
             assert rp.json["type"] == "duplicate-resource"
             assert rp.is_json
@@ -441,6 +453,7 @@ class InventoriusStateMachine(RuleBasedStateMachine):
             assert rp.json.get("type") is None
             assert rp.status_code == 201
             self.model_batches[batch.id] = batch
+            self.used_batch_ids.add(batch.id)
             self.record_identifier(batch.id)
             return batch.id
 
