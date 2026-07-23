@@ -12,10 +12,20 @@ from inventorius.audit_observation import (
     AuditSnapshotStale,
 )
 from inventorius.db import db
-from inventorius.inventory_repository import MissingBatch, MissingBin
+from inventorius.inventory_repository import (
+    AuditReconciliationRejected,
+    InsufficientHolding,
+    InventoryRepository,
+    MissingAuditObservation,
+    MissingBatch,
+    MissingBin,
+)
 from inventorius.ledger import IdempotencyConflict
 from inventorius.util import no_cache
-from inventorius.validation import audit_observation_command_schema
+from inventorius.validation import (
+    audit_observation_command_schema,
+    audit_reconciliation_command_schema,
+)
 import inventorius.util_error_responses as problem
 
 
@@ -161,4 +171,73 @@ def audit_observations_post():
     return jsonify({
         "status": "audit observation recorded",
         "state": stored.observation,
+    }), 200 if stored.replayed else 201
+
+
+@audit_observations.route(
+    "/api/audit-observations/<observation_id>/reconciliation",
+    methods=["POST"],
+)
+@no_cache
+def audit_observation_reconciliation_post(observation_id):
+    """Apply one current, complete physical count as an inventory variance."""
+    observation_id_error = _observation_id_error(observation_id)
+    if observation_id_error is not None:
+        return observation_id_error
+    idempotency_key, idempotency_error = _idempotency_key_error()
+    if idempotency_error is not None:
+        return idempotency_error
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return problem.invalid_params_response_simple(
+            "body",
+            "must be a JSON object",
+        )
+    try:
+        disposition = audit_reconciliation_command_schema(body)
+    except MultipleInvalid as error:
+        return problem.invalid_params_response(error)
+
+    repository = InventoryRepository(db)
+    try:
+        stored = repository.reconcile_audit_observation(
+            observation_id,
+            disposition,
+            idempotency_key=idempotency_key,
+        )
+    except MissingAuditObservation:
+        return problem.missing_resource_response(
+            f"/api/audit-observations/{observation_id}"
+        )
+    except MissingBatch as error:
+        return problem.missing_batch_response(str(error))
+    except MissingBin as error:
+        return problem.missing_bin_response(str(error))
+    except InsufficientHolding:
+        return problem.problem_response(status_code=409, json={
+            "type": "audit-reconciliation-rejected",
+            "title": "This audit observation cannot be reconciled now.",
+            "blocker": "insufficient-holding",
+            "detail": "the recorded inventory is no longer available",
+        })
+    except AuditReconciliationRejected as error:
+        response = {
+            "type": "audit-reconciliation-rejected",
+            "title": "This audit observation cannot be reconciled now.",
+            "blocker": error.code,
+            "detail": error.detail,
+        }
+        response.update(error.context)
+        return problem.problem_response(status_code=409, json=response)
+    except IdempotencyConflict:
+        return problem.duplicate_resource_response(
+            "Idempotency-Key",
+            "must not be reused for a different request",
+        )
+
+    receipt = repository.receipt(stored.result["operation_id"])
+    return jsonify({
+        "status": "audit observation reconciled",
+        "state": receipt,
     }), 200 if stored.replayed else 201

@@ -121,7 +121,7 @@ def test_retry_is_idempotent_but_reusing_key_for_new_command_is_not():
 def test_correction_is_internal_and_requires_a_real_prior_reference():
     assert {kind.value for kind in OperationKind} == {
         "receive", "release", "transfer", "repackage", "transformation",
-        "assembly", "correction",
+        "assembly", "correction", "reconciliation",
     }
 
     with pytest.raises(ValueError, match="must reference an earlier operation"):
@@ -157,6 +157,41 @@ def test_correction_is_internal_and_requires_a_real_prior_reference():
             kind=OperationKind.CORRECTION,
             legs=(HoldingLeg(BIN_A, 1),),
             corrects_operation_id="OP-original",
+        ))
+
+
+def test_reconciliation_is_internal_and_requires_an_audit_observation():
+    with pytest.raises(
+        ValueError,
+        match="must reference an audit observation",
+    ):
+        InventoryOperation(
+            operation_id="OP-reconciliation",
+            idempotency_key="reconciliation-1",
+            kind=OperationKind.RECONCILIATION,
+            legs=(HoldingLeg(BIN_A, 1),),
+        )
+
+    reconciliation = InventoryOperation(
+        operation_id="OP-reconciliation",
+        idempotency_key="reconciliation-1",
+        kind=OperationKind.RECONCILIATION,
+        legs=(HoldingLeg(BIN_A, 1),),
+        reconciles_observation_id="AOB-observation",
+    )
+    ledger = InventoryLedger()
+    ledger.post(reconciliation)
+    assert ledger.balance(BIN_A) == Decimal(1)
+    with pytest.raises(
+        ValueError,
+        match="already has a reconciliation",
+    ):
+        ledger.post(InventoryOperation(
+            operation_id="OP-another-reconciliation",
+            idempotency_key="reconciliation-2",
+            kind=OperationKind.RECONCILIATION,
+            legs=(HoldingLeg(BIN_A, 1),),
+            reconciles_observation_id="AOB-observation",
         ))
 
 

@@ -216,6 +216,11 @@ def test_only_receive_accepts_observed_codes(client, clean_inventory_database, k
         "location_id": "BIN1",
     }, "quantity"),
     ({
+        "kind": "receive", "batch_id": "BAT1",
+        "quantity": 9_007_199_254_740_992,
+        "location_id": "BIN1",
+    }, "quantity"),
+    ({
         "kind": "receive", "batch_id": "BAT1", "quantity": 1,
         "unit": "gram", "location_id": "BIN1",
     }, "unit"),

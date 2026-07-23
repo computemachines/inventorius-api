@@ -274,6 +274,11 @@ def test_capture_reports_missing_existing_sku(client, clean_inventory_database):
 @pytest.mark.parametrize("body", [
     {"description": "   ", "bin_id": "BIN000001", "quantity": 1},
     {"description": "capacitor", "bin_id": "BIN000001", "quantity": 0},
+    {
+        "description": "capacitor",
+        "bin_id": "BIN000001",
+        "quantity": 9_007_199_254_740_992,
+    },
     {"description": "capacitor", "bin_id": "not-a-bin", "quantity": 1},
     None,
 ])

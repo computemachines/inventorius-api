@@ -11,6 +11,7 @@ from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
 
 CANONICAL_ID_SUFFIX_WIDTH = 6
+MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
 
 
 def normalize_prefixed_id(value, prefix):
@@ -158,6 +159,18 @@ def nonnegative_whole_number(value):
     if value < 0:
         raise Invalid("must be at least 0")
     return value
+
+
+safe_positive_whole_number = All(
+    positive_whole_number,
+    Range(max=MAX_SAFE_JSON_INTEGER),
+)
+
+
+safe_nonnegative_whole_number = All(
+    nonnegative_whole_number,
+    Range(max=MAX_SAFE_JSON_INTEGER),
+)
 
 
 def observed_code(value):
@@ -312,7 +325,7 @@ quick_capture_schema = Schema(
         "description": All(trimmed_non_empty_string, Length(max=500)),
         "sku_id": prefixed_id("SKU"),
         Required("bin_id"): prefixed_id("BIN"),
-        Required("quantity"): positive_whole_number,
+        Required("quantity"): safe_positive_whole_number,
         Required("unit", default="each"): each_unit,
         "observed_codes": All(
             [All(observed_code, Length(max=500))],
@@ -339,7 +352,7 @@ inventory_operation_command_schema = Schema(
     {
         Required("kind"): Any("receive", "transfer", "release"),
         Required("batch_id"): prefixed_id("BAT"),
-        Required("quantity"): positive_whole_number,
+        Required("quantity"): safe_positive_whole_number,
         Required("unit", default="each"): each_unit,
         # Packaging is deliberately not a command dimension yet.  Requiring
         # null when a client sends the field makes that boundary explicit
@@ -358,13 +371,10 @@ inventory_operation_command_schema = Schema(
 
 inventory_correction_command_schema = Schema(
     {
-        Required("quantity"): All(
-            nonnegative_whole_number,
-            # Keep correction input exactly representable by browser clients
-            # and comfortably inside MongoDB Decimal128. Receipt reads still
-            # render larger historical exact values as strings.
-            Range(max=9_007_199_254_740_991),
-        ),
+        # Keep correction input exactly representable by browser clients and
+        # comfortably inside MongoDB Decimal128. Receipt reads still render
+        # larger historical exact values as strings.
+        Required("quantity"): safe_nonnegative_whole_number,
         Required("location_id"): prefixed_id("BIN"),
     }
 )
@@ -373,10 +383,7 @@ inventory_correction_command_schema = Schema(
 audit_observation_count_schema = Schema(
     {
         Required("batch_id"): prefixed_id("BAT"),
-        Required("quantity"): All(
-            nonnegative_whole_number,
-            Range(max=9_007_199_254_740_991),
-        ),
+        Required("quantity"): safe_nonnegative_whole_number,
         Required("unit"): each_unit,
         Required("packaging_configuration_id"): Any(None),
     }
@@ -395,6 +402,14 @@ audit_observation_command_schema = Schema(
             [All(observed_code, Length(max=500))],
             Length(max=100),
         ),
+    }
+)
+
+
+audit_reconciliation_command_schema = Schema(
+    {
+        Required("reason"): Any("unexplained-variance"),
+        "note": All(trimmed_non_empty_string, Length(max=500)),
     }
 )
 

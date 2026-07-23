@@ -10,18 +10,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from hashlib import sha256
 import json
 from typing import Any, Callable
 from uuid import uuid4
 
-from bson.decimal128 import Decimal128
+from bson.decimal128 import Decimal128, create_decimal128_context
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError
 from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 
+from inventorius.audit_snapshot import read_audit_snapshot
 from inventorius.ledger import (
     HoldingKey,
     HoldingLeg,
@@ -35,6 +36,7 @@ from inventorius.resource_repository import PermanentIdentifierAllocator
 
 
 MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
+DECIMAL128_CONTEXT = create_decimal128_context()
 
 
 class MissingBin(ValueError):
@@ -74,6 +76,20 @@ class CorrectionRejected(ValueError):
         super().__init__(detail)
 
 
+class MissingAuditObservation(ValueError):
+    """The requested immutable audit observation does not exist."""
+
+
+class AuditReconciliationRejected(ValueError):
+    """A physical-count observation cannot be applied to inventory."""
+
+    def __init__(self, code: str, detail: str, **context: Any):
+        self.code = code
+        self.detail = detail
+        self.context = context
+        super().__init__(detail)
+
+
 @dataclass(frozen=True)
 class RepositoryResult:
     result: dict[str, Any]
@@ -106,6 +122,17 @@ def _decimal(value: Decimal128 | Decimal | int | str | None) -> Decimal:
     if isinstance(value, Decimal128):
         return value.to_decimal()
     return Decimal(str(value))
+
+
+def _add(left: Decimal, right: Decimal) -> Decimal:
+    """Apply Decimal128 arithmetic without Python's 28-digit default rounding."""
+    with localcontext(DECIMAL128_CONTEXT):
+        return left + right
+
+
+def _subtract(left: Decimal, right: Decimal) -> Decimal:
+    with localcontext(DECIMAL128_CONTEXT):
+        return left - right
 
 
 def _quantity_json(
@@ -160,6 +187,15 @@ class InventoryRepository:
             },
             name="inventory_operation_single_correction",
         )
+        self.db.inventory_operations.create_index(
+            [("reconciles_observation_id", ASCENDING)],
+            unique=True,
+            partialFilterExpression={
+                "kind": OperationKind.RECONCILIATION.value,
+                "reconciles_observation_id": {"$type": "string"},
+            },
+            name="inventory_operation_single_reconciliation",
+        )
         self.db.inventory_holdings.create_index(
             [
                 ("batch_id", ASCENDING),
@@ -205,6 +241,11 @@ class InventoryRepository:
             "description",
             "mode",
             "corrects_operation_id",
+            "observation_id",
+            "reason",
+            "note",
+            "boundary",
+            "snapshot_token",
         }
         quantity_fields = {"quantity"}
         nested_state_fields = {"original_state", "intended_state"}
@@ -425,6 +466,9 @@ class InventoryRepository:
             "batches": batches,
             "current_holdings": current_holdings,
             "corrects_operation_id": document.get("corrects_operation_id"),
+            "reconciles_observation_id": document.get(
+                "reconciles_observation_id"
+            ),
             "corrected_by_operation_id": corrected_by_id,
             "correction": {
                 "correctable": blocker is None,
@@ -580,6 +624,10 @@ class InventoryRepository:
         }
         if operation.corrects_operation_id is not None:
             document["corrects_operation_id"] = operation.corrects_operation_id
+        if operation.reconciles_observation_id is not None:
+            document["reconciles_observation_id"] = (
+                operation.reconciles_observation_id
+            )
         return document
 
     def _apply_projection(self, operation: InventoryOperation, session, now: datetime) -> None:
@@ -597,7 +645,10 @@ class InventoryRepository:
                 },
                 session=session,
             )
-            if _decimal(existing.get("quantity") if existing else None) + delta < 0:
+            if _add(
+                _decimal(existing.get("quantity") if existing else None),
+                delta,
+            ) < 0:
                 raise InsufficientHolding(
                     f"operation would make a holding negative: {holding}"
                 )
@@ -769,7 +820,13 @@ class InventoryRepository:
         """Append one supported operation and update its holding projection."""
         if operation.kind == OperationKind.CORRECTION:
             raise ValueError(
-                "correction must use the constrained correct_inventory_operation command"
+                "correction must use the constrained "
+                "correct_inventory_operation command"
+            )
+        if operation.kind == OperationKind.RECONCILIATION:
+            raise ValueError(
+                "reconciliation must use the constrained "
+                "reconcile_audit_observation command"
             )
 
         def write(session):
@@ -1134,6 +1191,254 @@ class InventoryRepository:
                 raise CorrectionRejected(
                     "already-corrected",
                     "the selected receipt already has a correction",
+                ) from error
+            raise
+
+    def reconcile_audit_observation(
+        self,
+        observation_id: str,
+        disposition: dict[str, Any],
+        *,
+        idempotency_key: str,
+    ) -> RepositoryResult:
+        """Apply one complete, current physical count as an explicit variance.
+
+        The audit observation remains immutable. The server derives every
+        holding delta from its recorded and observed quantities, and names the
+        otherwise unknown side of those deltas as an inventory-variance
+        boundary rather than inventing a physical counterparty.
+        """
+        fingerprint_command = {
+            "kind": OperationKind.RECONCILIATION.value,
+            "mode": "accept-physical-count",
+            "observation_id": observation_id,
+            "disposition": disposition,
+        }
+        request_fingerprint = canonical_fingerprint(fingerprint_command)
+
+        def reject(code: str, detail: str, **context: Any):
+            raise AuditReconciliationRejected(code, detail, **context)
+
+        def write(session):
+            existing = self._existing_request(
+                idempotency_key,
+                request_fingerprint,
+                session,
+            )
+            if existing is not None:
+                return existing
+
+            observation = self.db.audit_observations.find_one(
+                {"_id": observation_id},
+                session=session,
+            )
+            if observation is None:
+                raise MissingAuditObservation(observation_id)
+            if observation.get("unresolved_evidence"):
+                reject(
+                    "unresolved-evidence",
+                    "identify or remove unresolved physical evidence before "
+                    "reconciling this observation",
+                )
+            if self.db.inventory_operations.find_one(
+                {
+                    "kind": OperationKind.RECONCILIATION.value,
+                    "reconciles_observation_id": observation_id,
+                },
+                {"_id": 1},
+                session=session,
+            ) is not None:
+                reject(
+                    "already-reconciled",
+                    "this audit observation already has a reconciliation",
+                )
+
+            raw_counts = observation.get("counts")
+            if not isinstance(raw_counts, list):
+                reject(
+                    "malformed-observation",
+                    "the audit observation does not contain a valid count list",
+                )
+
+            parsed_counts: list[
+                tuple[HoldingKey, Decimal, Decimal, Decimal]
+            ] = []
+            seen_holdings: set[HoldingKey] = set()
+            for count in raw_counts:
+                if not isinstance(count, dict):
+                    reject(
+                        "malformed-observation",
+                        "the audit observation contains a malformed count",
+                    )
+                try:
+                    holding = HoldingKey(
+                        count["batch_id"],
+                        observation["location_id"],
+                        count["unit"],
+                        count.get("packaging_configuration_id"),
+                    )
+                    recorded = _decimal(count["recorded_quantity"])
+                    observed = _decimal(count["observed_quantity"])
+                    stored_difference = _decimal(count["difference"])
+                except (KeyError, TypeError, ValueError, ArithmeticError):
+                    reject(
+                        "malformed-observation",
+                        "the audit observation contains a malformed count",
+                    )
+                if (
+                    holding.unit != "each"
+                    or holding.packaging_configuration_id is not None
+                    or not recorded.is_finite()
+                    or not observed.is_finite()
+                    or recorded < 0
+                    or observed < 0
+                    or recorded != recorded.to_integral_value()
+                    or observed != observed.to_integral_value()
+                    or recorded > MAX_SAFE_JSON_INTEGER
+                    or observed > MAX_SAFE_JSON_INTEGER
+                    or not stored_difference.is_finite()
+                    or stored_difference != _subtract(observed, recorded)
+                    or holding in seen_holdings
+                ):
+                    reject(
+                        "malformed-observation",
+                        "the audit observation is outside the exact whole-item "
+                        "reconciliation boundary",
+                    )
+                seen_holdings.add(holding)
+                parsed_counts.append(
+                    (holding, recorded, observed, _subtract(observed, recorded))
+                )
+
+            for batch_id in sorted({
+                holding.batch_id
+                for holding, _, _, _ in parsed_counts
+            }):
+                if self._reserve_batch_for_ledger_write(
+                    batch_id,
+                    session,
+                ) is None:
+                    raise MissingBatch(batch_id)
+
+            location_id = observation.get("location_id")
+            if (
+                not isinstance(location_id, str)
+                or self._reserve_bin_for_ledger_write(
+                    location_id,
+                    session,
+                ) is None
+            ):
+                raise MissingBin(str(location_id))
+
+            current_snapshot = read_audit_snapshot(
+                self.db,
+                location_id,
+                session=session,
+            )
+            if current_snapshot is None:
+                raise MissingBin(location_id)
+            if current_snapshot["blockers"]:
+                reject(
+                    "snapshot-blocked",
+                    "the current inventory state cannot be reconciled safely",
+                    blockers=current_snapshot["blockers"],
+                )
+            if (
+                current_snapshot["snapshot_token"]
+                != observation.get("snapshot_token")
+            ):
+                reject(
+                    "snapshot-stale",
+                    "inventory changed after this audit observation was recorded",
+                    current_snapshot_token=current_snapshot["snapshot_token"],
+                )
+
+            current_quantities = {
+                HoldingKey(
+                    holding["batch_id"],
+                    location_id,
+                    holding["unit"],
+                    holding.get("packaging_configuration_id"),
+                ): _decimal(holding["quantity"])
+                for holding in current_snapshot["holdings"]
+            }
+            recorded_quantities = {
+                holding: recorded
+                for holding, recorded, _, _ in parsed_counts
+                if recorded > 0
+            }
+            if current_quantities != recorded_quantities:
+                reject(
+                    "snapshot-stale",
+                    "inventory no longer matches the observation's recorded "
+                    "quantities",
+                    current_snapshot_token=current_snapshot["snapshot_token"],
+                )
+
+            legs = tuple(
+                HoldingLeg(holding, difference)
+                for holding, _, _, difference in parsed_counts
+                if difference != 0
+            )
+            if not legs:
+                reject(
+                    "no-variance",
+                    "the physical count already matches recorded inventory",
+                )
+
+            operation_id = f"OP{uuid4().hex}"
+            operation = InventoryOperation(
+                operation_id=operation_id,
+                idempotency_key=idempotency_key,
+                kind=OperationKind.RECONCILIATION,
+                legs=legs,
+                reconciles_observation_id=observation_id,
+            )
+            result = {
+                "operation_id": operation_id,
+                "kind": OperationKind.RECONCILIATION.value,
+                "mode": "accept-physical-count",
+                "observation_id": observation_id,
+                "location_id": location_id,
+                "snapshot_token": observation["snapshot_token"],
+                "reason": disposition["reason"],
+                "boundary": "unexplained-inventory-variance",
+            }
+            if "note" in disposition:
+                result["note"] = disposition["note"]
+
+            now = datetime.now(timezone.utc)
+            self._apply_projection(operation, session, now)
+            self.db.inventory_operations.insert_one(
+                self._operation_document(
+                    operation,
+                    request_fingerprint,
+                    result,
+                    now,
+                ),
+                session=session,
+            )
+            return RepositoryResult(result, replayed=False)
+
+        try:
+            return self._run_transaction(write)
+        except DuplicateKeyError as error:
+            existing = self.db.inventory_operations.find_one(
+                {"idempotency_key": idempotency_key}
+            )
+            if existing is not None:
+                if existing.get("request_fingerprint") != request_fingerprint:
+                    raise IdempotencyConflict(
+                        "idempotency key already belongs to a different command"
+                    ) from error
+                return RepositoryResult(existing["result"], replayed=True)
+            if self.db.inventory_operations.find_one({
+                "kind": OperationKind.RECONCILIATION.value,
+                "reconciles_observation_id": observation_id,
+            }) is not None:
+                raise AuditReconciliationRejected(
+                    "already-reconciled",
+                    "this audit observation already has a reconciliation",
                 ) from error
             raise
 

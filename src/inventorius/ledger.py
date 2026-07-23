@@ -23,6 +23,7 @@ class OperationKind(str, Enum):
     TRANSFORMATION = "transformation"
     ASSEMBLY = "assembly"
     CORRECTION = "correction"
+    RECONCILIATION = "reconciliation"
 
 
 SUPPORTED_OPERATION_KINDS = {
@@ -33,6 +34,7 @@ SUPPORTED_OPERATION_KINDS = {
 
 INTERNAL_OPERATION_KINDS = SUPPORTED_OPERATION_KINDS | {
     OperationKind.CORRECTION,
+    OperationKind.RECONCILIATION,
 }
 
 
@@ -72,6 +74,7 @@ class InventoryOperation:
     kind: OperationKind
     legs: tuple[HoldingLeg, ...]
     corrects_operation_id: str | None = None
+    reconciles_observation_id: str | None = None
 
     def __post_init__(self):
         if not self.operation_id or not self.idempotency_key:
@@ -88,9 +91,24 @@ class InventoryOperation:
                 raise ValueError("correction must reference an earlier operation")
             if self.corrects_operation_id == self.operation_id:
                 raise ValueError("correction cannot reference itself")
+            if self.reconciles_observation_id is not None:
+                raise ValueError("correction cannot reconcile an audit observation")
             return
-        if self.corrects_operation_id is not None:
-            raise ValueError("only a correction may reference another operation")
+        if self.kind == OperationKind.RECONCILIATION:
+            if not self.reconciles_observation_id:
+                raise ValueError(
+                    "reconciliation must reference an audit observation"
+                )
+            if self.corrects_operation_id is not None:
+                raise ValueError("reconciliation cannot correct an operation")
+            return
+        if (
+            self.corrects_operation_id is not None
+            or self.reconciles_observation_id is not None
+        ):
+            raise ValueError(
+                "ordinary operations cannot reference corrections or observations"
+            )
 
         if self.kind == OperationKind.RECEIVE:
             if any(leg.amount < 0 for leg in self.legs):
@@ -135,6 +153,7 @@ class InventoryLedger:
         self._operations: dict[str, InventoryOperation] = {}
         self._operation_id_by_key: dict[str, str] = {}
         self._correction_id_by_original: dict[str, str] = {}
+        self._reconciliation_id_by_observation: dict[str, str] = {}
         self._balances: dict[HoldingKey, Decimal] = {}
 
     def post(self, operation: InventoryOperation) -> InventoryOperation:
@@ -159,6 +178,12 @@ class InventoryLedger:
                 raise ValueError("a correction cannot correct another correction")
             if original_id in self._correction_id_by_original:
                 raise ValueError("operation already has a correction")
+        if operation.kind == OperationKind.RECONCILIATION:
+            observation_id = operation.reconciles_observation_id
+            if observation_id in self._reconciliation_id_by_observation:
+                raise ValueError(
+                    "audit observation already has a reconciliation"
+                )
         deltas: dict[HoldingKey, Decimal] = defaultdict(Decimal)
         for leg in operation.legs:
             deltas[leg.holding] += leg.amount
@@ -190,6 +215,10 @@ class InventoryLedger:
             self._correction_id_by_original[operation.corrects_operation_id] = (
                 operation.operation_id
             )
+        if operation.kind == OperationKind.RECONCILIATION:
+            self._reconciliation_id_by_observation[
+                operation.reconciles_observation_id
+            ] = operation.operation_id
         return operation
 
     def balance(self, holding: HoldingKey) -> Decimal:
@@ -199,6 +228,7 @@ class InventoryLedger:
         self._operations.clear()
         self._operation_id_by_key.clear()
         self._correction_id_by_original.clear()
+        self._reconciliation_id_by_observation.clear()
         self._balances.clear()
         for operation in operations:
             self.post(operation)

@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from hashlib import sha256
 import json
 from typing import Any, Callable
 from uuid import uuid4
 
-from bson.decimal128 import Decimal128
+from bson.decimal128 import Decimal128, create_decimal128_context
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError
 from pymongo.read_concern import ReadConcern
@@ -29,6 +29,7 @@ from inventorius.ledger import IdempotencyConflict
 
 
 MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
+DECIMAL128_CONTEXT = create_decimal128_context()
 
 
 class AuditSnapshotStale(ValueError):
@@ -76,6 +77,12 @@ def _decimal(value: Decimal128 | Decimal | int | str | None) -> Decimal:
 
 def _decimal128(value: Decimal | int | str) -> Decimal128:
     return Decimal128(str(_decimal(value)))
+
+
+def _subtract(left: Decimal, right: Decimal) -> Decimal:
+    """Keep Decimal128 whole-item differences exact beyond 28 digits."""
+    with localcontext(DECIMAL128_CONTEXT):
+        return left - right
 
 
 def _quantity_json(value: Decimal128 | Decimal | int | str) -> int | str:
@@ -375,9 +382,10 @@ class AuditObservationRepository:
                     ),
                     "recorded_quantity": _decimal128(recorded_quantity),
                     "observed_quantity": _decimal128(observed_quantity),
-                    "difference": _decimal128(
-                        observed_quantity - recorded_quantity
-                    ),
+                    "difference": _decimal128(_subtract(
+                        observed_quantity,
+                        recorded_quantity,
+                    )),
                 })
 
             # BSON datetime precision is milliseconds. Truncate before the
@@ -415,7 +423,19 @@ class AuditObservationRepository:
     def observation(self, observation_id: str) -> dict[str, Any] | None:
         """Return one sanitized observation by stable public identifier."""
         document = self.db.audit_observations.find_one({"_id": observation_id})
-        return None if document is None else self._serialize(document)
+        if document is None:
+            return None
+        observation = self._serialize(document)
+        reconciliation = self.db.inventory_operations.find_one(
+            {
+                "kind": "reconciliation",
+                "reconciles_observation_id": observation_id,
+            },
+            {"_id": 1},
+        )
+        if reconciliation is not None:
+            observation["reconciled_by_operation_id"] = reconciliation["_id"]
+        return observation
 
     def recent_observations(self, *, limit: int) -> list[dict[str, Any]]:
         """Return a bounded newest-first list without command-control fields."""
@@ -424,4 +444,23 @@ class AuditObservationRepository:
             ("recorded_at", DESCENDING),
             ("_id", DESCENDING),
         ]).limit(bounded_limit)
-        return [self._serialize(document) for document in documents]
+        documents = list(documents)
+        observation_ids = [document["_id"] for document in documents]
+        reconciliations = {
+            operation["reconciles_observation_id"]: operation["_id"]
+            for operation in self.db.inventory_operations.find(
+                {
+                    "kind": "reconciliation",
+                    "reconciles_observation_id": {"$in": observation_ids},
+                },
+                {"_id": 1, "reconciles_observation_id": 1},
+            )
+        } if observation_ids else {}
+        observations = []
+        for document in documents:
+            observation = self._serialize(document)
+            reconciled_by = reconciliations.get(document["_id"])
+            if reconciled_by is not None:
+                observation["reconciled_by_operation_id"] = reconciled_by
+            observations.append(observation)
+        return observations

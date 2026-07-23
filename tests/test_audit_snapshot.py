@@ -214,6 +214,32 @@ def test_nonintegral_quantity_is_an_exact_string(client, audit_database):
     assert holding["supported"] is False
 
 
+def test_whole_quantity_beyond_browser_exactness_is_an_explicit_blocker(
+    client,
+    audit_database,
+):
+    audit_database.bin.insert_one(
+        {"_id": "BIN000001", "contents": {}, "props": {}}
+    )
+    audit_database.batch.insert_one({"_id": "BAT000001"})
+    insert_holding(
+        audit_database,
+        "BAT000001",
+        "100000000000000000000000000009",
+    )
+
+    state = get_snapshot(client).json["state"]
+
+    assert state["holdings"][0]["quantity"] == (
+        "100000000000000000000000000009"
+    )
+    assert state["holdings"][0]["supported"] is False
+    assert state["blockers"] == [{
+        "type": "unsupported-holding-shapes",
+        "holding_count": 1,
+    }]
+
+
 def test_missing_and_invalid_bin_ids_are_rejected(client, audit_database):
     missing = get_snapshot(client, "BIN404")
     invalid = get_snapshot(client, "SKU1")

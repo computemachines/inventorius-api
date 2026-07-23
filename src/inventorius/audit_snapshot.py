@@ -18,6 +18,7 @@ from bson.decimal128 import Decimal128
 
 LEGACY_CONTENTS_BLOCKER = "legacy-bin-contents"
 UNSUPPORTED_HOLDINGS_BLOCKER = "unsupported-holding-shapes"
+MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
 
 
 def _decimal(value: Decimal128 | Decimal | int | str) -> Decimal:
@@ -30,7 +31,9 @@ def _decimal(value: Decimal128 | Decimal | int | str) -> Decimal:
 
 def _json_quantity(quantity: Decimal) -> int | str:
     if quantity == quantity.to_integral_value():
-        return int(quantity)
+        integer = int(quantity)
+        if abs(integer) <= MAX_SAFE_JSON_INTEGER:
+            return integer
     return format(quantity, "f")
 
 
@@ -60,6 +63,7 @@ def _is_supported(
     return (
         unit == "each"
         and packaging_configuration_id is None
+        and quantity <= MAX_SAFE_JSON_INTEGER
         and quantity == quantity.to_integral_value()
     )
 
