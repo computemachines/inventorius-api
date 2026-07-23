@@ -24,6 +24,7 @@ from inventorius.intake import intake
 from inventorius.inventory_operations import inventory_operations
 from inventorius.inventory_candidates import inventory_candidates
 from inventorius.audit_snapshots import audit_snapshots
+from inventorius.audit_observations import audit_observations
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.user import user
 from inventorius.schema.routes import bp as schema_bp
@@ -70,6 +71,7 @@ app.register_blueprint(intake)
 app.register_blueprint(inventory_operations)
 app.register_blueprint(inventory_candidates)
 app.register_blueprint(audit_snapshots)
+app.register_blueprint(audit_observations)
 app.register_blueprint(user)
 app.register_blueprint(schema_bp)
 app.register_blueprint(process_definition)

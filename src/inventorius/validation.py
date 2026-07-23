@@ -174,6 +174,13 @@ def each_unit(value):
     return value
 
 
+def audit_snapshot_token(value):
+    value = trimmed_non_empty_string(value).lower()
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise Invalid("must be a 64-character hexadecimal snapshot token")
+    return value
+
+
 def str_dec(s):
     if type(s) is not str:
         raise Invalid("must be a string")
@@ -359,6 +366,35 @@ inventory_correction_command_schema = Schema(
             Range(max=9_007_199_254_740_991),
         ),
         Required("location_id"): prefixed_id("BIN"),
+    }
+)
+
+
+audit_observation_count_schema = Schema(
+    {
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("quantity"): All(
+            nonnegative_whole_number,
+            Range(max=9_007_199_254_740_991),
+        ),
+        Required("unit"): each_unit,
+        Required("packaging_configuration_id"): Any(None),
+    }
+)
+
+
+audit_observation_command_schema = Schema(
+    {
+        Required("location_id"): prefixed_id("BIN"),
+        Required("snapshot_token"): audit_snapshot_token,
+        Required("counts"): All(
+            [audit_observation_count_schema],
+            Length(max=1000),
+        ),
+        "unresolved_evidence": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=100),
+        ),
     }
 )
 

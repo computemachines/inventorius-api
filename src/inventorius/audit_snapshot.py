@@ -83,7 +83,12 @@ def _snapshot_token(location_id: str, holdings: list[dict[str, Any]]) -> str:
     return sha256(encoded).hexdigest()
 
 
-def read_audit_snapshot(database, location_id: str) -> dict[str, Any] | None:
+def read_audit_snapshot(
+    database,
+    location_id: str,
+    *,
+    session=None,
+) -> dict[str, Any] | None:
     """Return one immutable view of canonical holdings at ``location_id``.
 
     Enrichment is intentionally bounded: one Batch query and, when needed, one
@@ -92,6 +97,7 @@ def read_audit_snapshot(database, location_id: str) -> dict[str, Any] | None:
     bin_document = database.bin.find_one(
         {"_id": location_id},
         {"contents": 1},
+        session=session,
     )
     if bin_document is None:
         return None
@@ -109,6 +115,7 @@ def read_audit_snapshot(database, location_id: str) -> dict[str, Any] | None:
             "unit": 1,
             "packaging_configuration_id": 1,
         },
+        session=session,
     ))
     holding_documents.sort(key=_holding_sort_key)
 
@@ -118,6 +125,7 @@ def read_audit_snapshot(database, location_id: str) -> dict[str, Any] | None:
         for document in database.batch.find(
             {"_id": {"$in": batch_ids}},
             {"_id": 1, "name": 1, "sku_id": 1},
+            session=session,
         )
     } if batch_ids else {}
 
@@ -131,6 +139,7 @@ def read_audit_snapshot(database, location_id: str) -> dict[str, Any] | None:
         for document in database.sku.find(
             {"_id": {"$in": sku_ids}},
             {"_id": 1, "name": 1},
+            session=session,
         )
     } if sku_ids else {}
 

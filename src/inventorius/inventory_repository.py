@@ -17,7 +17,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from bson.decimal128 import Decimal128
-from pymongo import ASCENDING, DESCENDING, ReturnDocument
+from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError
 from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
@@ -30,6 +30,7 @@ from inventorius.ledger import (
     InventoryOperation,
     OperationKind,
 )
+from inventorius.inventory_serialization import reserve_inventory_resource
 from inventorius.resource_repository import PermanentIdentifierAllocator
 
 
@@ -630,20 +631,7 @@ class InventoryRepository:
         other's committed state.  It is removed before commit: this is a
         serialization point, not user-visible bin state.
         """
-        token = uuid4().hex
-        existing = self.db.bin.find_one_and_update(
-            {"_id": bin_id},
-            {"$set": {"_ledger_write_lock": token}},
-            return_document=ReturnDocument.AFTER,
-            session=session,
-        )
-        if existing is not None:
-            self.db.bin.update_one(
-                {"_id": bin_id, "_ledger_write_lock": token},
-                {"$unset": {"_ledger_write_lock": ""}},
-                session=session,
-            )
-        return existing
+        return reserve_inventory_resource(self.db.bin, bin_id, session)
 
     def _reserve_batch_for_ledger_write(
         self, batch_id: str, session
@@ -656,47 +644,24 @@ class InventoryRepository:
         bins: it serializes a concurrent delete without creating durable
         application state.
         """
-        token = uuid4().hex
-        existing = self.db.batch.find_one_and_update(
-            {"_id": batch_id},
-            {"$set": {"_ledger_write_lock": token}},
-            return_document=ReturnDocument.AFTER,
-            session=session,
-        )
-        if existing is not None:
-            self.db.batch.update_one(
-                {"_id": batch_id, "_ledger_write_lock": token},
-                {"$unset": {"_ledger_write_lock": ""}},
-                session=session,
-            )
-        return existing
+        return reserve_inventory_resource(self.db.batch, batch_id, session)
 
     def _reserve_sku_for_ledger_write(
         self, sku_id: str, session
     ) -> dict[str, Any] | None:
         """Keep an existing SKU present while intake creates its new Batch."""
-        token = uuid4().hex
-        existing = self.db.sku.find_one_and_update(
-            {"_id": sku_id},
-            {"$set": {"_ledger_write_lock": token}},
-            return_document=ReturnDocument.AFTER,
-            session=session,
-        )
-        if existing is not None:
-            self.db.sku.update_one(
-                {"_id": sku_id, "_ledger_write_lock": token},
-                {"$unset": {"_ledger_write_lock": ""}},
-                session=session,
-            )
-        return existing
+        return reserve_inventory_resource(self.db.sku, sku_id, session)
 
     def _bin_has_ledger_reference(self, bin_id: str, session) -> bool:
-        """Whether any ledger record, including a zero holding, names a bin."""
+        """Whether durable inventory or audit history names a bin."""
         return (
             self.db.inventory_operations.find_one(
                 {"legs.location_id": bin_id}, {"_id": 1}, session=session
             ) is not None
             or self.db.inventory_holdings.find_one(
+                {"location_id": bin_id}, {"_id": 1}, session=session
+            ) is not None
+            or self.db.audit_observations.find_one(
                 {"location_id": bin_id}, {"_id": 1}, session=session
             ) is not None
         )
@@ -717,6 +682,9 @@ class InventoryRepository:
             ),
             self.db.inventory_code_observations.find_one(
                 {"batch_id": batch_id}, {"_id": 1}, session=session
+            ),
+            self.db.audit_observations.find_one(
+                {"counts.batch_id": batch_id}, {"_id": 1}, session=session
             ),
         ))
 
