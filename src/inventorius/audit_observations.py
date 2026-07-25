@@ -12,6 +12,7 @@ from inventorius.audit_observation import (
     AuditSnapshotStale,
 )
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.inventory_repository import (
     AuditReconciliationRejected,
     InsufficientHolding,
@@ -98,6 +99,7 @@ def audit_observation_get(observation_id):
 
 
 @audit_observations.route("/api/audit-observations", methods=["POST"])
+@require_capability("inventory.mutate")
 @no_cache
 def audit_observations_post():
     """Append reviewed physical evidence without changing inventory state."""
@@ -178,6 +180,7 @@ def audit_observations_post():
     "/api/audit-observations/<observation_id>/reconciliation",
     methods=["POST"],
 )
+@require_capability("inventory.mutate")
 @no_cache
 def audit_observation_reconciliation_post(observation_id):
     """Apply one current, complete physical count as an inventory variance."""

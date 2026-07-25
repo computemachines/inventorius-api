@@ -99,10 +99,18 @@ class RepositoryResult:
 def canonical_fingerprint(command: dict[str, Any]) -> str:
     """Hash the validated command, rather than an incidental JSON encoding."""
     command = dict(command)
+    semantic_command = command.get("command")
+    if isinstance(semantic_command, dict):
+        semantic_command = dict(semantic_command)
+        command["command"] = semantic_command
+    else:
+        semantic_command = command
     # Repeated scans of the same external code and their order do not change
     # the capture command.  Preserve the user's spelling in stored evidence.
-    if "observed_codes" in command:
-        command["observed_codes"] = sorted(set(command["observed_codes"]))
+    if "observed_codes" in semantic_command:
+        semantic_command["observed_codes"] = sorted(
+            set(semantic_command["observed_codes"])
+        )
     encoded = json.dumps(
         command,
         ensure_ascii=False,
@@ -601,6 +609,9 @@ class InventoryRepository:
         request_fingerprint: str,
         result: dict[str, Any],
         now: datetime,
+        *,
+        actor: dict[str, str] | None = None,
+        application_command: str | None = None,
     ) -> dict[str, Any]:
         document = {
             "_id": operation.operation_id,
@@ -622,12 +633,40 @@ class InventoryRepository:
             "created_at": now,
             "result": result,
         }
+        if actor is not None:
+            document.update({
+                "fact_id": operation.operation_id,
+                "fact_type": "inventory.operation",
+                "envelope_version": 1,
+                "fact_schema": {
+                    "name": "inventory.operation",
+                    "version": 1,
+                },
+                "recorded_at": now,
+                "actor": actor,
+                "command": {
+                    "command_id": operation.operation_id,
+                    "name": application_command,
+                    "idempotency_key": operation.idempotency_key,
+                    "request_fingerprint": request_fingerprint,
+                },
+                "causation": {},
+                "evidence": [],
+            })
         if operation.corrects_operation_id is not None:
             document["corrects_operation_id"] = operation.corrects_operation_id
+            if actor is not None:
+                document["causation"]["corrects"] = (
+                    operation.corrects_operation_id
+                )
         if operation.reconciles_observation_id is not None:
             document["reconciles_observation_id"] = (
                 operation.reconciles_observation_id
             )
+            if actor is not None:
+                document["causation"]["caused_by"] = [
+                    operation.reconciles_observation_id
+                ]
         return document
 
     def _apply_projection(self, operation: InventoryOperation, session, now: datetime) -> None:
@@ -855,6 +894,7 @@ class InventoryRepository:
         command: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> RepositoryResult:
         """Execute one validated physical inventory command atomically.
 
@@ -863,7 +903,10 @@ class InventoryRepository:
         legs.  The public command is therefore easy to audit while the ledger
         retains the full immutable debit/credit representation.
         """
-        request_fingerprint = canonical_fingerprint(command)
+        request_fingerprint = canonical_fingerprint({
+            "actor": actor,
+            "command": command,
+        })
 
         def write(session):
             existing = self._existing_request(
@@ -976,7 +1019,14 @@ class InventoryRepository:
 
             self._apply_projection(operation, session, now)
             self.db.inventory_operations.insert_one(
-                self._operation_document(operation, request_fingerprint, result, now),
+                self._operation_document(
+                    operation,
+                    request_fingerprint,
+                    result,
+                    now,
+                    actor=actor,
+                    application_command=f"inventory.{kind.value}",
+                ),
                 session=session,
             )
             if observed_codes:
@@ -1447,9 +1497,13 @@ class InventoryRepository:
         capture: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> RepositoryResult:
         """Atomically create the captured identity, evidence, receive, and holding."""
-        request_fingerprint = canonical_fingerprint(capture)
+        request_fingerprint = canonical_fingerprint({
+            "actor": actor,
+            "command": capture,
+        })
 
         def write(session):
             existing = self._existing_request(
@@ -1550,7 +1604,14 @@ class InventoryRepository:
             )
             self._apply_projection(operation, session, now)
             self.db.inventory_operations.insert_one(
-                self._operation_document(operation, request_fingerprint, result, now),
+                self._operation_document(
+                    operation,
+                    request_fingerprint,
+                    result,
+                    now,
+                    actor=actor,
+                    application_command="inventory.intake",
+                ),
                 session=session,
             )
             return RepositoryResult(result, replayed=False)

@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 from voluptuous.error import MultipleInvalid
 
 from inventorius.db import db
+from inventorius.auth import current_actor, require_capability
 from inventorius.inventory_repository import (
     CorrectionRejected,
     IdempotencyConflict,
@@ -149,6 +150,7 @@ def inventory_operation_get(operation_id):
 
 
 @inventory_operations.route("/api/inventory-operations", methods=["POST"])
+@require_capability("inventory.mutate")
 @no_cache
 def inventory_operations_post():
     """Append a physical receive, transfer, or release operation.
@@ -187,6 +189,7 @@ def inventory_operations_post():
         stored = InventoryRepository(db).execute_inventory_command(
             command,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except MissingBatch as error:
         return problem.missing_batch_response(str(error))
@@ -217,6 +220,7 @@ def inventory_operations_post():
     "/api/inventory-operations/<original_operation_id>/corrections",
     methods=["POST"],
 )
+@require_capability("inventory.mutate")
 @no_cache
 def inventory_operation_correction_post(original_operation_id):
     """Append a constrained replacement correction for one intake receipt."""

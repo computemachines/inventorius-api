@@ -63,24 +63,6 @@ def validate_url_id(prefix, param_name="id"):
     return decorator
 
 
-def validate_url_user_id(param_name="id"):
-    """
-    Decorator that validates user ID URL parameters are alphanumeric.
-    """
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            id_value = kwargs.get(param_name)
-            if id_value is not None:
-                if not id_value.isalnum() or id_value == "":
-                    import inventorius.util_error_responses as problem
-                    error = Invalid("must be non-empty alphanumeric", [param_name])
-                    return problem.invalid_params_response(MultipleInvalid([error]))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-
 def NoneOr(Else):
     return Any(None, Else)
 
@@ -202,8 +184,6 @@ def str_dec(s):
     return s
 
 
-id_schema = All(Length(1), str, non_empty_string, non_whitespace, alphanum)
-password_schema = All(Length(8), str)
 code_list_schema = [All(non_empty_string, non_whitespace)]
 
 # def code_list(codes):
@@ -211,28 +191,6 @@ code_list_schema = [All(non_empty_string, non_whitespace)]
 #         raise Invalid(f"")
 
 forced_schema = Schema({"force": "true"})
-
-new_user_schema = Schema(
-    {
-        Required("id"): id_schema,
-        Required("password"): password_schema,
-        Required("name"): str,
-    }
-)
-
-user_patch_schema = Schema(
-    {
-        "password": password_schema,
-        "name": str,
-    }
-)
-
-login_request_schema = Schema(
-    {
-        Required("id"): id_schema,
-        Required("password"): password_schema,
-    }
-)
 
 units_schema = Schema(
     {

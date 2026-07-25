@@ -1,4 +1,4 @@
-from inventorius.data_models import Bin, Sku, Batch, UserData, Props
+from inventorius.data_models import Bin, Sku, Batch, Props
 
 from hypothesis import given, example, settings
 from hypothesis.strategies import *
@@ -85,33 +85,6 @@ def batches_(draw: DrawFn, id=None, sku_id=0, name=None, owned_codes=None, assoc
     return Batch(id=id, sku_id=sku_id, name=name, owned_codes=owned_codes, associated_codes=associated_codes, props=props)
 
 
-@composite
-def users_(draw, id=None, name=None, password=None):
-    id = id or draw(ids)
-    name = name or draw(text())
-    password = draw(text(printable, min_size=8))
-    # salt = os.urandom(64)
-    # derived_shadow_id = hashlib.sha256((str(time.time()) + str(id)).encode("utf-8"),
-    #                                    usedforsecurity=False)
-    # clipped_shadow_id = base64.encodebytes(
-    #     derived_shadow_id.digest()).decode("ascii")[:16]
-
-    # user_data = UserData(
-    #     fixed_id=id,
-    #     shadow_id=clipped_shadow_id,
-    #     password_hash=hashlib.pbkdf2_hmac(
-    #         "sha256",
-    #         str(password).encode("utf-8"),
-    #         salt,
-    #         100000),
-    #     password_salt=salt,
-    #     name=name,
-    # )
-    return {
-        "id": id,
-        "name": name,
-        "password": password,
-    }
 
 
 search_query = one_of(text(), text("abc", min_size=1), text(

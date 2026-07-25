@@ -7,6 +7,7 @@ from flask import Blueprint, request, Response, url_for
 
 from inventorius.data_models import Bin, Sku, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.auth import public_unsafe
 from inventorius.resource_repository import ResourceRepository
 from inventorius.util import (
     IdentifierSpaceExhausted,
@@ -180,6 +181,7 @@ def code_usage_get(code):
 
 
 @inventorius.route('/api/bin/<id>/contents/move', methods=['PUT'])
+@public_unsafe
 @no_cache
 def move_bin_contents_put(id):
     # CUT-01 deliberately ends the mutable bin.contents accounting path. The
@@ -240,6 +242,7 @@ def next_bin():
 
 
 @inventorius.route('/api/bin/<bin_id>/contents', methods=["POST"])
+@public_unsafe
 @no_cache
 def bin_contents_post(bin_id):
     # This route used to make the ledger and bin.contents disagree. It is

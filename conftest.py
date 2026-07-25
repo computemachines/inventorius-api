@@ -1,6 +1,9 @@
 import contextlib
+import hashlib
 import os
+import secrets
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -38,12 +41,73 @@ def subscriber(sender):
 
 request_started.connect(subscriber, inventorius_flask_app)
 
+TEST_AUTH_ORIGIN = "http://localhost:3000"
+
+
+def _authenticated_test_client():
+    """Build a real server-side owner session for mutation tests."""
+
+    inventorius_flask_app.config.update(
+        AUTH_ORIGIN=TEST_AUTH_ORIGIN,
+        AUTH_RP_ID="localhost",
+        AUTH_RP_NAME="Inventorius Tests",
+        AUTH_OWNER_DISPLAY_NAME="Test Owner",
+        AUTH_COOKIE_SECURE=False,
+    )
+    database = get_test_database()
+    database.auth_principals.replace_one(
+        {"_id": "owner"},
+        {
+            "_id": "owner",
+            "display_name": "Test Owner",
+            "kind": "owner",
+            "user_handle": b"test-owner",
+            "created_at": datetime.now(timezone.utc),
+        },
+        upsert=True,
+    )
+    raw_session = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(32)
+    database.auth_sessions.insert_one(
+        {
+            "_id": hashlib.sha256(raw_session.encode("ascii")).hexdigest(),
+            "principal_id": "owner",
+            "csrf_token": csrf_token,
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+    )
+    test_client = inventorius_flask_app.test_client()
+    test_client.set_cookie("inventorius_session", raw_session)
+    test_client.environ_base["HTTP_ORIGIN"] = TEST_AUTH_ORIGIN
+    test_client.environ_base["HTTP_X_CSRF_TOKEN"] = csrf_token
+    return test_client
+
 
 @pytest.fixture
 def client():
     inventorius_flask_app.testing = True
-    yield inventorius_flask_app.test_client()
-    # close app
+    database = get_test_database()
+    database.auth_sessions.delete_many({})
+    yield _authenticated_test_client()
+    database.auth_sessions.delete_many({})
+
+
+@pytest.fixture
+def anonymous_client():
+    """A public caller with an Origin but no owner session."""
+
+    inventorius_flask_app.testing = True
+    inventorius_flask_app.config.update(
+        AUTH_ORIGIN=TEST_AUTH_ORIGIN,
+        AUTH_RP_ID="localhost",
+        AUTH_RP_NAME="Inventorius Tests",
+        AUTH_OWNER_DISPLAY_NAME="Test Owner",
+        AUTH_COOKIE_SECURE=False,
+    )
+    test_client = inventorius_flask_app.test_client()
+    test_client.environ_base["HTTP_ORIGIN"] = TEST_AUTH_ORIGIN
+    return test_client
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -58,7 +122,6 @@ def isolated_test_database():
 @contextlib.contextmanager
 def clientContext():
     inventorius_flask_app.testing = True
-    inventorius_flask_app.secret_key = "1234"
     test_db = get_test_database()
     test_db.admin.delete_many({})
     test_db.batch.delete_many({})
@@ -72,4 +135,13 @@ def clientContext():
     test_db.resource_identifiers.delete_many({})
     test_db.sku.delete_many({})
     test_db.user.delete_many({})
-    yield inventorius_flask_app.test_client()
+    for collection_name in (
+        "auth_bootstrap_tokens",
+        "auth_challenges",
+        "auth_credentials",
+        "auth_principals",
+        "auth_recovery_codes",
+        "auth_sessions",
+    ):
+        test_db[collection_name].delete_many({})
+    yield _authenticated_test_client()

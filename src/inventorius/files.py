@@ -14,6 +14,7 @@ import uuid
 import mimetypes
 
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.util import no_cache
 import inventorius.util_error_responses as problem
 
@@ -158,6 +159,7 @@ def generate_thumbnail(input_path: str, output_path: str, size: int = THUMBNAIL_
 
 @files.route('/api/files', methods=['POST'])
 @no_cache
+@require_capability("files.mutate")
 def files_post():
     """
     Upload a file.
@@ -370,6 +372,7 @@ def file_thumb_get(id):
 
 @files.route('/api/files/<id>', methods=['DELETE'])
 @no_cache
+@require_capability("files.mutate")
 def file_delete(id):
     """
     Delete a file.

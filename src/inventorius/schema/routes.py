@@ -4,6 +4,7 @@ import click
 from flask import Blueprint, jsonify, request
 
 from ..db import db
+from ..auth import public_unsafe, require_capability
 from .trigger_engine import (
     Schema,
     TriggerEngine,
@@ -86,6 +87,7 @@ def get_root_mixins(name: str):
 
 
 @bp.route("/<name>/evaluate", methods=["POST"])
+@public_unsafe
 def evaluate_schema(name: str):
     """
     Evaluate the schema with given active mixins and field values.
@@ -138,6 +140,7 @@ def evaluate_schema(name: str):
 
 
 @bp.route("/<name>", methods=["PUT"])
+@require_capability("schema.admin")
 def create_or_update_schema(name: str):
     """
     Create or update a schema.
@@ -158,6 +161,7 @@ def create_or_update_schema(name: str):
 
 
 @bp.route("/<name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def delete_schema(name: str):
     """Delete a schema by name."""
     if _delete_schema(name):
@@ -167,6 +171,7 @@ def delete_schema(name: str):
 
 
 @bp.route("/<name>/mixin/<mixin_name>", methods=["PUT"])
+@require_capability("schema.admin")
 def create_or_update_mixin(name: str, mixin_name: str):
     """
     Add or update a mixin within a schema.
@@ -201,6 +206,7 @@ def create_or_update_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/mixin/<mixin_name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def delete_mixin(name: str, mixin_name: str):
     """Delete a mixin from a schema."""
     schema = _get_schema(name)
@@ -221,6 +227,7 @@ def delete_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/root/<mixin_name>", methods=["PUT"])
+@require_capability("schema.admin")
 def add_root_mixin(name: str, mixin_name: str):
     """Add a mixin to the root_mixins list."""
     schema = _get_schema(name)
@@ -241,6 +248,7 @@ def add_root_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/root/<mixin_name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def remove_root_mixin(name: str, mixin_name: str):
     """Remove a mixin from the root_mixins list."""
     schema = _get_schema(name)
@@ -355,6 +363,7 @@ def search_bundles(name: str):
 
 
 @bp.route("/seed", methods=["POST"])
+@require_capability("schema.admin")
 def seed_schemas():
     """
     Seed the database with sample schemas.

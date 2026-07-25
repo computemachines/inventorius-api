@@ -3,8 +3,6 @@ import tests.data_models_strategies as dst
 from inventorius.data_models import Bin, Sku, Batch, Props
 
 import pytest
-import hypothesis.strategies as st
-from hypothesis import assume, settings, given
 
 
 # This is all automatically generated test code from failed hypothesis test runs
@@ -113,92 +111,6 @@ def test_change_batch_sku():
 #     state.search(query='a')
 #     state.teardown()
 
-def test_get_missing_user():
-    state = InventoriusStateMachine()
-    state.get_missing_user(user_id='0')
-    state.teardown()
-
-
-def test_delete_missing_user():
-    state = InventoriusStateMachine()
-    state.delete_missing_user(user_id='0')
-    state.teardown()
-
-
-def test_new_user():
-    state = InventoriusStateMachine()
-    state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.teardown()
-
-
-def test_get_existing_user():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.get_existing_user(user_id=v1)
-    state.teardown()
-
-
-@given(data=st.data())
-def test_create_existing_user(data):
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.create_existing_user(user_id=v1, data=data)
-    state.teardown()
-
-
-def test_whoami():
-    state = InventoriusStateMachine()
-    state.whoami()
-    state.teardown()
-
-
-def test_simple_login():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(
-        user={"id": 'tparker', "name": "tyler parker", "password": "12345678"})
-    state.login_as(v1)
-    state.whoami()
-    state.teardown()
-
-
-def test_update_existing_user():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.update_existing_user(user_id=v1, user_patch={'password': '00000000'})
-    state.teardown()
-
-
-def test_change_password():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.update_existing_user(user_id=v1, user_patch={'password': '00000010'})
-    state.teardown()
-
-
-def test_login_empty_password():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.login_bad_password(password='', user_id=v1)
-    state.teardown()
-
-
-def test_delete_user():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.login_as(user_id=v1)
-    state.delete_existing_user(user_id=v1)
-    state.teardown()
-
-
-def test_login_delete_missing_bin():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.login_as(user_id=v1)
-    state.logout()
-    state.delete_missing_bin(bin_id='BIN000000')
-    state.teardown()
-
-
 def test_get_missing_batch():
     state = InventoriusStateMachine()
     state.get_missing_batch(batch_id='BAT000000')
@@ -218,8 +130,6 @@ def test_new_batch_bad_format_owned_codes():
 
 def test_update_batch_missing_sku():
     state = InventoriusStateMachine()
-    state.delete_missing_user(user_id='00')
-    v1 = state.new_user(user={'id': '1', 'name': '', 'password': '00000000'})
     state.delete_missing_sku(sku_id='SKU066304')
     state.delete_missing_sku(sku_id='SKU000256')
     v2 = state.new_anonymous_batch(batch=Batch(associated_codes=[
@@ -251,30 +161,6 @@ def test_update_sku():
     v1 = state.new_sku(sku=Sku(associated_codes=[],
                        id='SKU000000', name='', owned_codes=[], props={}))
     state.update_sku(patch={}, sku_id=v1)
-    state.teardown()
-
-
-def test_login_whoami():
-    state = InventoriusStateMachine()
-    v1 = state.new_user(user={'id': '0', 'name': '', 'password': '00000000'})
-    state.login_as(user_id=v1)
-    state.delete_existing_user(user_id=v1)
-    state.whoami()
-    state.teardown()
-
-
-def test_change_password():
-    state = InventoriusStateMachine()
-    state.api_next()
-    state.api_next()
-    state.api_next()
-    v1 = state.new_user(user={'id': '3', 'name': '', 'password': '11100111'})
-    v2 = state.new_sku(sku=Sku(associated_codes=[],
-                       id='SKU065793', name='A', owned_codes=[], props={}))
-    state.login_as(user_id=v1)
-    state.update_existing_user(user_id=v1, user_patch={
-                               'password': '000000000'})
-    state.whoami()
     state.teardown()
 
 

@@ -7,7 +7,7 @@
     https://app.swaggerhub.com/apis-docs/computemachines/inventorius/3.1.0
 """
 
-from flask import Flask
+from flask import Flask, jsonify
 # from flask import Flask, g, Response, url_for
 # from flask import request, redirect
 # import json
@@ -26,10 +26,10 @@ from inventorius.inventory_candidates import inventory_candidates
 from inventorius.audit_snapshots import audit_snapshots
 from inventorius.audit_observations import audit_observations
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
-from inventorius.user import user
+from inventorius.auth import current_actor, init_auth
 from inventorius.schema.routes import bp as schema_bp
 from inventorius.process_definition import process_definition
-from inventorius.util import login_manager, no_cache, principals
+from inventorius.util import no_cache
 from inventorius.resource_models import StatusEndpoint
 
 import platform
@@ -72,14 +72,9 @@ app.register_blueprint(inventory_operations)
 app.register_blueprint(inventory_candidates)
 app.register_blueprint(audit_snapshots)
 app.register_blueprint(audit_observations)
-app.register_blueprint(user)
 app.register_blueprint(schema_bp)
 app.register_blueprint(process_definition)
-
-if app.debug:
-    print("!!! ENVIROMENT SETTING SECRET KEY FOR SESSIONS !!!")
-    app.secret_key = os.getenv("FLASK_SECRET_KEY")
-
+init_auth(app)
 
 def cors_allow_all(response):
     if app.debug:
@@ -95,8 +90,55 @@ def cors_allow_all(response):
 
 
 app.after_request(cors_allow_all)
-login_manager.init_app(app)
-principals.init_app(app)
+
+
+@app.route("/api", methods=["GET"], strict_slashes=False)
+@no_cache
+def api_root():
+    """Return public navigation and caller-permitted application commands."""
+    actor = current_actor()
+    command_operations = []
+    if actor.can("catalog.mutate"):
+        command_operations.extend([
+            {"rel": "create-bin", "method": "POST", "href": "/api/bins"},
+            {"rel": "create-sku", "method": "POST", "href": "/api/skus"},
+            {"rel": "create-batch", "method": "POST", "href": "/api/batches"},
+            {
+                "rel": "define-process",
+                "method": "POST",
+                "href": "/api/process-definitions",
+            },
+        ])
+    if actor.can("inventory.mutate"):
+        command_operations.extend([
+            {"rel": "intake", "method": "POST", "href": "/api/intake"},
+            {
+                "rel": "inventory-operation",
+                "method": "POST",
+                "href": "/api/inventory-operations",
+            },
+            {
+                "rel": "audit-observation",
+                "method": "POST",
+                "href": "/api/audit-observations",
+            },
+        ])
+    if actor.can("schema.admin"):
+        command_operations.append({
+            "rel": "schema-admin",
+            "method": "GET",
+            "href": "/api/schema/list",
+        })
+    return jsonify({
+        "Id": "/api",
+        "state": {"service": "Inventorius"},
+        "links": [
+            {"rel": "search", "href": "/api/search"},
+            {"rel": "inventory-activity", "href": "/api/inventory-operations"},
+            {"rel": "authentication", "href": "/api/auth/session"},
+        ],
+        "operations": command_operations,
+    })
 
 
 @app.route("/api/status", methods=["GET"])

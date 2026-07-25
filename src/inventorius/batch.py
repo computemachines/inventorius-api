@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, Response, url_for, after_this_req
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedBatch,
@@ -30,6 +31,7 @@ batch = Blueprint("batch", __name__)
 
 
 @batch.route("/api/batches", methods=['POST'])
+@require_capability("catalog.mutate")
 @no_cache
 def batches_post():
     idempotency_key = request.headers.get("Idempotency-Key", "").strip()
@@ -99,6 +101,7 @@ def batch_get(id):
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
 @validate_url_id("BAT")
+@require_capability("catalog.mutate")
 @no_cache
 def batch_patch(id):
     try:
@@ -153,6 +156,7 @@ def batch_patch(id):
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])
 @validate_url_id("BAT")
+@require_capability("catalog.mutate")
 @no_cache
 def batch_delete(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))

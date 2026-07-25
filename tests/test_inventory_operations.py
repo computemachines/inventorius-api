@@ -116,6 +116,24 @@ def test_receive_transfer_release_are_immutable_operations_with_holdings(
         (leg["location_id"], leg["quantity"].to_decimal())
         for leg in transfer_document["legs"]
     } == {("BIN000001", Decimal(-2)), ("BIN000002", Decimal(2))}
+    assert transfer_document["envelope_version"] == 1
+    assert transfer_document["fact_id"] == transfer_document["_id"]
+    assert transfer_document["fact_type"] == "inventory.operation"
+    assert transfer_document["fact_schema"] == {
+        "name": "inventory.operation",
+        "version": 1,
+    }
+    assert transfer_document["actor"] == {
+        "actor_id": "owner",
+        "actor_type": "owner",
+    }
+    assert transfer_document["command"] == {
+        "command_id": transfer_document["_id"],
+        "name": "inventory.transfer",
+        "idempotency_key": "transfer-test-batch",
+        "request_fingerprint": transfer_document["request_fingerprint"],
+    }
+    assert transfer_document["recorded_at"] == transfer_document["created_at"]
 
     # Clean-break commands never mutate the legacy projection.
     assert clean_inventory_database.bin.find_one({"_id": "BIN000001"})["contents"] == {}

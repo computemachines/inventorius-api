@@ -1,8 +1,6 @@
 import functools
 from flask import request
 from flask.helpers import make_response
-from flask_login import LoginManager
-from flask_principal import Principal, Permission, RoleNeed
 import re
 from string import ascii_letters
 
@@ -19,12 +17,6 @@ class IdentifierSpaceExhausted(Exception):
     def __init__(self, prefix):
         self.prefix = prefix
         super().__init__(f"{prefix} identifier space is exhausted")
-
-login_manager = LoginManager()
-principals = Principal()
-
-admin_permission = Permission(RoleNeed("admin"))
-
 
 def getIntArgs(args, name, default):
     str_value = args.get(name, default)

@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from voluptuous.error import MultipleInvalid
 
 from inventorius.db import db
+from inventorius.auth import current_actor, require_capability
 from inventorius.inventory_repository import (
     IdempotencyConflict,
     InventoryRepository,
@@ -19,6 +20,7 @@ intake = Blueprint("intake", __name__)
 
 
 @intake.route("/api/intake", methods=["POST"])
+@require_capability("inventory.mutate")
 @no_cache
 def quick_capture():
     """Capture a provisional SKU, its first batch, and an initial receive.
@@ -55,6 +57,7 @@ def quick_capture():
         stored = InventoryRepository(db).capture_intake(
             capture,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except MissingBin as error:
         return problem.missing_bin_response(str(error))

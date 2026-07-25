@@ -3,6 +3,7 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedSku,
@@ -27,6 +28,7 @@ sku = Blueprint("sku", __name__)
 
 
 @ sku.route('/api/skus', methods=['POST'])
+@require_capability("catalog.mutate")
 @no_cache
 def skus_post():
     idempotency_key = request.headers.get("Idempotency-Key", "").strip()
@@ -93,6 +95,7 @@ def sku_get(id):
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
 @validate_url_id("SKU")
+@require_capability("catalog.mutate")
 @no_cache
 def sku_patch(id):
     try:
@@ -122,6 +125,7 @@ def sku_patch(id):
 
 @ sku.route('/api/sku/<id>', methods=['DELETE'])
 @validate_url_id("SKU")
+@require_capability("catalog.mutate")
 def sku_delete(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 

@@ -21,14 +21,6 @@ OPTION = "OPTION"
 HEAD = "HEAD"
 
 
-def logout():
-    return operation("logout", POST, url_for("user.logout_post"))
-
-
-def user_delete(id):
-    return operation("delete", DELETE, url_for("user.user_delete", id=id))
-
-
 def batch_create():
     return operation("create", POST, url_for("batch.batches_post"), "Batch patch")
 

@@ -21,7 +21,24 @@ def get_mongo_client():
             _mongo_client = MongoClient(db_host, db_port)
         _mongo_client.inventoriusdb.sku.create_index([("name", TEXT)])
         _mongo_client.inventoriusdb.batch.create_index([("name", TEXT)])
-        _mongo_client.inventoriusdb.user.create_index([("name", TEXT)])
+        for collection_name in (
+            "auth_bootstrap_tokens",
+            "auth_challenges",
+            "auth_sessions",
+        ):
+            _mongo_client.inventoriusdb[collection_name].create_index(
+                [("expires_at", ASCENDING)],
+                expireAfterSeconds=0,
+                name="expires_at_ttl",
+            )
+        _mongo_client.inventoriusdb.auth_credentials.create_index(
+            [("principal_id", ASCENDING)],
+            name="credentials_by_principal",
+        )
+        _mongo_client.inventoriusdb.auth_recovery_codes.create_index(
+            [("principal_id", ASCENDING)],
+            name="recovery_codes_by_principal",
+        )
         # Source-aware inventory resolution has a different access path from
         # the batch-first holding identity index used by ledger projection.
         _mongo_client.inventoriusdb.inventory_holdings.create_index(

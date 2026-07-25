@@ -8,6 +8,7 @@ from pymongo.errors import DuplicateKeyError
 from voluptuous.error import MultipleInvalid
 
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.resource_models import ProcessDefinitionEndpoint
 from inventorius.util import (
     IdentifierSpaceExhausted,
@@ -126,6 +127,7 @@ def process_definitions_get():
 
 
 @process_definition.route("/api/process-definitions", methods=["POST"])
+@require_capability("catalog.mutate")
 @no_cache
 def process_definitions_post():
     content, error_response = _body_or_problem(process_definition_create_schema)
@@ -225,6 +227,7 @@ def process_definition_revisions_get(id):
 
 @process_definition.route("/api/process-definition/<id>", methods=["PATCH"])
 @validate_url_id("PRC")
+@require_capability("catalog.mutate")
 @no_cache
 def process_definition_patch(id):
     patch, error_response = _body_or_problem(process_definition_patch_schema)
@@ -291,6 +294,7 @@ def process_definition_patch(id):
 
 @process_definition.route("/api/process-definition/<id>", methods=["DELETE"])
 @validate_url_id("PRC")
+@require_capability("catalog.mutate")
 @no_cache
 def process_definition_delete(id):
     document = db.process_definition.find_one({"_id": id})

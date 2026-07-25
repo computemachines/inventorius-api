@@ -7,6 +7,7 @@ from inventorius.bin_repository import (
     BinRepository,
 )
 from inventorius.db import db
+from inventorius.auth import require_capability
 from inventorius.holding_queries import contents_for_bin
 from inventorius.inventory_repository import (
     InventoryRepository,
@@ -25,6 +26,7 @@ bin = Blueprint("bin", __name__)
 
 
 @bin.route('/api/bins', methods=['POST'])
+@require_capability("catalog.mutate")
 @no_cache
 def bins_post():
     idempotency_key = request.headers.get("Idempotency-Key", "").strip()
@@ -84,6 +86,7 @@ def bin_get(id):
 
 @bin.route('/api/bin/<id>', methods=['PATCH'])
 @validate_url_id("BIN")
+@require_capability("catalog.mutate")
 @no_cache
 def bin_patch(id):
     try:
@@ -104,6 +107,7 @@ def bin_patch(id):
 
 @bin.route('/api/bin/<id>', methods=['DELETE'])
 @validate_url_id("BIN")
+@require_capability("catalog.mutate")
 @no_cache
 def bin_delete(id):
     force = request.args.get('force', 'false') == 'true'
