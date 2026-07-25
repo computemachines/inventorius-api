@@ -19,6 +19,12 @@ from inventorius.auth.authority import (
     require_capability,
     token_digest,
 )
+from inventorius.auth.local_login import (
+    LOCAL_LOGIN_TOKEN_MAX_TTL_MINUTES,
+    LOCAL_LOGIN_TOKEN_TTL_MINUTES,
+    local_login_available,
+    local_login_safety_error,
+)
 from inventorius.auth.routes import bp
 from inventorius.db import get_mongo_client
 
@@ -83,6 +89,13 @@ def init_auth(app: Flask):
             or _truthy(os.getenv("INVENTORIUS_AUTH_COOKIE_SECURE"))
         ),
     )
+    app.config.setdefault(
+        "AUTH_LOCAL_LOGIN_ENABLED",
+        _truthy(os.getenv("INVENTORIUS_AUTH_LOCAL_LOGIN_ENABLED")),
+    )
+    local_login_error = local_login_safety_error(app.config)
+    if local_login_error:
+        raise RuntimeError(local_login_error)
     app.register_blueprint(bp)
     app.cli.add_command(auth_cli)
 
@@ -153,6 +166,40 @@ def bootstrap_token(expires_minutes: int):
             "created_at": now,
             "expires_at": now + timedelta(minutes=expires_minutes),
             "consumed_at": None,
+        }
+    )
+    click.echo(raw_token)
+
+
+@auth_cli.command("local-login-token")
+@click.option(
+    "--expires-minutes",
+    type=click.IntRange(1, LOCAL_LOGIN_TOKEN_MAX_TTL_MINUTES),
+    default=LOCAL_LOGIN_TOKEN_TTL_MINUTES,
+    show_default=True,
+)
+@with_appcontext
+def local_login_token(expires_minutes: int):
+    """Create a short-lived, single-use local development login token."""
+
+    from flask import current_app
+
+    if not local_login_available(current_app.config):
+        raise click.ClickException(
+            "Local development login is disabled or its safety checks failed."
+        )
+    database = get_mongo_client().inventoriusdb
+    if not database.auth_principals.find_one({"_id": "owner"}):
+        raise click.ClickException(
+            "Configure the owner before creating a local login token."
+        )
+    raw_token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    database.auth_local_login_tokens.insert_one(
+        {
+            "_id": token_digest(raw_token),
+            "created_at": now,
+            "expires_at": now + timedelta(minutes=expires_minutes),
         }
     )
     click.echo(raw_token)

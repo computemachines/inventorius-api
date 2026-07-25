@@ -22,6 +22,7 @@ from inventorius.auth.authority import (
     require_exact_origin,
     token_digest,
 )
+from inventorius.auth.local_login import local_login_available
 from inventorius.db import db
 
 
@@ -90,6 +91,10 @@ def _session_resource(actor=None):
                 "/api/auth/bootstrap/registration/options",
             ),
         ]
+        if local_login_available(current_app.config):
+            operations.append(
+                _operation("local-login", "POST", "/api/auth/local-login")
+            )
     else:
         state = {"status": "unconfigured", "principal": None}
         operations = (
@@ -151,7 +156,7 @@ def _consume_challenge(ceremony_id: str, purpose: str):
     )
 
 
-def _issue_session(principal_id: str):
+def _issue_session(principal_id: str, authentication_method: str = "passkey"):
     raw_token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
     digest = token_digest(raw_token)
@@ -160,6 +165,7 @@ def _issue_session(principal_id: str):
             "_id": digest,
             "principal_id": principal_id,
             "csrf_token": csrf_token,
+            "authentication_method": authentication_method,
             "created_at": _now(),
             "expires_at": _now() + SESSION_TTL,
         }
@@ -508,6 +514,53 @@ def authentication_options():
             public_key,
             "/api/auth/passkeys/authentication/verification",
         )
+    )
+
+
+@bp.post("/local-login")
+@public_unsafe
+def local_login():
+    if not local_login_available(current_app.config):
+        return _problem(
+            404,
+            "not-found",
+            "Not found",
+            "The requested resource is not available.",
+        )
+    rejected = require_exact_origin()
+    if rejected:
+        return rejected
+    if not _owner():
+        return _problem(
+            409,
+            "auth-unconfigured",
+            "Authentication unavailable",
+            "The owner is not configured.",
+        )
+    payload = _json_object()
+    raw_token = payload.get("token") if payload else None
+    if not isinstance(raw_token, str) or not raw_token:
+        return _problem(
+            401,
+            "local-login-rejected",
+            "Local login rejected",
+            "The local login token is invalid, expired, or already used.",
+        )
+    consumed = db.auth_local_login_tokens.find_one_and_delete(
+        {
+            "_id": token_digest(raw_token),
+            "expires_at": {"$gt": _now()},
+        }
+    )
+    if not consumed:
+        return _problem(
+            401,
+            "local-login-rejected",
+            "Local login rejected",
+            "The local login token is invalid, expired, or already used.",
+        )
+    return _issue_session(
+        OWNER_ID, authentication_method="local-development-token"
     )
 
 

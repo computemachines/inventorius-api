@@ -26,6 +26,7 @@ def auth_client(client):
             "AUTH_RP_NAME",
             "AUTH_OWNER_DISPLAY_NAME",
             "AUTH_COOKIE_SECURE",
+            "AUTH_LOCAL_LOGIN_ENABLED",
         )
     }
     app.config.update(
@@ -34,6 +35,7 @@ def auth_client(client):
         AUTH_RP_NAME="Inventorius Test",
         AUTH_OWNER_DISPLAY_NAME="Test Owner",
         AUTH_COOKIE_SECURE=True,
+        AUTH_LOCAL_LOGIN_ENABLED=False,
     )
     database = get_test_database()
     for name in (
@@ -43,6 +45,7 @@ def auth_client(client):
         "auth_principals",
         "auth_recovery_codes",
         "auth_sessions",
+        "auth_local_login_tokens",
     ):
         database[name].delete_many({})
     yield client
@@ -79,6 +82,27 @@ def _authentication_result(credential_id=b"credential-one"):
         new_sign_count=5,
         credential_device_type=SimpleNamespace(value="multi_device"),
         credential_backed_up=True,
+    )
+
+
+def _enable_local_login():
+    app.config.update(
+        AUTH_ORIGIN="http://localhost:3000",
+        AUTH_RP_ID="localhost",
+        AUTH_COOKIE_SECURE=False,
+        AUTH_LOCAL_LOGIN_ENABLED=True,
+    )
+
+
+def _insert_owner(database):
+    database.auth_principals.insert_one(
+        {
+            "_id": "owner",
+            "display_name": "Test Owner",
+            "kind": "owner",
+            "user_handle": b"owner-handle",
+            "created_at": datetime.now(timezone.utc),
+        }
     )
 
 
@@ -441,6 +465,195 @@ def test_cli_creates_only_a_hashed_one_time_bootstrap_token(
     )
     assert stored
     assert stored["consumed_at"] is None
+
+
+def test_local_login_is_disabled_by_default_for_endpoint_cli_and_hypermedia(
+    auth_client, monkeypatch
+):
+    database = get_test_database()
+    _insert_owner(database)
+    monkeypatch.setattr(
+        auth_package,
+        "get_mongo_client",
+        lambda: SimpleNamespace(inventoriusdb=database),
+    )
+
+    session = auth_client.get("/api/auth/session")
+    response = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": "not-a-token"},
+        headers={"Origin": ORIGIN},
+    )
+    command = app.test_cli_runner().invoke(
+        args=["auth", "local-login-token"]
+    )
+
+    assert response.status_code == 404
+    assert response.json["type"] == "not-found"
+    assert command.exit_code != 0
+    assert "disabled or its safety checks failed" in command.output
+    assert {
+        operation["rel"] for operation in session.json["operations"]
+    } == {"authenticate-passkey-options", "recover-passkey-options"}
+
+
+def test_local_login_configuration_fails_closed_for_non_loopback_origin():
+    isolated_app = Flask("unsafe-local-login-test")
+    isolated_app.config.update(
+        AUTH_ORIGIN="https://inventory.example.test",
+        AUTH_RP_ID="inventory.example.test",
+        AUTH_COOKIE_SECURE=False,
+        AUTH_LOCAL_LOGIN_ENABLED=True,
+    )
+
+    with pytest.raises(RuntimeError, match="localhost or 127.0.0.1"):
+        auth_package.init_auth(isolated_app)
+
+
+def test_local_login_cli_requires_an_owner(auth_client, monkeypatch):
+    database = get_test_database()
+    _enable_local_login()
+    monkeypatch.setattr(
+        auth_package,
+        "get_mongo_client",
+        lambda: SimpleNamespace(inventoriusdb=database),
+    )
+
+    result = app.test_cli_runner().invoke(
+        args=["auth", "local-login-token"]
+    )
+
+    assert result.exit_code != 0
+    assert "Configure the owner" in result.output
+    assert database.auth_local_login_tokens.count_documents({}) == 0
+
+
+def test_local_login_cli_stores_only_a_short_lived_hash(
+    auth_client, monkeypatch
+):
+    database = get_test_database()
+    _enable_local_login()
+    _insert_owner(database)
+    monkeypatch.setattr(
+        auth_package,
+        "get_mongo_client",
+        lambda: SimpleNamespace(inventoriusdb=database),
+    )
+    result = app.test_cli_runner().invoke(
+        args=["auth", "local-login-token"]
+    )
+
+    assert result.exit_code == 0
+    raw_token = result.output.strip()
+    assert raw_token
+    assert database.auth_local_login_tokens.find_one({"_id": raw_token}) is None
+    stored = database.auth_local_login_tokens.find_one(
+        {"_id": token_digest(raw_token)}
+    )
+    assert stored
+    assert stored["expires_at"] - stored["created_at"] == timedelta(minutes=5)
+
+    too_long = app.test_cli_runner().invoke(
+        args=["auth", "local-login-token", "--expires-minutes", "31"]
+    )
+    assert too_long.exit_code != 0
+
+
+def test_local_login_requires_exact_origin_without_consuming_token(
+    auth_client,
+):
+    database = get_test_database()
+    _enable_local_login()
+    _insert_owner(database)
+    raw_token = "local-login-secret"
+    database.auth_local_login_tokens.insert_one(
+        {
+            "_id": token_digest(raw_token),
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+        }
+    )
+
+    response = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": raw_token},
+        headers={"Origin": "http://127.0.0.1:3000"},
+    )
+
+    assert response.status_code == 403
+    assert response.json["type"] == "origin-mismatch"
+    assert database.auth_local_login_tokens.find_one(
+        {"_id": token_digest(raw_token)}
+    )
+
+
+def test_local_login_atomically_consumes_token_and_issues_normal_owner_session(
+    auth_client,
+):
+    database = get_test_database()
+    _enable_local_login()
+    _insert_owner(database)
+    raw_token = "local-login-secret"
+    database.auth_local_login_tokens.insert_many(
+        [
+            {
+                "_id": token_digest(raw_token),
+                "created_at": datetime.now(timezone.utc),
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+            },
+            {
+                "_id": token_digest("expired-secret"),
+                "created_at": datetime.now(timezone.utc) - timedelta(minutes=10),
+                "expires_at": datetime.now(timezone.utc) - timedelta(seconds=1),
+            },
+        ]
+    )
+
+    session = auth_client.get("/api/auth/session")
+    assert "local-login" in {
+        operation["rel"] for operation in session.json["operations"]
+    }
+
+    expired = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": "expired-secret"},
+        headers={"Origin": "http://localhost:3000"},
+    )
+    invalid = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": "wrong-secret"},
+        headers={"Origin": "http://localhost:3000"},
+    )
+    assert expired.status_code == invalid.status_code == 401
+    assert expired.json == invalid.json
+
+    response = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": raw_token},
+        headers={"Origin": "http://localhost:3000"},
+    )
+
+    assert response.status_code == 200
+    assert response.json["state"]["status"] == "authenticated"
+    assert response.json["state"]["principal"]["id"] == "owner"
+    cookie = response.headers["Set-Cookie"]
+    raw_session = cookie.split("=", 1)[1].split(";", 1)[0]
+    stored_session = database.auth_sessions.find_one(
+        {"_id": token_digest(raw_session)}
+    )
+    assert stored_session["authentication_method"] == "local-development-token"
+    assert database.auth_local_login_tokens.find_one(
+        {"_id": token_digest(raw_token)}
+    ) is None
+
+    auth_client.delete_cookie("inventorius_session")
+    reused = auth_client.post(
+        "/api/auth/local-login",
+        json={"token": raw_token},
+        headers={"Origin": "http://localhost:3000"},
+    )
+    assert reused.status_code == 401
+    assert reused.json == invalid.json
 
 
 def test_every_unsafe_api_route_has_an_explicit_authority_classification():
