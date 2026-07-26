@@ -46,6 +46,7 @@ jobs:
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -96,8 +97,25 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create or update the Sentry release
-        if: github.event_name != 'pull_request' && steps.sentry.outputs.configured == 'true'
+      - name: Wait until development reports this revision
+        if: github.ref == 'refs/heads/development'
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while (( SECONDS < deadline )); do
+            revision="$(
+              curl --fail --silent --show-error --max-time 15 \
+                https://dev.inventory.computemachines.com/api/status |
+                jq -r '.state.revision // empty' || true
+            )"
+            test "$revision" = "$GITHUB_SHA" && exit 0
+            sleep 15
+          done
+          echo "development did not report $GITHUB_SHA within 15 minutes" >&2
+          exit 1
+
+      - name: Record the observed development Sentry release and deploy
+        if: github.ref == 'refs/heads/development' && steps.sentry.outputs.configured == 'true'
         uses: getsentry/action-release@v3
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -105,6 +123,7 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_API_PROJECT }}
         with:
           release: inventorius-api@${{ github.sha }}
+          environment: development
           projects: ${{ vars.SENTRY_API_PROJECT }}
           set_commits: auto
           ignore_missing: true
