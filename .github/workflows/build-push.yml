@@ -1,12 +1,13 @@
 # Build and push Docker image to GHCR
 #
-# Triggers on push to main. Watchtower on the server auto-pulls new images.
+# Main and development publish different stable channels. A development push
+# must never move the production `latest` tag.
 
 name: Build and Push
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -37,7 +38,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
             type=sha,prefix=
 
       - name: Build and push
@@ -47,3 +49,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_ID=${{ github.sha }}
