@@ -39,6 +39,13 @@ import os
 SENTRY_SDK = None
 
 
+def scrub_sentry_event(event, _hint):
+    """Retain failure provenance while dropping request/user-bearing context."""
+    for key in ("request", "user", "contexts", "extra", "breadcrumbs"):
+        event.pop(key, None)
+    return event
+
+
 def configure_sentry():
     """Configure error reporting without collecting user data or performance traces."""
     global SENTRY_SDK
@@ -63,6 +70,7 @@ def configure_sentry():
         send_default_pii=False,
         traces_sample_rate=0.0,
         profiles_sample_rate=0.0,
+        before_send=scrub_sentry_event,
     )
 
 

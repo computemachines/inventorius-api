@@ -89,6 +89,24 @@ def test_sentry_tag_reads_manifest_at_request_time(tmp_path, monkeypatch):
     ]
 
 
+def test_sentry_scrubber_removes_request_and_user_material():
+    event = {
+        "exception": {"values": [{"type": "ExampleError"}]},
+        "request": {
+            "headers": {"Authorization": "secret", "Cookie": "session=secret"},
+            "data": {"recovery_code": "secret"},
+        },
+        "user": {"email": "private@example.com"},
+        "contexts": {"auth": {"challenge": "secret"}},
+        "extra": {"token": "secret"},
+        "breadcrumbs": [{"data": {"url": "/setup?token=secret"}}],
+    }
+
+    scrubbed = api_module.scrub_sentry_event(event, None)
+
+    assert scrubbed == {"exception": {"values": [{"type": "ExampleError"}]}}
+
+
 def test_status_endpoint_preserves_release_provenance():
     with app.test_request_context():
         response = StatusEndpoint(
