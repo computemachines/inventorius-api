@@ -7,7 +7,7 @@
     https://app.swaggerhub.com/apis-docs/computemachines/inventorius/3.1.0
 """
 
-from flask import Flask
+from flask import Flask, jsonify
 # from flask import Flask, g, Response, url_for
 # from flask import request, redirect
 # import json
@@ -20,35 +20,61 @@ from inventorius.batch import batch
 from inventorius.inventorius import inventorius
 from inventorius.sku import sku
 from inventorius.files import files
+from inventorius.intake import intake
+from inventorius.inventory_operations import inventory_operations
+from inventorius.inventory_candidates import inventory_candidates
+from inventorius.audit_snapshots import audit_snapshots
+from inventorius.audit_observations import audit_observations
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
-from inventorius.user import user
+from inventorius.auth import current_actor, init_auth
 from inventorius.schema.routes import bp as schema_bp
-from inventorius.util import login_manager, no_cache, principals
+from inventorius.process_definition import process_definition
+from inventorius.util import no_cache
 from inventorius.resource_models import StatusEndpoint
+from inventorius.release import metadata as release_metadata
 
 import platform
 import os
 
-sentry_dsn = False
-try:
-    import sentry_sdk
-    from sentry_sdk.integrations.flask import FlaskIntegration
+SENTRY_SDK = None
+
+
+def scrub_sentry_event(event, _hint):
+    """Retain failure provenance while dropping request/user-bearing context."""
+    for key in ("request", "user", "contexts", "extra", "breadcrumbs"):
+        event.pop(key, None)
+    return event
+
+
+def configure_sentry():
+    """Configure error reporting without collecting user data or performance traces."""
+    global SENTRY_SDK
     sentry_dsn = os.getenv("SENTRY_DSN")
+    if not sentry_dsn:
+        return
 
-    if sentry_dsn:
-        print("setup sentry.io integration with configured sentry_dsn")
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            integrations=[FlaskIntegration()],
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+    except ModuleNotFoundError:
+        print("error reporting disabled: 'sentry-sdk' not installed")
+        return
 
-            # Set traces_sample_rate to 1.0 to capture 100%
-            # of transactions for performance monitoring.
-            # We recommend adjusting this value in production.
-            traces_sample_rate=1.0
-        )
+    SENTRY_SDK = sentry_sdk
+    build = release_metadata()
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration()],
+        release=f"{build['component']}@{build['revision']}",
+        environment=build["environment"],
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        profiles_sample_rate=0.0,
+        before_send=scrub_sentry_event,
+    )
 
-except ModuleNotFoundError:
-    print("error reporting disabled: 'python3-sentry-sdk' not installed")
+
+configure_sentry()
 
 
 
@@ -56,18 +82,26 @@ app = Flask('inventorius')
 BAD_REQUEST = ('Bad Request', 400)
 
 
+@app.before_request
+def tag_sentry_release_context():
+    """Attach deployment release state without changing immutable Sentry release."""
+    if SENTRY_SDK is not None:
+        SENTRY_SDK.set_tag("product_release", release_metadata()["product_release"])
+
+
 app.register_blueprint(bin)
 app.register_blueprint(batch)
 app.register_blueprint(inventorius)
 app.register_blueprint(sku)
 app.register_blueprint(files)
-app.register_blueprint(user)
+app.register_blueprint(intake)
+app.register_blueprint(inventory_operations)
+app.register_blueprint(inventory_candidates)
+app.register_blueprint(audit_snapshots)
+app.register_blueprint(audit_observations)
 app.register_blueprint(schema_bp)
-
-if app.debug:
-    print("!!! ENVIROMENT SETTING SECRET KEY FOR SESSIONS !!!")
-    app.secret_key = os.getenv("FLASK_SECRET_KEY")
-
+app.register_blueprint(process_definition)
+init_auth(app)
 
 def cors_allow_all(response):
     if app.debug:
@@ -76,15 +110,62 @@ def cors_allow_all(response):
         # TODO: this is a little embarassing, but it will work for now
         print("!!! Using CORS - DEVELOPMENT ------------!!!------- DANGER ---------!!!---------- !!!")
         response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Idempotency-Key'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,PATCH,OPTIONS,DELETE'
 
     return response
 
 
 app.after_request(cors_allow_all)
-login_manager.init_app(app)
-principals.init_app(app)
+
+
+@app.route("/api", methods=["GET"], strict_slashes=False)
+@no_cache
+def api_root():
+    """Return public navigation and caller-permitted application commands."""
+    actor = current_actor()
+    command_operations = []
+    if actor.can("catalog.mutate"):
+        command_operations.extend([
+            {"rel": "create-bin", "method": "POST", "href": "/api/bins"},
+            {"rel": "create-sku", "method": "POST", "href": "/api/skus"},
+            {"rel": "create-batch", "method": "POST", "href": "/api/batches"},
+            {
+                "rel": "define-process",
+                "method": "POST",
+                "href": "/api/process-definitions",
+            },
+        ])
+    if actor.can("inventory.mutate"):
+        command_operations.extend([
+            {"rel": "intake", "method": "POST", "href": "/api/intake"},
+            {
+                "rel": "inventory-operation",
+                "method": "POST",
+                "href": "/api/inventory-operations",
+            },
+            {
+                "rel": "audit-observation",
+                "method": "POST",
+                "href": "/api/audit-observations",
+            },
+        ])
+    if actor.can("schema.admin"):
+        command_operations.append({
+            "rel": "schema-admin",
+            "method": "GET",
+            "href": "/api/schema/list",
+        })
+    return jsonify({
+        "Id": "/api",
+        "state": {"service": "Inventorius"},
+        "links": [
+            {"rel": "search", "href": "/api/search"},
+            {"rel": "inventory-activity", "href": "/api/inventory-operations"},
+            {"rel": "authentication", "href": "/api/auth/session"},
+        ],
+        "operations": command_operations,
+    })
 
 
 @app.route("/api/status", methods=["GET"])
@@ -98,10 +179,15 @@ def get_version():
     except Exception:
         db_connected = False
 
+    build = release_metadata()
     return StatusEndpoint(
-        version="0.4.0",
+        version=build["component_version"],
         db_connected=db_connected,
-        build_id=os.getenv("BUILD_ID", "dev")
+        build_id=build["revision"],
+        component=build["component"],
+        revision=build["revision"],
+        product_release=build["product_release"],
+        environment=build["environment"],
     ).get_response()
 
 

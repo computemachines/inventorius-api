@@ -12,7 +12,10 @@ problem_titles = {
     "insufficient-quantity": "Requested greater quantity than is available.",
     "invalid-credentials": "Identity not authorized.",
     "account-deactivated": "Account is deactivated.",
-    "dangerous-operation": "This operation requires force=true."
+    "dangerous-operation": "This operation requires force=true.",
+    "ledger-history-conflict": "Requested change conflicts with immutable inventory history.",
+    "operation-retired": "This inventory mutation endpoint has been retired.",
+    "identifier-space-exhausted": "Identifier namespace is exhausted.",
 }
 
 
@@ -79,6 +82,34 @@ def duplicate_resource_response(key, reason="must not already exist", status_cod
     }, status_code=status_code)
 
 
+def ledger_history_conflict_response(name, reason):
+    """A legacy mutation would split an identity from its ledger history."""
+    return problem_response(status_code=409, json={
+        "type": "ledger-history-conflict",
+        "title": problem_titles["ledger-history-conflict"],
+        "invalid-params": [{"name": name, "reason": reason}],
+    })
+
+
+def operation_retired_response():
+    """Direct callers to the canonical append-only command endpoint."""
+    return problem_response(status_code=410, json={
+        "type": "operation-retired",
+        "title": problem_titles["operation-retired"],
+        "replacement": "/api/inventory-operations",
+    })
+
+
+def identifier_space_exhausted_response(prefix):
+    """Report that a monotonic fixed-width namespace has no next value."""
+    return problem_response(status_code=409, json={
+        "type": "identifier-space-exhausted",
+        "title": problem_titles["identifier-space-exhausted"],
+        "prefix": prefix,
+        "detail": f"No unused six-digit {prefix} identifiers remain.",
+    })
+
+
 def missing_resource_response(uri, create_operation=None):
     if create_operation:
         return problem_response(status_code=404, json={
@@ -107,7 +138,6 @@ def missing_bin_response(id):
         operations.bin_create()
     )
 
-
 def missing_batch_response(id):
     return missing_resource_response(
         url_for("batch.batch_get", id=id),
@@ -135,7 +165,6 @@ def bad_username_password_response(name, reason=None):
             "invalid-params": [{"name": name, reason: reason or ""}]
         }
     )
-
 
 def deactivated_account(id):
     return problem_response(
@@ -173,44 +202,5 @@ def dangerous_operation_unforced_response(name=None, reason=""):
             "type": "dangerous-operation",
             "title": problem_titles["dangerous-operation"],
             "invalid-params": invalid_params
-        }
-    )
-
-
-def move_insufficient_quantity(name=None, availible=None, requested=None):
-    if name:
-        reason = "quantity too high"
-        if requested is not None and availible is not None:
-            reason = f"requested {requested}, but only {availible} is availible"
-
-        invalid_params = [{
-            "name": name,
-            "reason": reason,
-        }]
-
-        return problem_response(
-            status_code=405,
-            json={
-                "type": "insufficient-quantity",
-                "title": problem_titles["insufficient-quantity"],
-                "invalid-params": name,
-            }
-        )
-    else:
-        return problem_response(
-            status_code=405,
-            json={
-                "type": "insufficient-quantity",
-                "title": problem_titles["insufficient-quantity"],
-            }
-        )
-
-
-def release_insufficient_quantity():
-    return problem_response(
-        status_code=405,
-        json={
-            "type": "insufficient-quantity",
-            "title": problem_titles["insufficient-quantity"],
         }
     )

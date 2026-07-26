@@ -284,17 +284,6 @@ class HasAdditionalFields:
 
 # -------- Data models for db
 
-class UserData(DataModel):
-    fixed_id = DataField("_id", required=True)
-    shadow_id = DataField("shadow_id", required=True)
-    password_hash = DataField("password_hash", required=True)
-    password_salt = DataField("password_salt", required=True)
-    active = DataField("active", default=False)
-    # role = DataField("role")
-    name = DataField("name")
-    # email = DataField("email")
-
-
 def currency_from_bson(units):
     assert units["unit"] == "USD"
     return {"unit": "USD", "value": float(units['value'].to_decimal())}

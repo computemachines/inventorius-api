@@ -1,18 +1,22 @@
 import functools
 from flask import request
 from flask.helpers import make_response
-from flask_login import LoginManager
-from flask_principal import Principal, Permission, RoleNeed
 import re
 from string import ascii_letters
 
 from inventorius.db import db
+from inventorius.validation import CANONICAL_ID_SUFFIX_WIDTH
 
-login_manager = LoginManager()
-principals = Principal()
 
-admin_permission = Permission(RoleNeed("admin"))
+MAX_IDENTIFIER_SUFFIX = (10 ** CANONICAL_ID_SUFFIX_WIDTH) - 1
 
+
+class IdentifierSpaceExhausted(Exception):
+    """The monotonic counter has no valid fixed-width identifier left."""
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+        super().__init__(f"{prefix} identifier space is exhausted")
 
 def getIntArgs(args, name, default):
     str_value = args.get(name, default)
@@ -37,6 +41,16 @@ def owned_code_get(id):
     return existing
 
 
+def _counter_state(prefix, next_number):
+    exhausted = next_number > MAX_IDENTIFIER_SUFFIX
+    return {
+        "next": None if exhausted else (
+            f"{prefix}{next_number:0{CANONICAL_ID_SUFFIX_WIDTH}d}"
+        ),
+        "exhausted": exhausted,
+    }
+
+
 def admin_increment_code(prefix, code):
     """Record that a code was used and update next if needed.
 
@@ -46,9 +60,12 @@ def admin_increment_code(prefix, code):
     code_number = int(re.sub('[^0-9]', '', code))
 
     # Ensure admin doc exists
-    admin_get_next(prefix)
+    try:
+        admin_get_next(prefix)
+    except IdentifierSpaceExhausted:
+        # Exhaustion stops generated IDs, not valid explicit IDs in lower gaps.
+        pass
 
-    # Add code to used list and update next if this is a new max
     doc = db.admin.find_one({"_id": prefix})
     used = doc.get("used", [])
 
@@ -56,20 +73,26 @@ def admin_increment_code(prefix, code):
         used.append(code_number)
         used.sort()
         max_used = max(used)
+        current_next = int(re.sub('[^0-9]', '', doc['next'])) \
+            if doc.get("next") else 1
+        next_number = max(current_next, max_used + 1)
+        if doc.get("exhausted"):
+            next_number = MAX_IDENTIFIER_SUFFIX + 1
         db.admin.update_one(
             {"_id": prefix},
             {"$set": {
                 "used": used,
-                "next": f"{prefix}{max_used + 1:06}"
+                **_counter_state(prefix, next_number),
             }}
         )
 
 
 def admin_get_next(prefix):
-    """Get the next unused ID for a prefix (SKU, BAT, BIN).
+    """Get the next unused ID for a fixed-width resource namespace.
 
     Returns the next ID that has never been used, tracked via a persistent
-    'used' list that survives item deletions.
+    'used' list that survives item deletions. Raises rather than widening or
+    wrapping once the six-digit namespace is exhausted.
     """
     def collect_existing_ids(collection, prefix_str):
         """One-time migration: collect all existing IDs from a collection."""
@@ -93,14 +116,16 @@ def admin_get_next(prefix):
             used = collect_existing_ids(db.batch, "BAT")
         elif prefix == "BIN":
             used = collect_existing_ids(db.bin, "BIN")
+        elif prefix == "PRC":
+            used = collect_existing_ids(db.process_definition, "PRC")
         else:
             raise Exception("bad prefix", prefix)
 
         max_used = max(used) if used else 0
         db.admin.insert_one({
             "_id": prefix,
-            "next": f"{prefix}{max_used + 1:06}",
-            "used": used
+            "used": used,
+            **_counter_state(prefix, max_used + 1),
         })
         next_code_doc = db.admin.find_one({"_id": prefix})
 
@@ -112,6 +137,8 @@ def admin_get_next(prefix):
             used = collect_existing_ids(db.batch, "BAT")
         elif prefix == "BIN":
             used = collect_existing_ids(db.bin, "BIN")
+        elif prefix == "PRC":
+            used = collect_existing_ids(db.process_definition, "PRC")
         else:
             raise Exception("bad prefix", prefix)
 
@@ -124,12 +151,25 @@ def admin_get_next(prefix):
             {"_id": prefix},
             {"$set": {
                 "used": used,
-                "next": f"{prefix}{new_next:06}"
+                **_counter_state(prefix, new_next),
             }}
         )
         next_code_doc = db.admin.find_one({"_id": prefix})
 
-    return next_code_doc['next']
+    if next_code_doc.get("exhausted"):
+        raise IdentifierSpaceExhausted(prefix)
+
+    used = next_code_doc["used"]
+    current_next = int(re.sub('[^0-9]', '', next_code_doc['next']))
+    next_number = max(current_next, (max(used) + 1) if used else 1)
+    state = _counter_state(prefix, next_number)
+    if state["exhausted"]:
+        db.admin.update_one({"_id": prefix}, {"$set": state})
+        raise IdentifierSpaceExhausted(prefix)
+    if state["next"] != next_code_doc["next"]:
+        db.admin.update_one({"_id": prefix}, {"$set": state})
+
+    return state["next"]
 
 
 def check_code_list(codes):

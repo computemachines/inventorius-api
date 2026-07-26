@@ -1,12 +1,14 @@
 # Build and push Docker image to GHCR
 #
-# Triggers on push to main. Watchtower on the server auto-pulls new images.
+# Development publishes its moving channel; every branch publishes an immutable
+# full-SHA tag. Main promotion deliberately does not move a mutable tag.
 
 name: Build and Push
 
 on:
+  pull_request:
   push:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -14,8 +16,54 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  test:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The ledger/repository tests use real multi-document transactions.
+      # GitHub Actions service containers cannot pass a MongoDB command after
+      # the image name, so start this explicit replica set rather than a
+      # standalone service container.
+      - name: Start transactional MongoDB
+        run: |
+          set -euo pipefail
+          docker run --detach --name inventorius-mongo \
+            --publish 27017:27017 \
+            mongo:7.0 \
+            --replSet inventorius-rs --bind_ip_all
+
+          until docker exec inventorius-mongo mongosh --quiet \
+            --eval 'db.runCommand({ ping: 1 }).ok' | grep -qx '1'; do
+            sleep 1
+          done
+
+          docker exec inventorius-mongo mongosh --quiet --eval \
+            'rs.initiate({_id: "inventorius-rs", members: [{_id: 0, host: "localhost:27017"}]})'
+
+          until docker exec inventorius-mongo mongosh --quiet --eval \
+            'db.hello().isWritablePrimary' | grep -qx 'true'; do
+            sleep 1
+          done
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          INVENTORIUS_MONGO_URI: mongodb://localhost:27017/?replicaSet=inventorius-rs&directConnection=true
+        run: pytest
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -37,13 +85,63 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
-            type=sha,prefix=
+            type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
+            type=sha,format=long,prefix=sha-
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.computemachines.component.version=0.3.11
+          build-args: |
+            BUILD_ID=${{ github.sha }}
+
+      - name: Detect configured Sentry release credentials
+        id: sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_API_PROJECT }}
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait until development reports this revision
+        if: github.ref == 'refs/heads/development'
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while (( SECONDS < deadline )); do
+            revision="$(
+              curl --fail --silent --show-error --max-time 15 \
+                https://dev.inventory.computemachines.com/api/status |
+                jq -r '.state.revision // empty' || true
+            )"
+            test "$revision" = "$GITHUB_SHA" && exit 0
+            sleep 15
+          done
+          echo "development did not report $GITHUB_SHA within 15 minutes" >&2
+          exit 1
+
+      - name: Record the observed development Sentry release and deploy
+        if: github.ref == 'refs/heads/development' && steps.sentry.outputs.configured == 'true'
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_API_PROJECT }}
+        with:
+          release: inventorius-api@${{ github.sha }}
+          environment: development
+          projects: ${{ vars.SENTRY_API_PROJECT }}
+          set_commits: auto
+          ignore_missing: true
+          disable_telemetry: true

@@ -10,6 +10,25 @@ from voluptuous import ALLOW_EXTRA, All, Length, Range, Required, Schema
 from voluptuous.error import Invalid, MultipleInvalid
 from voluptuous.validators import Any
 
+CANONICAL_ID_SUFFIX_WIDTH = 6
+MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
+
+
+def normalize_prefixed_id(value, prefix):
+    """Return the fixed-width form used for storage, URLs, and QR payloads."""
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+
+    value = value.strip().upper()
+    match = re.fullmatch(f"{prefix}([0-9]{{1,{CANONICAL_ID_SUFFIX_WIDTH}}})", value)
+    if not match:
+        raise Invalid(
+            f"must start with '{prefix}' followed by at most "
+            f"{CANONICAL_ID_SUFFIX_WIDTH} digits"
+        )
+
+    return f"{prefix}{match.group(1).zfill(CANONICAL_ID_SUFFIX_WIDTH)}"
+
 
 def validate_url_id(prefix, param_name="id"):
     """
@@ -29,31 +48,15 @@ def validate_url_id(prefix, param_name="id"):
         def decorated_function(*args, **kwargs):
             id_value = kwargs.get(param_name)
             if id_value is not None:
-                if not re.match(f"^{prefix}[0-9]+$", id_value):
+                try:
+                    kwargs[param_name] = normalize_prefixed_id(id_value, prefix)
+                except Invalid as validation_error:
                     # Import here to avoid circular dependency
                     import inventorius.util_error_responses as problem
                     error = Invalid(
-                        f"must start with '{prefix}' followed by digits only",
+                        validation_error.msg,
                         [param_name]
                     )
-                    return problem.invalid_params_response(MultipleInvalid([error]))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-
-def validate_url_user_id(param_name="id"):
-    """
-    Decorator that validates user ID URL parameters are alphanumeric.
-    """
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            id_value = kwargs.get(param_name)
-            if id_value is not None:
-                if not id_value.isalnum() or id_value == "":
-                    import inventorius.util_error_responses as problem
-                    error = Invalid("must be non-empty alphanumeric", [param_name])
                     return problem.invalid_params_response(MultipleInvalid([error]))
             return f(*args, **kwargs)
         return decorated_function
@@ -66,9 +69,7 @@ def NoneOr(Else):
 
 def prefixed_id(prefix="", matching=None):
     def numeric_with_prefix(id):
-        if not re.match(f"^{prefix}[0-9]+$", id):
-            raise Invalid(f"must start with '{prefix}' followed by digits")
-        return id
+        return normalize_prefixed_id(id, prefix)
 
     # def must_have_prefix(id):
     #     if not id.startswith(prefix):
@@ -103,10 +104,76 @@ def alphanum(s: str):
     return s
 
 
-def positive(i: int):
-    if i <= 0:
-        raise Invalid("must be greater than or equal to 1")
-    return i
+def trimmed_non_empty_string(value: str):
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+    value = value.strip()
+    if not value:
+        raise Invalid("must not be blank")
+    return value
+
+
+def trimmed_string(value: str):
+    if not isinstance(value, str):
+        raise Invalid("must be a string")
+    return value.strip()
+
+
+def positive_number(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise Invalid("must be a number")
+    if value <= 0:
+        raise Invalid("must be greater than 0")
+    return value
+
+
+def positive_whole_number(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise Invalid("must be a whole number")
+    if value <= 0:
+        raise Invalid("must be greater than 0")
+    return value
+
+
+def nonnegative_whole_number(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise Invalid("must be a whole number")
+    if value < 0:
+        raise Invalid("must be at least 0")
+    return value
+
+
+safe_positive_whole_number = All(
+    positive_whole_number,
+    Range(max=MAX_SAFE_JSON_INTEGER),
+)
+
+
+safe_nonnegative_whole_number = All(
+    nonnegative_whole_number,
+    Range(max=MAX_SAFE_JSON_INTEGER),
+)
+
+
+def observed_code(value):
+    value = trimmed_non_empty_string(value)
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise Invalid("must not contain control characters")
+    return value
+
+
+def each_unit(value):
+    value = trimmed_non_empty_string(value)
+    if value != "each":
+        raise Invalid("must be 'each' at this stage")
+    return value
+
+
+def audit_snapshot_token(value):
+    value = trimmed_non_empty_string(value).lower()
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise Invalid("must be a 64-character hexadecimal snapshot token")
+    return value
 
 
 def str_dec(s):
@@ -117,8 +184,6 @@ def str_dec(s):
     return s
 
 
-id_schema = All(Length(1), str, non_empty_string, non_whitespace, alphanum)
-password_schema = All(Length(8), str)
 code_list_schema = [All(non_empty_string, non_whitespace)]
 
 # def code_list(codes):
@@ -126,28 +191,6 @@ code_list_schema = [All(non_empty_string, non_whitespace)]
 #         raise Invalid(f"")
 
 forced_schema = Schema({"force": "true"})
-
-new_user_schema = Schema(
-    {
-        Required("id"): id_schema,
-        Required("password"): password_schema,
-        Required("name"): str,
-    }
-)
-
-user_patch_schema = Schema(
-    {
-        "password": password_schema,
-        "name": str,
-    }
-)
-
-login_request_schema = Schema(
-    {
-        Required("id"): id_schema,
-        Required("password"): password_schema,
-    }
-)
 
 units_schema = Schema(
     {
@@ -180,7 +223,7 @@ props_schema = Schema(
 
 new_batch_schema = Schema(
     {
-        Required("id"): prefixed_id("BAT"),
+        "id": prefixed_id("BAT"),
         "owned_codes": code_list_schema,
         "associated_codes": code_list_schema,
         "name": str,
@@ -202,7 +245,7 @@ batch_patch_schema = Schema(
 
 new_bin_schema = Schema(
     {
-        Required("id"): prefixed_id("BIN"),
+        "id": prefixed_id("BIN"),
         "props": props_schema,
     }
 )
@@ -217,7 +260,7 @@ bin_patch_schema = Schema(
 
 new_sku_schema = Schema(
     {
-        Required("id"): prefixed_id("SKU"),
+        "id": prefixed_id("SKU"),
         "owned_codes": code_list_schema,
         "associated_codes": code_list_schema,
         "name": str,
@@ -235,17 +278,148 @@ sku_patch_schema = Schema(
     }
 )
 
-item_move_schema = Schema(
+quick_capture_schema = Schema(
     {
-        Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
-        Required("destination"): prefixed_id("BIN"),
-        Required("quantity"): All(int, positive),
+        "description": All(trimmed_non_empty_string, Length(max=500)),
+        "sku_id": prefixed_id("SKU"),
+        Required("bin_id"): prefixed_id("BIN"),
+        Required("quantity"): safe_positive_whole_number,
+        Required("unit", default="each"): each_unit,
+        "observed_codes": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=50),
+        ),
     }
 )
 
-item_release_receive_schema = Schema(
+
+def intake_capture_schema(value):
+    """Validate one low-friction intake command without guessing its identity."""
+    capture = quick_capture_schema(value)
+    has_description = "description" in capture
+    has_sku_id = "sku_id" in capture
+    if has_description == has_sku_id:
+        raise MultipleInvalid([Invalid(
+            "must provide exactly one of description or sku_id",
+            ["description"],
+        )])
+    return capture
+
+
+inventory_operation_command_schema = Schema(
     {
-        Required("id"): Any(prefixed_id("SKU"), prefixed_id("BAT")),
-        Required("quantity"): int,  # can be positive or negative
+        Required("kind"): Any("receive", "transfer", "release"),
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("quantity"): safe_positive_whole_number,
+        Required("unit", default="each"): each_unit,
+        # Packaging is deliberately not a command dimension yet.  Requiring
+        # null when a client sends the field makes that boundary explicit
+        # rather than silently coalescing package identities.
+        "packaging_configuration_id": Any(None),
+        "location_id": prefixed_id("BIN"),
+        "source_location_id": prefixed_id("BIN"),
+        "destination_location_id": prefixed_id("BIN"),
+        "observed_codes": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=50),
+        ),
+    }
+)
+
+
+inventory_correction_command_schema = Schema(
+    {
+        # Keep correction input exactly representable by browser clients and
+        # comfortably inside MongoDB Decimal128. Receipt reads still render
+        # larger historical exact values as strings.
+        Required("quantity"): safe_nonnegative_whole_number,
+        Required("location_id"): prefixed_id("BIN"),
+    }
+)
+
+
+audit_observation_count_schema = Schema(
+    {
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("quantity"): safe_nonnegative_whole_number,
+        Required("unit"): each_unit,
+        Required("packaging_configuration_id"): Any(None),
+    }
+)
+
+
+audit_observation_command_schema = Schema(
+    {
+        Required("location_id"): prefixed_id("BIN"),
+        Required("snapshot_token"): audit_snapshot_token,
+        Required("counts"): All(
+            [audit_observation_count_schema],
+            Length(max=1000),
+        ),
+        "unresolved_evidence": All(
+            [All(observed_code, Length(max=500))],
+            Length(max=100),
+        ),
+    }
+)
+
+
+audit_reconciliation_command_schema = Schema(
+    {
+        Required("reason"): Any("unexplained-variance"),
+        "note": All(trimmed_non_empty_string, Length(max=500)),
+    }
+)
+
+
+PROCESS_DEFINITION_KINDS = (
+    "repackaging",
+    "assembly",
+    "disassembly",
+    "transformation",
+    "blending",
+)
+
+process_requirement_schema = Schema(
+    {
+        Required("role"): All(trimmed_non_empty_string, Length(max=120)),
+        "sku_id": NoneOr(prefixed_id("SKU")),
+        "quantity": NoneOr(positive_number),
+        Required("unit", default="each"): All(
+            trimmed_non_empty_string,
+            Length(max=40),
+        ),
+    }
+)
+
+process_requirements_schema = All(
+    [process_requirement_schema],
+    Length(min=1, max=50),
+)
+
+process_instructions_schema = All(
+    [All(trimmed_non_empty_string, Length(max=500))],
+    Length(max=100),
+)
+
+process_definition_create_schema = Schema(
+    {
+        Required("name"): All(trimmed_non_empty_string, Length(max=200)),
+        Required("kind"): Any(*PROCESS_DEFINITION_KINDS),
+        Required("inputs"): process_requirements_schema,
+        Required("outputs"): process_requirements_schema,
+        "description": All(trimmed_string, Length(max=2000)),
+        "instructions": process_instructions_schema,
+    }
+)
+
+process_definition_patch_schema = Schema(
+    {
+        "name": All(trimmed_non_empty_string, Length(max=200)),
+        "kind": Any(*PROCESS_DEFINITION_KINDS),
+        "inputs": process_requirements_schema,
+        "outputs": process_requirements_schema,
+        "description": All(trimmed_string, Length(max=2000)),
+        "instructions": process_instructions_schema,
     }
 )

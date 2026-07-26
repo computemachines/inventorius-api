@@ -1,11 +1,20 @@
 from flask import Response, url_for
 import json
-from flask_login import current_user
-from flask_login.utils import encode_cookie
-
 from inventorius.db import db
-from inventorius.data_models import DataModel, DataModelJSONEncoder, UserData, Batch, Bin
+from inventorius.holding_queries import locations_for_batch
+from inventorius.data_models import DataModel, DataModelJSONEncoder, Batch, Bin
 import inventorius.resource_operations as operations
+from inventorius.auth import current_actor
+
+
+def _resource_operations(capability, *items):
+    """Keep safe links public and mutation affordances caller-truthful."""
+    actor = current_actor()
+    return [
+        item
+        for item in items
+        if item["method"] == "GET" or actor.can(capability)
+    ]
 
 # operation = {
 #   "rel": operation name (resource method),
@@ -64,84 +73,18 @@ class HypermediaEndpoint:
         return resp
 
 
-class Profile(HypermediaEndpoint):
-    @classmethod
-    def from_user_data(cls, user_data: UserData):
-        if not user_data:
-            return None
-        profile = Profile(
-            resource_uri=url_for("user.user_get", id=user_data.fixed_id),
-            state={
-                "id": user_data.fixed_id,
-                "name": user_data.name,
-            },
-            operations=[]
-        )
-        profile.user_id = user_data.fixed_id
-        profile.user_data = user_data
-        return profile
-
-    @classmethod
-    def from_id(cls, user_id: str, retrieve=False):
-        if retrieve:
-            return cls.from_user_data(cls._retrieve(user_id))
-        else:
-            profile = Profile(
-                resource_uri=url_for("user.user_get", id=user_id),
-                operations=[]
-            )
-            profile.user_id = user_id
-            return profile
-
-    @classmethod
-    def _retrieve(cls, user_id):
-        return UserData.from_mongodb_doc(
-            db.user.find_one({"_id": user_id}))
-
-    def login_success_response(self):
-        return self.status_response("logged in")
-
-    def created_success_response(self):
-        return self.status_response("user created", status_code=201)
-
-    def updated_success_response(self):
-        return self.status_response("user updated")
-
-    def deleted_success_response(self):
-        return self.status_response("user deleted")
-
-
-class PrivateProfile(Profile):
-    @classmethod
-    def from_user_data(cls, user_data: UserData):
-        profile = super().from_user_data(user_data)
-        if not profile:
-            return None
-        profile.state['secret'] = profile.user_data.shadow_id
-        return profile
-
-    @classmethod
-    def from_id(cls, user_id: str, retrieve=False):
-        profile = super().from_id(user_id, retrieve=retrieve)
-        if not profile:
-            return None
-        profile.operations = [
-            operations.user_delete(user_id)
-        ]
-        return profile
-
-
 class BatchEndpoint(HypermediaEndpoint):
     @classmethod
     def from_batch(cls, data_batch: Batch):
         endpoint = BatchEndpoint(
             resource_uri=url_for("batch.batch_get", id=data_batch.id),
             state=data_batch.to_dict(mask_default=True),
-            operations=[
+            operations=_resource_operations(
+                "catalog.mutate",
                 operations.batch_update(data_batch.id),
                 operations.batch_delete(data_batch.id),
                 operations.batch_bins(data_batch.id),
-            ],
+            ),
         )
         endpoint.data_batch = data_batch
         return endpoint
@@ -153,11 +96,12 @@ class BatchEndpoint(HypermediaEndpoint):
 
         endpoint = BatchEndpoint(
             resource_uri=url_for("batch.batch_get", id=batch_id),
-            operations=[
+            operations=_resource_operations(
+                "catalog.mutate",
                 operations.batch_update(batch_id),
                 operations.batch_delete(batch_id),
                 operations.batch_bins(batch_id),
-            ],
+            ),
         )
         return endpoint
 
@@ -177,13 +121,7 @@ class BatchBinsEndpoint(HypermediaEndpoint):
         if not retrieve:
             raise NotImplementedError()
 
-        contained_by_bins = [
-            Bin.from_mongodb_doc(bson)
-            for bson in db.bin.find({
-                f"contents.{batch_id}": {"$exists": True}
-            })]
-        locations = {bin.id: {batch_id: bin.contents[batch_id]}
-                     for bin in contained_by_bins}
+        locations = locations_for_batch(batch_id)
 
         endpoint = BatchBinsEndpoint(
             resource_uri=url_for("batch.batch_bins_get", id=batch_id),
@@ -198,10 +136,11 @@ class BinEndpoint(HypermediaEndpoint):
         endpoint = BinEndpoint(
             resource_uri=url_for("bin.bin_get", id=bin.id),
             state=bin.to_dict(),
-            operations=[
+            operations=_resource_operations(
+                "catalog.mutate",
                 operations.bin_update(bin.id),
                 operations.bin_delete(bin.id),
-            ]
+            )
         )
         return endpoint
 
@@ -221,12 +160,13 @@ class SkuEndpoint(HypermediaEndpoint):
         endpoint = SkuEndpoint(
             resource_uri=url_for("sku.sku_get", id=sku.id),
             state=sku.to_dict(),
-            operations=[
+            operations=_resource_operations(
+                "catalog.mutate",
                 operations.sku_update(sku.id),
                 operations.sku_delete(sku.id),
                 operations.sku_bins(sku.id),
                 operations.sku_batches(sku.id),
-            ]
+            )
         )
         return endpoint
 
@@ -240,8 +180,48 @@ class SkuEndpoint(HypermediaEndpoint):
         return self.status_response("sku deleted")
 
 
+class ProcessDefinitionEndpoint(HypermediaEndpoint):
+    @classmethod
+    def from_state(cls, state, mutable=True):
+        process_id = state["id"]
+        resource_operations = [operations.process_definition_revisions(process_id)]
+        if mutable and current_actor().can("catalog.mutate"):
+            resource_operations = [
+                operations.process_definition_update(process_id),
+                operations.process_definition_delete(process_id),
+                *resource_operations,
+            ]
+        return cls(
+            resource_uri=url_for(
+                "process_definition.process_definition_get",
+                id=process_id,
+            ),
+            state=state,
+            operations=resource_operations,
+        )
+
+    def created_success_response(self):
+        return self.status_response("process definition created", status_code=201)
+
+    def updated_success_response(self):
+        return self.status_response("process definition updated")
+
+    def deleted_success_response(self):
+        return self.status_response("process definition deleted")
+
+
 class StatusEndpoint(HypermediaEndpoint):
-    def __init__(self, version, is_up=True, db_connected=None, build_id=None):
+    def __init__(
+        self,
+        version,
+        is_up=True,
+        db_connected=None,
+        build_id=None,
+        component=None,
+        revision=None,
+        product_release=None,
+        environment=None,
+    ):
         state = {
             "version": version,
             "is-up": is_up,
@@ -250,4 +230,12 @@ class StatusEndpoint(HypermediaEndpoint):
             state["db-connected"] = db_connected
         if build_id is not None:
             state["build-id"] = build_id
+        if component is not None:
+            state["component"] = component
+        if revision is not None:
+            state["revision"] = revision
+        if product_release is not None:
+            state["product-release"] = product_release
+        if environment is not None:
+            state["environment"] = environment
         super().__init__(resource_uri=url_for("get_version"), state=state)

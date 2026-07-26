@@ -1,6 +1,5 @@
 from flask.helpers import url_for
-from inventorius.resource_models import BatchEndpoint, HypermediaEndpoint
-import inventorius.resource_operations as operations
+from inventorius.resource_models import HypermediaEndpoint
 
 
 def logged_out_response():
@@ -20,19 +19,3 @@ def bin_deleted_response(id):
         url_for("bin.bin_get", id=id),
         {"status": "bin deleted"}
     ).get_response(200)
-
-def moved_response():
-    return HypermediaEndpoint(
-        state={"status": "items moved"}
-    ).get_response(200)
-
-def bin_contents_post_response(quantity):
-    if quantity > 0:
-        status = "items received"
-    if quantity < 0:
-        status = "items released"
-    if quantity == 0:
-        status = "no change"
-    return HypermediaEndpoint(
-        state={"status": status}
-    ).get_response(201)

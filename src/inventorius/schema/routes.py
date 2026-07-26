@@ -1,13 +1,20 @@
-"""API routes for schema management."""
+"""API routes and operator commands for schema management."""
 
+import click
 from flask import Blueprint, jsonify, request
 
 from ..db import db
+from ..auth import public_unsafe, require_capability
 from .trigger_engine import (
     Schema,
     TriggerEngine,
     schema_to_dict,
     schema_from_dict,
+)
+from .catalog import (
+    DEFAULT_SCHEMA_FACTORIES,
+    EXAMPLE_SCHEMA_FACTORIES,
+    install_schemas,
 )
 
 bp = Blueprint("schema", __name__, url_prefix="/api/schema")
@@ -80,6 +87,7 @@ def get_root_mixins(name: str):
 
 
 @bp.route("/<name>/evaluate", methods=["POST"])
+@public_unsafe
 def evaluate_schema(name: str):
     """
     Evaluate the schema with given active mixins and field values.
@@ -132,6 +140,7 @@ def evaluate_schema(name: str):
 
 
 @bp.route("/<name>", methods=["PUT"])
+@require_capability("schema.admin")
 def create_or_update_schema(name: str):
     """
     Create or update a schema.
@@ -152,6 +161,7 @@ def create_or_update_schema(name: str):
 
 
 @bp.route("/<name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def delete_schema(name: str):
     """Delete a schema by name."""
     if _delete_schema(name):
@@ -161,6 +171,7 @@ def delete_schema(name: str):
 
 
 @bp.route("/<name>/mixin/<mixin_name>", methods=["PUT"])
+@require_capability("schema.admin")
 def create_or_update_mixin(name: str, mixin_name: str):
     """
     Add or update a mixin within a schema.
@@ -195,6 +206,7 @@ def create_or_update_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/mixin/<mixin_name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def delete_mixin(name: str, mixin_name: str):
     """Delete a mixin from a schema."""
     schema = _get_schema(name)
@@ -215,6 +227,7 @@ def delete_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/root/<mixin_name>", methods=["PUT"])
+@require_capability("schema.admin")
 def add_root_mixin(name: str, mixin_name: str):
     """Add a mixin to the root_mixins list."""
     schema = _get_schema(name)
@@ -235,6 +248,7 @@ def add_root_mixin(name: str, mixin_name: str):
 
 
 @bp.route("/<name>/root/<mixin_name>", methods=["DELETE"])
+@require_capability("schema.admin")
 def remove_root_mixin(name: str, mixin_name: str):
     """Remove a mixin from the root_mixins list."""
     schema = _get_schema(name)
@@ -349,41 +363,41 @@ def search_bundles(name: str):
 
 
 @bp.route("/seed", methods=["POST"])
+@require_capability("schema.admin")
 def seed_schemas():
     """
     Seed the database with sample schemas.
 
     Use force=true query param to overwrite existing schemas.
     """
-    from .sample_schemas import (
-        get_sku_schema,
-        get_batch_schema,
-        get_electronics_schema,
-        get_decimal_schema,
-    )
-
     force = request.args.get("force", "false").lower() == "true"
-
-    sample_schemas = {
-        "sku": get_sku_schema(),
-        "batch": get_batch_schema(),
-        "electronics": get_electronics_schema(),
-        "decimal": get_decimal_schema(),
-    }
-
-    seeded = []
-    skipped = []
-
-    for name, schema in sample_schemas.items():
-        existing = _get_schema(name)
-        if existing and not force:
-            skipped.append(name)
-        else:
-            _save_schema(name, schema)
-            seeded.append(name)
+    factories = {**DEFAULT_SCHEMA_FACTORIES, **EXAMPLE_SCHEMA_FACTORIES}
+    result = install_schemas(db.schema, factories, force=force)
 
     return jsonify({
         "message": "Seeding complete",
-        "seeded": seeded,
-        "skipped": skipped,
+        "seeded": result.installed,
+        "skipped": result.skipped,
     }), 200
+
+
+@bp.cli.command("bootstrap")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Replace existing SKU and Batch schemas with the built-in versions.",
+)
+@click.option(
+    "--include-examples",
+    is_flag=True,
+    help="Also install the electronics and decimal demonstration schemas.",
+)
+def bootstrap_schemas(force: bool, include_examples: bool) -> None:
+    """Install the schemas required by the SKU and Batch forms."""
+    factories = dict(DEFAULT_SCHEMA_FACTORIES)
+    if include_examples:
+        factories.update(EXAMPLE_SCHEMA_FACTORIES)
+
+    result = install_schemas(db.schema, factories, force=force)
+    click.echo(f"Installed: {', '.join(result.installed) or 'none'}")
+    click.echo(f"Preserved: {', '.join(result.skipped) or 'none'}")

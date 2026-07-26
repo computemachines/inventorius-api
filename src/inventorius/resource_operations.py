@@ -21,14 +21,6 @@ OPTION = "OPTION"
 HEAD = "HEAD"
 
 
-def logout():
-    return operation("logout", POST, url_for("user.logout_post"))
-
-
-def user_delete(id):
-    return operation("delete", DELETE, url_for("user.user_delete", id=id))
-
-
 def batch_create():
     return operation("create", POST, url_for("batch.batches_post"), "Batch patch")
 
@@ -43,6 +35,40 @@ def batch_delete(id):
 
 def batch_bins(id):
     return operation("bins", GET, url_for("batch.batch_bins_get", id=id))
+
+
+def process_definition_create():
+    return operation(
+        "create",
+        POST,
+        url_for("process_definition.process_definitions_post"),
+        "Process definition",
+    )
+
+
+def process_definition_update(id):
+    return operation(
+        "update",
+        PATCH,
+        url_for("process_definition.process_definition_patch", id=id),
+        "Process definition patch",
+    )
+
+
+def process_definition_delete(id):
+    return operation(
+        "delete",
+        DELETE,
+        url_for("process_definition.process_definition_delete", id=id),
+    )
+
+
+def process_definition_revisions(id):
+    return operation(
+        "revisions",
+        GET,
+        url_for("process_definition.process_definition_revisions_get", id=id),
+    )
 
 def bin_create():
     return operation("create", POST, url_for("bin.bins_post"), "Bin patch")

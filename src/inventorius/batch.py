@@ -1,10 +1,22 @@
-from flask import Blueprint, request, Response, url_for, after_this_request
+from flask import Blueprint, jsonify, request, Response, url_for, after_this_request
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.auth import require_capability
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedBatch,
+    MissingBatch,
+)
 from inventorius.resource_models import BatchBinsEndpoint, BatchEndpoint
 import inventorius.resource_operations as operation
-from inventorius.util import admin_increment_code, check_code_list, no_cache
+from inventorius.resource_repository import (
+    MissingResourceReference,
+    ResourceIdempotencyConflict,
+    ResourceIdentifierAlreadyUsed,
+    ResourceRepository,
+)
+from inventorius.util import IdentifierSpaceExhausted, no_cache
 from inventorius.validation import new_batch_schema, batch_patch_schema, prefixed_id, forced_schema, validate_url_id
 from voluptuous import All, Required
 import inventorius.util_error_responses as problem
@@ -19,33 +31,61 @@ batch = Blueprint("batch", __name__)
 
 
 @batch.route("/api/batches", methods=['POST'])
+@require_capability("catalog.mutate")
 @no_cache
 def batches_post():
+    idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+    if not idempotency_key:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "header is required"
+        )
+    if len(idempotency_key) > 200:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "must be at most 200 characters"
+        )
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return problem.invalid_params_response_simple(
+            "body", "must be a JSON object"
+        )
     try:
-        json = new_batch_schema(request.json)
+        command = new_batch_schema(body)
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    batch = Batch.from_json(json)
-
-    existing_batch = db.batch.find_one({"_id": batch.id})
-    if existing_batch:
-        return problem.duplicate_resource_response("id")
-
-    if batch.sku_id:
-        existing_sku = db.sku.find_one({"_id": batch.sku_id})
-        if not existing_sku:
-            return problem.invalid_params_response(problem.missing_resource_param_error("sku_id", "must be an existing sku id"))
-
-    admin_increment_code("BAT", batch.id)
-    db.batch.insert_one(batch.to_mongodb_doc())
+    try:
+        stored = ResourceRepository(db).create(
+            "BAT",
+            command,
+            idempotency_key=idempotency_key,
+        )
+    except ResourceIdempotencyConflict:
+        return problem.duplicate_resource_response(
+            "Idempotency-Key",
+            "must not be reused for a different request",
+        )
+    except ResourceIdentifierAlreadyUsed:
+        return problem.duplicate_resource_response(
+            "id", "has already been used"
+        )
+    except MissingResourceReference as error:
+        return problem.invalid_params_response_simple(
+            "sku_id", "must be an existing sku id"
+        )
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
 
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.batch.index_information().keys():
-        db.sku.create_index([("name", TEXT)])
+        db.batch.create_index([("name", TEXT)])
 
-    return BatchEndpoint.from_batch(batch).created_success_response()
+    return jsonify({
+        "Id": url_for("batch.batch_get", id=stored.state["id"]),
+        "status": "batch created",
+        "state": stored.state,
+    }), 200 if stored.replayed else 201
 
 
 @batch.route("/api/batch/<id>", methods=["GET"])
@@ -61,6 +101,7 @@ def batch_get(id):
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
 @validate_url_id("BAT")
+@require_capability("catalog.mutate")
 @no_cache
 def batch_patch(id):
     try:
@@ -115,14 +156,33 @@ def batch_patch(id):
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])
 @validate_url_id("BAT")
+@require_capability("catalog.mutate")
 @no_cache
 def batch_delete(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
     if not existing:
         return problem.missing_batch_response(id)
-    else:
-        db.batch.delete_one({"_id": id})
-        return BatchEndpoint.from_batch(existing).deleted_success_response()
+
+    try:
+        InventoryRepository(db).delete_legacy_batch(id)
+    except MissingBatch:
+        # A concurrent command/delete transaction removed it after the
+        # preliminary response-shaping read above.
+        return problem.missing_batch_response(id)
+    except LedgerReferencedBatch:
+        # The precise reference is deliberately not exposed here: it can
+        # change during a transaction retry, while the durable fact is that
+        # this batch is no longer deletable.
+        return problem.problem_response(status_code=403, json={
+            "type": "resource-in-use",
+            "title": "Can not delete a batch referenced by inventory history.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "batch is referenced by inventory state or history",
+            }],
+        })
+
+    return BatchEndpoint.from_batch(existing).deleted_success_response()
 
 
 @batch.route("/api/batch/<id>/bins", methods=["GET"])

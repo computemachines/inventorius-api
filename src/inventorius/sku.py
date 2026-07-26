@@ -1,9 +1,21 @@
-from flask import Blueprint, request, Response, url_for
+from flask import Blueprint, jsonify, request, Response, url_for
 from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
-from inventorius.util import admin_increment_code, check_code_list, no_cache
+from inventorius.auth import require_capability
+from inventorius.inventory_repository import (
+    InventoryRepository,
+    LedgerReferencedSku,
+    MissingSku,
+)
+from inventorius.holding_queries import locations_for_sku
+from inventorius.resource_repository import (
+    ResourceIdempotencyConflict,
+    ResourceIdentifierAlreadyUsed,
+    ResourceRepository,
+)
+from inventorius.util import IdentifierSpaceExhausted, no_cache
 from inventorius.validation import new_sku_schema, prefixed_id, sku_patch_schema, validate_url_id
 import inventorius.util_error_responses as problem
 from inventorius.resource_models import SkuEndpoint
@@ -16,27 +28,57 @@ sku = Blueprint("sku", __name__)
 
 
 @ sku.route('/api/skus', methods=['POST'])
+@require_capability("catalog.mutate")
 @no_cache
 def skus_post():
+    idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+    if not idempotency_key:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "header is required"
+        )
+    if len(idempotency_key) > 200:
+        return problem.invalid_params_response_simple(
+            "Idempotency-Key", "must be at most 200 characters"
+        )
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return problem.invalid_params_response_simple(
+            "body", "must be a JSON object"
+        )
     try:
-        json = new_sku_schema(request.json)
+        command = new_sku_schema(body)
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    if db.sku.find_one({'_id': json['id']}):
-        return problem.duplicate_resource_response("id")
-
-    sku = Sku.from_json(json)
-    admin_increment_code("SKU", sku.id)
-    db.sku.insert_one(sku.to_mongodb_doc())
-    # dbSku = Sku.from_mongodb_doc(db.sku.find_one({'id': sku.id}))
+    try:
+        stored = ResourceRepository(db).create(
+            "SKU",
+            command,
+            idempotency_key=idempotency_key,
+        )
+    except ResourceIdempotencyConflict:
+        return problem.duplicate_resource_response(
+            "Idempotency-Key",
+            "must not be reused for a different request",
+        )
+    except ResourceIdentifierAlreadyUsed:
+        return problem.duplicate_resource_response(
+            "id", "has already been used"
+        )
+    except IdentifierSpaceExhausted as error:
+        return problem.identifier_space_exhausted_response(error.prefix)
 
     # Add text index if not yet created
     # TODO: This should probably be turned into a global flag
     if "name_text" not in db.sku.index_information().keys():
         # print("Creating text index for sku#name") # was too noisy
         db.sku.create_index([("name", TEXT)])
-    return SkuEndpoint.from_sku(sku).created_success_response()
+    return jsonify({
+        "Id": url_for("sku.sku_get", id=stored.state["id"]),
+        "status": "sku created",
+        "state": stored.state,
+    }), 200 if stored.replayed else 201
 
 
 
@@ -53,6 +95,7 @@ def sku_get(id):
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
 @validate_url_id("SKU")
+@require_capability("catalog.mutate")
 @no_cache
 def sku_patch(id):
     try:
@@ -82,6 +125,7 @@ def sku_patch(id):
 
 @ sku.route('/api/sku/<id>', methods=['DELETE'])
 @validate_url_id("SKU")
+@require_capability("catalog.mutate")
 def sku_delete(id):
     existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
 
@@ -101,22 +145,33 @@ def sku_delete(id):
         })
         return resp
 
-    num_contained_by_bins = db.bin.count_documents(
-        {f"contents.{id}": {"$exists": True}})
-    if num_contained_by_bins > 0:
+    try:
+        InventoryRepository(db).delete_legacy_sku(id)
+    except MissingSku:
+        resp.status_code = 404
+        resp.mimetype = "application/problem+json"
+        resp.data = json.dumps({
+            "type": "missing-resource",
+            "title": "Can not delete sku that does not exist.",
+            "invalid-params": [{
+                "name": "id",
+                "reason": "must be an exisiting sku id"
+            }]
+        })
+        return resp
+    except LedgerReferencedSku as error:
         resp.status_code = 403
         resp.mimetype = "application/problem+json"
         resp.data = json.dumps({
             "type": "resource-in-use",
-            "title": "Can not delete sku that is being used. Try releasing all instances of this sku.",
-            "invalid-params": {
+            "title": "Can not delete a SKU that is still referenced.",
+            "invalid-params": [{
                 "name": "id",
-                "reason": "must be an unused sku"
-            }
+                "reason": f"SKU is referenced by {error}",
+            }],
         })
         return resp
 
-    db.sku.delete_one({"_id": existing.id})
     resp.status_code = 204
     return resp
 
@@ -140,9 +195,7 @@ def sku_bins_get(id):
         })
         return resp
 
-    contained_by_bins = [Bin.from_mongodb_doc(bson) for bson in db.bin.find(
-        {f"contents.{id}": {"$exists": True}})]
-    locations = {bin.id: {id: bin.contents[id]} for bin in contained_by_bins}
+    locations = locations_for_sku(id)
 
     resp.status_code = 200
     resp.mimetype = "application/json"
