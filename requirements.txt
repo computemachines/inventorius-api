@@ -3,7 +3,7 @@ Flask-RESTful==0.3.10
 hypothesis==6.137.1
 pylint>=3.3.7,<3.4
 pymongo==4.14.0
-pytest==8.4.1
+pytest==9.0.3
 blinker==1.9.0
 Wand==0.6.7
 sentry-sdk==2.34.1
