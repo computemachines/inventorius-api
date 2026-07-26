@@ -18,17 +18,34 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mongo:
-        image: mongo:7.0
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # The ledger/repository tests use real multi-document transactions.
+      # GitHub Actions service containers cannot pass a MongoDB command after
+      # the image name, so start this explicit replica set rather than a
+      # standalone service container.
+      - name: Start transactional MongoDB
+        run: |
+          set -euo pipefail
+          docker run --detach --name inventorius-mongo \
+            --publish 27017:27017 \
+            mongo:7.0 \
+            --replSet inventorius-rs --bind_ip_all
+
+          until docker exec inventorius-mongo mongosh --quiet \
+            --eval 'db.runCommand({ ping: 1 }).ok' | grep -qx '1'; do
+            sleep 1
+          done
+
+          docker exec inventorius-mongo mongosh --quiet --eval \
+            'rs.initiate({_id: "inventorius-rs", members: [{_id: 0, host: "localhost:27017"}]})'
+
+          until docker exec inventorius-mongo mongosh --quiet --eval \
+            'db.hello().isWritablePrimary' | grep -qx 'true'; do
+            sleep 1
+          done
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,7 +57,7 @@ jobs:
 
       - name: Run tests
         env:
-          INVENTORIUS_MONGO_URI: mongodb://localhost:27017/?directConnection=true
+          INVENTORIUS_MONGO_URI: mongodb://localhost:27017/?replicaSet=inventorius-rs&directConnection=true
         run: pytest
 
   build-and-push:
