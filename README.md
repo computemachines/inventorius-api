@@ -105,8 +105,8 @@ See [inventorius-deploy](https://github.com/computemachines/inventorius-deploy) 
 | `MONGO_PORT` | `27017` | MongoDB port |
 | `FLASK_DEBUG` | `0` | Enable debug mode (auto-reload) |
 | `BUILD_ID` | `dev` | Immutable full source revision baked into the image |
-| `INVENTORIUS_PRODUCT_RELEASE` | `unassigned` | Runtime product release tag; allows unchanged image promotion |
 | `INVENTORIUS_ENVIRONMENT` | `unassigned` | Runtime deployment environment, also used by Sentry |
+| `INVENTORIUS_RELEASE_MANIFEST_PATH` | unset | Optional schema-1 release manifest; its API revision must exactly match `BUILD_ID` before its product release is exposed |
 | `SENTRY_DSN` | unset | Enables error reporting with release `inventorius-api@BUILD_ID`; no PII or traces are sent |
 
 When GitHub repository configuration provides `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
@@ -114,9 +114,12 @@ and `SENTRY_API_PROJECT`, non-PR image builds create or update the matching
 Sentry release. Deployment environments are recorded separately only after
 runtime convergence.
 
-`GET /api/status` exposes only component version, immutable revision, runtime
-product release/environment, and database connectivity. It contains no
-credentials, sessions, or inventory data.
+`GET /api/status` reads the optional manifest at request time. It exposes its
+`product_release` only when the manifest is schema 1 and its `components.api`
+revision exactly equals the immutable `BUILD_ID`; missing, malformed, and stale
+manifests fail closed to the environment name. The response contains no
+credentials, sessions, or inventory data. Sentry keeps the immutable component
+release and dynamically tags each request with the same resolved product release.
 
 ## HTTP Status Codes
 

@@ -1,20 +1,92 @@
+import json
+
+import inventorius as api_module
 from inventorius.release import metadata
 from inventorius.resource_models import StatusEndpoint
 from inventorius import app
 
 
-def test_release_metadata_uses_runtime_product_context(monkeypatch):
+def write_manifest(path, revision):
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "product_release": "v0.5.0-rc.1",
+        "components": {"api": {"revision": revision}},
+    }))
+
+
+def test_release_metadata_accepts_matching_manifest(tmp_path, monkeypatch):
     monkeypatch.setenv("BUILD_ID", "a" * 40)
-    monkeypatch.setenv("INVENTORIUS_PRODUCT_RELEASE", "2026.07.26")
     monkeypatch.setenv("INVENTORIUS_ENVIRONMENT", "development")
+    manifest = tmp_path / "release-manifest.json"
+    write_manifest(manifest, "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_RELEASE_MANIFEST_PATH", str(manifest))
 
     assert metadata() == {
         "component": "inventorius-api",
         "component_version": "0.3.11",
         "revision": "a" * 40,
-        "product_release": "2026.07.26",
+        "product_release": "v0.5.0-rc.1",
         "environment": "development",
     }
+
+
+def test_release_metadata_falls_back_for_stale_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("BUILD_ID", "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_ENVIRONMENT", "development")
+    manifest = tmp_path / "release-manifest.json"
+    write_manifest(manifest, "b" * 40)
+    monkeypatch.setenv("INVENTORIUS_RELEASE_MANIFEST_PATH", str(manifest))
+
+    build = metadata()
+
+    assert build["revision"] == "a" * 40
+    assert build["product_release"] == "development"
+
+
+def test_release_metadata_falls_back_for_malformed_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("BUILD_ID", "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_ENVIRONMENT", "development")
+    manifest = tmp_path / "release-manifest.json"
+    manifest.write_text("not json")
+    monkeypatch.setenv("INVENTORIUS_RELEASE_MANIFEST_PATH", str(manifest))
+
+    assert metadata()["product_release"] == "development"
+
+
+def test_release_metadata_falls_back_for_missing_manifest(monkeypatch):
+    monkeypatch.setenv("BUILD_ID", "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_ENVIRONMENT", "development")
+    monkeypatch.setenv("INVENTORIUS_RELEASE_MANIFEST_PATH", "/not-present/release-manifest.json")
+
+    assert metadata()["product_release"] == "development"
+
+
+def test_sentry_tag_reads_manifest_at_request_time(tmp_path, monkeypatch):
+    class FakeSentry:
+        def __init__(self):
+            self.tags = []
+
+        def set_tag(self, key, value):
+            self.tags.append((key, value))
+
+    monkeypatch.setenv("BUILD_ID", "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_ENVIRONMENT", "development")
+    manifest = tmp_path / "release-manifest.json"
+    write_manifest(manifest, "a" * 40)
+    monkeypatch.setenv("INVENTORIUS_RELEASE_MANIFEST_PATH", str(manifest))
+    fake_sentry = FakeSentry()
+    monkeypatch.setattr(api_module, "SENTRY_SDK", fake_sentry)
+
+    with app.test_request_context():
+        api_module.tag_sentry_release_context()
+    write_manifest(manifest, "b" * 40)
+    with app.test_request_context():
+        api_module.tag_sentry_release_context()
+
+    assert fake_sentry.tags == [
+        ("product_release", "v0.5.0-rc.1"),
+        ("product_release", "development"),
+    ]
 
 
 def test_status_endpoint_preserves_release_provenance():

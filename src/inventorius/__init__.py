@@ -36,8 +36,12 @@ from inventorius.release import metadata as release_metadata
 import platform
 import os
 
+SENTRY_SDK = None
+
+
 def configure_sentry():
     """Configure error reporting without collecting user data or performance traces."""
+    global SENTRY_SDK
     sentry_dsn = os.getenv("SENTRY_DSN")
     if not sentry_dsn:
         return
@@ -49,6 +53,7 @@ def configure_sentry():
         print("error reporting disabled: 'sentry-sdk' not installed")
         return
 
+    SENTRY_SDK = sentry_sdk
     build = release_metadata()
     sentry_sdk.init(
         dsn=sentry_dsn,
@@ -67,6 +72,13 @@ configure_sentry()
 
 app = Flask('inventorius')
 BAD_REQUEST = ('Bad Request', 400)
+
+
+@app.before_request
+def tag_sentry_release_context():
+    """Attach deployment release state without changing immutable Sentry release."""
+    if SENTRY_SDK is not None:
+        SENTRY_SDK.set_tag("product_release", release_metadata()["product_release"])
 
 
 app.register_blueprint(bin)
