@@ -211,7 +211,17 @@ class ProcessDefinitionEndpoint(HypermediaEndpoint):
 
 
 class StatusEndpoint(HypermediaEndpoint):
-    def __init__(self, version, is_up=True, db_connected=None, build_id=None):
+    def __init__(
+        self,
+        version,
+        is_up=True,
+        db_connected=None,
+        build_id=None,
+        component=None,
+        revision=None,
+        product_release=None,
+        environment=None,
+    ):
         state = {
             "version": version,
             "is-up": is_up,
@@ -220,4 +230,12 @@ class StatusEndpoint(HypermediaEndpoint):
             state["db-connected"] = db_connected
         if build_id is not None:
             state["build-id"] = build_id
+        if component is not None:
+            state["component"] = component
+        if revision is not None:
+            state["revision"] = revision
+        if product_release is not None:
+            state["product-release"] = product_release
+        if environment is not None:
+            state["environment"] = environment
         super().__init__(resource_uri=url_for("get_version"), state=state)

@@ -1,11 +1,12 @@
 # Build and push Docker image to GHCR
 #
-# Main and development publish different stable channels. A development push
-# must never move the production `latest` tag.
+# Development publishes its moving channel; every branch publishes an immutable
+# full-SHA tag. Main promotion deliberately does not move a mutable tag.
 
 name: Build and Push
 
 on:
+  pull_request:
   push:
     branches: [main, development]
   workflow_dispatch:  # Allow manual trigger
@@ -15,7 +16,35 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          INVENTORIUS_MONGO_URI: mongodb://localhost:27017/?directConnection=true
+        run: pytest
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,16 +67,45 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
-            type=sha,prefix=
+            type=sha,format=long,prefix=sha-
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.computemachines.component.version=0.3.11
           build-args: |
             BUILD_ID=${{ github.sha }}
+
+      - name: Detect configured Sentry release credentials
+        id: sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_API_PROJECT }}
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update the Sentry release
+        if: github.event_name != 'pull_request' && steps.sentry.outputs.configured == 'true'
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_API_PROJECT }}
+        with:
+          release: inventorius-api@${{ github.sha }}
+          projects: ${{ vars.SENTRY_API_PROJECT }}
+          set_commits: auto
+          ignore_missing: true
+          disable_telemetry: true

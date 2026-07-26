@@ -31,30 +31,37 @@ from inventorius.schema.routes import bp as schema_bp
 from inventorius.process_definition import process_definition
 from inventorius.util import no_cache
 from inventorius.resource_models import StatusEndpoint
+from inventorius.release import metadata as release_metadata
 
 import platform
 import os
 
-sentry_dsn = False
-try:
-    import sentry_sdk
-    from sentry_sdk.integrations.flask import FlaskIntegration
+def configure_sentry():
+    """Configure error reporting without collecting user data or performance traces."""
     sentry_dsn = os.getenv("SENTRY_DSN")
+    if not sentry_dsn:
+        return
 
-    if sentry_dsn:
-        print("setup sentry.io integration with configured sentry_dsn")
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            integrations=[FlaskIntegration()],
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+    except ModuleNotFoundError:
+        print("error reporting disabled: 'sentry-sdk' not installed")
+        return
 
-            # Set traces_sample_rate to 1.0 to capture 100%
-            # of transactions for performance monitoring.
-            # We recommend adjusting this value in production.
-            traces_sample_rate=1.0
-        )
+    build = release_metadata()
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration()],
+        release=f"{build['component']}@{build['revision']}",
+        environment=build["environment"],
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        profiles_sample_rate=0.0,
+    )
 
-except ModuleNotFoundError:
-    print("error reporting disabled: 'python3-sentry-sdk' not installed")
+
+configure_sentry()
 
 
 
@@ -152,10 +159,15 @@ def get_version():
     except Exception:
         db_connected = False
 
+    build = release_metadata()
     return StatusEndpoint(
-        version="0.4.0",
+        version=build["component_version"],
         db_connected=db_connected,
-        build_id=os.getenv("BUILD_ID", "dev")
+        build_id=build["revision"],
+        component=build["component"],
+        revision=build["revision"],
+        product_release=build["product_release"],
+        environment=build["environment"],
     ).get_response()
 
 

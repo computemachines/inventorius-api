@@ -1,6 +1,7 @@
 # Inventorius API
 
 ![Code coverage badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fcomputemachines%2Fc6358499cfa820bcffe8535e6cabd586%2Fraw%2Fcoverage-inventory-v2-api-badge.json)
+![Build](https://github.com/computemachines/inventorius-api/actions/workflows/build-push.yml/badge.svg)
 
 Flask REST API backend for the Inventorius inventory management system. Provides endpoints for SKU management, batch tracking, search, and the unified trigger schema system.
 
@@ -91,7 +92,7 @@ uv run coverage report
 The API is deployed as a Docker container via GitHub Actions CI/CD:
 
 ```bash
-docker pull ghcr.io/computemachines/inventorius-api:latest
+docker pull ghcr.io/computemachines/inventorius-api:sha-<full-40-character-commit>
 ```
 
 See [inventorius-deploy](https://github.com/computemachines/inventorius-deploy) for the full Docker Compose stack.
@@ -103,6 +104,19 @@ See [inventorius-deploy](https://github.com/computemachines/inventorius-deploy) 
 | `MONGO_HOST` | `localhost` | MongoDB hostname |
 | `MONGO_PORT` | `27017` | MongoDB port |
 | `FLASK_DEBUG` | `0` | Enable debug mode (auto-reload) |
+| `BUILD_ID` | `dev` | Immutable full source revision baked into the image |
+| `INVENTORIUS_PRODUCT_RELEASE` | `unassigned` | Runtime product release tag; allows unchanged image promotion |
+| `INVENTORIUS_ENVIRONMENT` | `unassigned` | Runtime deployment environment, also used by Sentry |
+| `SENTRY_DSN` | unset | Enables error reporting with release `inventorius-api@BUILD_ID`; no PII or traces are sent |
+
+When GitHub repository configuration provides `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+and `SENTRY_API_PROJECT`, non-PR image builds create or update the matching
+Sentry release. Deployment environments are recorded separately only after
+runtime convergence.
+
+`GET /api/status` exposes only component version, immutable revision, runtime
+product release/environment, and database connectivity. It contains no
+credentials, sessions, or inventory data.
 
 ## HTTP Status Codes
 
