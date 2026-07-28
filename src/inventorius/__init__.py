@@ -153,7 +153,7 @@ def get_version():
         db_connected = False
 
     return StatusEndpoint(
-        version="0.4.0",
+        version="0.4.1",
         db_connected=db_connected,
         build_id=os.getenv("BUILD_ID", "dev")
     ).get_response()
