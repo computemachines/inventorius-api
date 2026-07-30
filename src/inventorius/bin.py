@@ -7,7 +7,8 @@ from inventorius.bin_repository import (
     BinRepository,
 )
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
+from inventorius.mutation_receipts import record_mutation
 from inventorius.holding_queries import contents_for_bin
 from inventorius.inventory_repository import (
     InventoryRepository,
@@ -53,6 +54,7 @@ def bins_post():
         stored = BinRepository(db).create(
             command,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except BinIdempotencyConflict:
         return problem.duplicate_resource_response(
@@ -99,8 +101,11 @@ def bin_patch(id):
         problem.missing_bin_response(id)
 
     if "props" in json.keys():
-        db.bin.update_one({"_id": id},
-                          {"$set": {"props": json['props']}})
+        db.bin.update_one({"_id": id}, {"$set": {"props": json['props']}})
+        record_mutation(
+            db, kind="catalog.bin.update", target=id,
+            actor=current_actor().durable_ref(),
+        )
 
     return BinEndpoint.from_bin(existing).updated_success_response()
 
@@ -121,5 +126,9 @@ def bin_delete(id):
         )
 
     if deleted:
+        record_mutation(
+            db, kind="catalog.bin.delete", target=id,
+            actor=current_actor().durable_ref(),
+        )
         return success.bin_deleted_response(id)
     return problem.dangerous_operation_unforced_response("id", "bin must be empty")
