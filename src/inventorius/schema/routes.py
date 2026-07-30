@@ -381,6 +381,12 @@ def seed_schemas():
     force = request.args.get("force", "false").lower() == "true"
     factories = {**DEFAULT_SCHEMA_FACTORIES, **EXAMPLE_SCHEMA_FACTORIES}
     result = install_schemas(db.schema, factories, force=force)
+    record_mutation(
+        db,
+        kind="schema.seed",
+        target="catalog",
+        actor=current_actor().durable_ref(),
+    )
 
     return jsonify({
         "message": "Seeding complete",
