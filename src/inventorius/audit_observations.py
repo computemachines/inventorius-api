@@ -12,7 +12,7 @@ from inventorius.audit_observation import (
     AuditSnapshotStale,
 )
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
 from inventorius.inventory_repository import (
     AuditReconciliationRejected,
     InsufficientHolding,
@@ -140,6 +140,7 @@ def audit_observations_post():
         stored = AuditObservationRepository(db).record(
             command,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except MissingBin as error:
         return problem.missing_bin_response(str(error))
@@ -208,6 +209,7 @@ def audit_observation_reconciliation_post(observation_id):
             observation_id,
             disposition,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except MissingAuditObservation:
         return problem.missing_resource_response(

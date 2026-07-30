@@ -247,6 +247,7 @@ def inventory_operation_correction_post(original_operation_id):
             original_operation_id,
             intended_state,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except MissingInventoryOperation:
         return problem.missing_resource_response(
