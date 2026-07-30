@@ -6,10 +6,11 @@ import functools
 import hashlib
 import hmac
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, TypeVar
 
 from flask import current_app, g, jsonify, request
+from pymongo import ReturnDocument
 
 from inventorius.db import db
 
@@ -39,6 +40,7 @@ class Actor:
     capabilities: frozenset[str]
     session_digest: str | None = None
     csrf_token: str | None = None
+    recent_auth_at: datetime | None = None
 
     @property
     def is_authenticated(self) -> bool:
@@ -61,6 +63,17 @@ class Actor:
             "actor_type": self.principal.kind,
         }
 
+    def has_recent_authentication(self) -> bool:
+        """Whether this browser session was recently confirmed with a passkey."""
+
+        if not self.recent_auth_at:
+            return False
+        timestamp = self.recent_auth_at
+        # PyMongo returns BSON dates without timezone information by default.
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp + current_app.config["AUTH_RECENT_AUTH_TTL"] > datetime.now(timezone.utc)
+
 
 ANONYMOUS_ACTOR = Actor(principal=None, capabilities=PUBLIC_CAPABILITIES)
 F = TypeVar("F", bound=Callable)
@@ -78,8 +91,21 @@ def _load_actor() -> Actor:
         digest = token_digest(token)
     except (UnicodeEncodeError, AttributeError):
         return ANONYMOUS_ACTOR
-    session = db.auth_sessions.find_one(
-        {"_id": digest, "expires_at": {"$gt": datetime.now(timezone.utc)}}
+    now = datetime.now(timezone.utc)
+    idle_expires_at = now + current_app.config["AUTH_SESSION_IDLE_TTL"]
+    session = db.auth_sessions.find_one_and_update(
+        {
+            "_id": digest,
+            "expires_at": {"$gt": now},
+            "$or": [
+                {"idle_expires_at": {"$gt": now}},
+                # Sessions issued before idle expiry was introduced retain their
+                # existing absolute expiry and are upgraded on first use.
+                {"idle_expires_at": {"$exists": False}},
+            ],
+        },
+        {"$set": {"last_seen_at": now, "idle_expires_at": idle_expires_at}},
+        return_document=ReturnDocument.AFTER,
     )
     if not session:
         return ANONYMOUS_ACTOR
@@ -95,6 +121,7 @@ def _load_actor() -> Actor:
         capabilities=OWNER_CAPABILITIES,
         session_digest=digest,
         csrf_token=session["csrf_token"],
+        recent_auth_at=session.get("recent_auth_at"),
     )
 
 
@@ -142,6 +169,17 @@ def require_csrf(actor: Actor):
             "Supply the CSRF token from the current auth session.",
         )
     return None
+
+
+def require_recent_authentication(actor: Actor):
+    if actor.has_recent_authentication():
+        return None
+    return _problem(
+        401,
+        "recent-authentication-required",
+        "Recent passkey confirmation required",
+        "Confirm your passkey again before changing account security.",
+    )
 
 
 def require_capability(capability: str):

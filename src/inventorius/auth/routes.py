@@ -20,6 +20,7 @@ from inventorius.auth.authority import (
     public_unsafe,
     require_csrf,
     require_exact_origin,
+    require_recent_authentication,
     token_digest,
 )
 from inventorius.auth.local_login import local_login_available
@@ -29,7 +30,6 @@ from inventorius.db import db
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 OWNER_ID = "owner"
 CHALLENGE_TTL = timedelta(minutes=5)
-SESSION_TTL = timedelta(days=30)
 RECOVERY_CODE_COUNT = 10
 
 
@@ -70,12 +70,18 @@ def _session_resource(actor=None):
             "csrf_token": actor.csrf_token,
         }
         operations = [
+            _operation("sessions", "GET", "/api/auth/sessions"),
             _operation(
                 "register-passkey-options",
                 "POST",
                 "/api/auth/bootstrap/registration/options",
             ),
             _operation("logout", "POST", "/api/auth/logout"),
+            _operation(
+                "recent-passkey-options",
+                "POST",
+                "/api/auth/passkeys/recent-authentication/options",
+            ),
         ]
     elif owner:
         state = {"status": "anonymous", "principal": None}
@@ -160,14 +166,18 @@ def _issue_session(principal_id: str, authentication_method: str = "passkey"):
     raw_token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
     digest = token_digest(raw_token)
+    now = _now()
     db.auth_sessions.insert_one(
         {
             "_id": digest,
             "principal_id": principal_id,
             "csrf_token": csrf_token,
             "authentication_method": authentication_method,
-            "created_at": _now(),
-            "expires_at": _now() + SESSION_TTL,
+            "created_at": now,
+            "last_seen_at": now,
+            "recent_auth_at": now if authentication_method == "passkey" else None,
+            "idle_expires_at": now + current_app.config["AUTH_SESSION_IDLE_TTL"],
+            "expires_at": now + current_app.config["AUTH_SESSION_ABSOLUTE_TTL"],
         }
     )
     principal = db.auth_principals.find_one({"_id": principal_id})
@@ -182,6 +192,7 @@ def _issue_session(principal_id: str, authentication_method: str = "passkey"):
         capabilities=OWNER_CAPABILITIES,
         session_digest=digest,
         csrf_token=csrf_token,
+        recent_auth_at=now if authentication_method == "passkey" else None,
     )
     response = make_response(jsonify(_session_resource(actor)))
     response.set_cookie(
@@ -224,6 +235,55 @@ def get_session():
     return jsonify(_session_resource())
 
 
+@bp.get("/sessions")
+def get_sessions():
+    """Return owner-visible metadata for active browser sessions only."""
+
+    actor = current_actor()
+    if not actor.is_authenticated:
+        return _problem(401, "authentication-required", "Authentication required", "Sign in to view active sessions.")
+    now = _now()
+    sessions = list(
+        db.auth_sessions.find(
+            {
+                "principal_id": actor.id,
+                "expires_at": {"$gt": now},
+                "$or": [
+                    {"idle_expires_at": {"$gt": now}},
+                    {"idle_expires_at": {"$exists": False}},
+                ],
+            },
+            {"_id": 1, "created_at": 1, "last_seen_at": 1, "idle_expires_at": 1, "expires_at": 1, "authentication_method": 1},
+        ).sort("created_at", -1)
+    )
+    return jsonify(
+        {
+            "kind": "auth-sessions",
+            "Id": "/api/auth/sessions",
+            "state": {
+                "sessions": [
+                    {
+                        "current": session["_id"] == actor.session_digest,
+                        "created_at": session.get("created_at"),
+                        "last_seen_at": session.get("last_seen_at"),
+                        "idle_expires_at": session.get("idle_expires_at"),
+                        "expires_at": session["expires_at"],
+                        "authentication_method": session.get("authentication_method", "passkey"),
+                    }
+                    for session in sessions
+                ]
+            },
+            "operations": [
+                _operation(
+                    "logout-all-sessions",
+                    "POST",
+                    "/api/auth/logout-all-sessions",
+                )
+            ],
+        }
+    )
+
+
 @bp.post("/bootstrap/registration/options")
 @public_unsafe
 def registration_options():
@@ -240,6 +300,9 @@ def registration_options():
     authorization_digest = None
     if actor.is_authenticated:
         rejected = require_csrf(actor)
+        if rejected:
+            return rejected
+        rejected = require_recent_authentication(actor)
         if rejected:
             return rejected
         authorization = "session"
@@ -360,6 +423,9 @@ def registration_verification():
                 "Authenticate again before registering another passkey.",
             )
         rejected = require_csrf(actor)
+        if rejected:
+            return rejected
+        rejected = require_recent_authentication(actor)
         if rejected:
             return rejected
     try:
@@ -517,6 +583,49 @@ def authentication_options():
     )
 
 
+@bp.post("/passkeys/recent-authentication/options")
+@public_unsafe
+def recent_authentication_options():
+    """Start a passkey ceremony that refreshes this session's authority."""
+
+    rejected = require_exact_origin()
+    if rejected:
+        return rejected
+    actor = current_actor()
+    if not actor.is_authenticated:
+        return _problem(401, "authentication-required", "Authentication required", "Sign in before confirming your passkey.")
+    rejected = require_csrf(actor)
+    if rejected:
+        return rejected
+    credentials = list(db.auth_credentials.find({"principal_id": actor.id}))
+    if not credentials:
+        return _problem(409, "auth-unconfigured", "Passkey authentication unavailable", "No owner passkeys are registered.")
+    challenge = secrets.token_bytes(32)
+    ceremony_id = secrets.token_urlsafe(24)
+    db.auth_challenges.insert_one(
+        {
+            "_id": ceremony_id,
+            "purpose": "recent-authentication",
+            "authorization_digest": actor.session_digest,
+            "challenge": challenge,
+            "created_at": _now(),
+            "expires_at": _now() + CHALLENGE_TTL,
+        }
+    )
+    public_key = webauthn_backend.authentication_options(
+        rp_id=current_app.config["AUTH_RP_ID"],
+        challenge=challenge,
+        credential_ids=[_decode_credential_id(item["_id"]) for item in credentials],
+    )
+    return jsonify(
+        _ceremony_resource(
+            ceremony_id,
+            public_key,
+            "/api/auth/passkeys/recent-authentication/verification",
+        )
+    )
+
+
 @bp.post("/local-login")
 @public_unsafe
 def local_login():
@@ -633,6 +742,58 @@ def authentication_verification():
     return _issue_session(OWNER_ID)
 
 
+@bp.post("/passkeys/recent-authentication/verification")
+@public_unsafe
+def recent_authentication_verification():
+    rejected = require_exact_origin()
+    if rejected:
+        return rejected
+    actor = current_actor()
+    if not actor.is_authenticated:
+        return _problem(401, "authentication-required", "Authentication required", "Sign in before confirming your passkey.")
+    rejected = require_csrf(actor)
+    if rejected:
+        return rejected
+    payload = _json_object()
+    credential_payload = payload.get("credential") if payload else None
+    if not isinstance(credential_payload, dict):
+        return _problem(400, "invalid-request", "Invalid request", "Expected ceremony_id and credential.")
+    challenge_doc = _consume_challenge(str(payload.get("ceremony_id", "")), "recent-authentication")
+    if not challenge_doc or challenge_doc.get("authorization_digest") != actor.session_digest:
+        return _problem(400, "invalid-ceremony", "Passkey confirmation rejected", "The ceremony is invalid, expired, or belongs to another session.")
+    try:
+        credential_id = _encode_credential_id(_decode_credential_id(str(credential_payload.get("id", ""))))
+    except ValueError:
+        return _problem(400, "invalid-passkey", "Passkey confirmation rejected", "The credential id is invalid.")
+    stored = db.auth_credentials.find_one({"_id": credential_id, "principal_id": actor.id})
+    if not stored:
+        return _problem(401, "unknown-passkey", "Passkey confirmation rejected", "The credential is not registered.")
+    try:
+        verified = webauthn_backend.verify_authentication(
+            credential=credential_payload,
+            expected_challenge=challenge_doc["challenge"],
+            expected_rp_id=current_app.config["AUTH_RP_ID"],
+            expected_origin=current_app.config["AUTH_ORIGIN"],
+            credential_public_key=stored["public_key"],
+            credential_current_sign_count=stored["sign_count"],
+        )
+    except Exception:
+        current_app.logger.info("Recent WebAuthn authentication verification failed")
+        return _problem(401, "invalid-passkey", "Passkey confirmation rejected", "The authenticator response could not be verified.")
+    if verified.credential_id != _decode_credential_id(credential_id):
+        return _problem(401, "invalid-passkey", "Passkey confirmation rejected", "The verified credential did not match.")
+    now = _now()
+    db.auth_credentials.update_one(
+        {"_id": credential_id},
+        {"$set": {"sign_count": verified.new_sign_count, "last_used_at": now}},
+    )
+    db.auth_sessions.update_one(
+        {"_id": actor.session_digest, "principal_id": actor.id},
+        {"$set": {"recent_auth_at": now}},
+    )
+    return jsonify(_session_resource())
+
+
 @bp.post("/logout")
 @public_unsafe
 def logout():
@@ -646,5 +807,23 @@ def logout():
         if rejected:
             return rejected
         db.auth_sessions.delete_one({"_id": actor.session_digest})
+    response.delete_cookie(SESSION_COOKIE, path="/", samesite="Lax")
+    return response
+
+
+@bp.post("/logout-all-sessions")
+@public_unsafe
+def logout_all_sessions():
+    rejected = require_exact_origin()
+    if rejected:
+        return rejected
+    actor = current_actor()
+    if not actor.is_authenticated:
+        return _problem(401, "authentication-required", "Authentication required", "Sign in before ending sessions.")
+    rejected = require_csrf(actor) or require_recent_authentication(actor)
+    if rejected:
+        return rejected
+    db.auth_sessions.delete_many({"principal_id": actor.id})
+    response = make_response(jsonify(_session_resource(ANONYMOUS_ACTOR)))
     response.delete_cookie(SESSION_COOKIE, path="/", samesite="Lax")
     return response

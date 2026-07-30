@@ -369,7 +369,120 @@ def test_authentication_is_discoverable_and_issues_new_session(
     assert {
         operation["rel"]
         for operation in authenticated_session.json["operations"]
-    } == {"register-passkey-options", "logout"}
+    } == {"register-passkey-options", "logout", "sessions", "recent-passkey-options"}
+
+
+def test_expired_or_idle_session_is_anonymous(auth_client):
+    database = get_test_database()
+    _insert_owner(database)
+    now = datetime.now(timezone.utc)
+    for raw_token, expires_at, idle_expires_at in (
+        ("absolute-expired", now - timedelta(seconds=1), now + timedelta(hours=1)),
+        ("idle-expired", now + timedelta(hours=1), now - timedelta(seconds=1)),
+    ):
+        database.auth_sessions.insert_one(
+            {
+                "_id": token_digest(raw_token),
+                "principal_id": "owner",
+                "csrf_token": "csrf",
+                "created_at": now - timedelta(hours=1),
+                "last_seen_at": now - timedelta(hours=1),
+                "idle_expires_at": idle_expires_at,
+                "expires_at": expires_at,
+            }
+        )
+        auth_client.set_cookie("inventorius_session", raw_token)
+        response = auth_client.get("/api/auth/session")
+        assert response.json["state"]["status"] == "anonymous"
+
+
+def test_session_inventory_is_private_and_logout_all_requires_recent_passkey(
+    auth_client, monkeypatch
+):
+    database = get_test_database()
+    _, registered = _register_owner(auth_client, monkeypatch)
+    csrf = registered.json["state"]["csrf_token"]
+    now = datetime.now(timezone.utc)
+    database.auth_sessions.insert_one(
+        {
+            "_id": "other-session",
+            "principal_id": "owner",
+            "csrf_token": "other-csrf",
+            "authentication_method": "passkey",
+            "created_at": now,
+            "last_seen_at": now,
+            "idle_expires_at": now + timedelta(hours=1),
+            "expires_at": now + timedelta(days=1),
+            "recent_auth_at": now,
+        }
+    )
+    inventory = auth_client.get("/api/auth/sessions")
+    assert inventory.status_code == 200
+    assert len(inventory.json["state"]["sessions"]) == 2
+    assert any(item["current"] for item in inventory.json["state"]["sessions"])
+
+    current = database.auth_sessions.find_one({"csrf_token": csrf})
+    database.auth_sessions.update_one(
+        {"_id": current["_id"]},
+        {"$set": {"recent_auth_at": now - timedelta(minutes=6)}},
+    )
+    rejected = auth_client.post(
+        "/api/auth/logout-all-sessions",
+        headers={"Origin": ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 401
+    assert rejected.json["type"] == "recent-authentication-required"
+    assert database.auth_sessions.count_documents({}) == 2
+
+
+def test_recent_passkey_confirmation_refreshes_current_session(auth_client, monkeypatch):
+    database = get_test_database()
+    _, registered = _register_owner(auth_client, monkeypatch)
+    csrf = registered.json["state"]["csrf_token"]
+    current = database.auth_sessions.find_one({"csrf_token": csrf})
+    database.auth_sessions.update_one(
+        {"_id": current["_id"]},
+        {"$set": {"recent_auth_at": _past_recent_authentication()}},
+    )
+    monkeypatch.setattr(
+        webauthn_backend, "authentication_options", lambda **kwargs: {"challenge": "recent"}
+    )
+    options = auth_client.post(
+        "/api/auth/passkeys/recent-authentication/options",
+        headers={"Origin": ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert options.status_code == 200
+    monkeypatch.setattr(webauthn_backend, "verify_authentication", lambda **kwargs: _authentication_result())
+    verified = auth_client.post(
+        "/api/auth/passkeys/recent-authentication/verification",
+        json={"ceremony_id": options.json["state"]["ceremony_id"], "credential": {"id": "Y3JlZGVudGlhbC1vbmU"}},
+        headers={"Origin": ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert verified.status_code == 200
+    refreshed = database.auth_sessions.find_one({"_id": current["_id"]})
+    assert refreshed["recent_auth_at"].replace(tzinfo=timezone.utc) > _past_recent_authentication()
+
+
+def test_registering_another_passkey_requires_recent_confirmation(auth_client, monkeypatch):
+    database = get_test_database()
+    _, registered = _register_owner(auth_client, monkeypatch)
+    csrf = registered.json["state"]["csrf_token"]
+    current = database.auth_sessions.find_one({"csrf_token": csrf})
+    database.auth_sessions.update_one(
+        {"_id": current["_id"]},
+        {"$set": {"recent_auth_at": _past_recent_authentication()}},
+    )
+    response = auth_client.post(
+        "/api/auth/bootstrap/registration/options",
+        json={},
+        headers={"Origin": ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 401
+    assert response.json["type"] == "recent-authentication-required"
+
+
+def _past_recent_authentication():
+    return datetime.now(timezone.utc) - timedelta(minutes=6)
 
 
 def test_exact_origin_and_logout_csrf_are_enforced(auth_client, monkeypatch):
