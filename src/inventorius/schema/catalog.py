@@ -16,6 +16,7 @@ from .sample_schemas import (
     get_sku_schema,
 )
 from .trigger_engine import Schema, schema_to_dict
+from .repository import BOOTSTRAP_ACTOR, SchemaEditConflict, SchemaRepository
 
 
 SchemaFactory = Callable[[], Schema]
@@ -42,28 +43,43 @@ def install_schemas(
     factories: Mapping[str, SchemaFactory] = DEFAULT_SCHEMA_FACTORIES,
     *,
     force: bool = False,
+    actor: dict[str, str] | None = BOOTSTRAP_ACTOR,
 ) -> SchemaInstallResult:
-    """Install schemas without replacing administrator changes by default."""
+    """Install missing schemas and publish forced catalog changes.
+
+    A normal bootstrap preserves every existing logical schema.  A forced
+    bootstrap still uses the immutable publication path: changed catalog
+    content becomes a new revision rather than replacing either the head or its
+    history.
+    """
     installed: list[str] = []
     skipped: list[str] = []
+    repository = SchemaRepository(collection.database)
 
     for name, factory in factories.items():
-        document = schema_to_dict(factory())
-        document["_id"] = name
-
-        if force:
-            collection.replace_one({"_id": name}, document, upsert=True)
-            installed.append(name)
+        definition = schema_to_dict(factory())
+        observed = repository.head(name)
+        if observed.exists and not force:
+            skipped.append(name)
             continue
 
-        result = collection.update_one(
-            {"_id": name},
-            {"$setOnInsert": document},
-            upsert=True,
-        )
-        if result.upserted_id is None:
+        try:
+            publication = repository.publish(
+                name,
+                definition,
+                actor=actor,
+                expected=observed,
+            )
+        except SchemaEditConflict:
+            # Bootstrap is intentionally conservative when another writer wins
+            # the compare-and-swap race.  A later explicit invocation can
+            # evaluate the newly current head.
             skipped.append(name)
-        else:
+            continue
+
+        if publication.changed:
             installed.append(name)
+        else:
+            skipped.append(name)
 
     return SchemaInstallResult(installed=installed, skipped=skipped)

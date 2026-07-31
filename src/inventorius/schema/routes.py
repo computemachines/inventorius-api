@@ -1,5 +1,7 @@
 """API routes and operator commands for schema management."""
 
+from copy import deepcopy
+
 import click
 from flask import Blueprint, jsonify, request
 
@@ -17,45 +19,90 @@ from .catalog import (
     EXAMPLE_SCHEMA_FACTORIES,
     install_schemas,
 )
+from .repository import (
+    BOOTSTRAP_ACTOR,
+    SchemaEditConflict,
+    SchemaHead,
+    SchemaRepository,
+)
 
 bp = Blueprint("schema", __name__, url_prefix="/api/schema")
 
 
-def _get_schema(name: str) -> Schema | None:
-    """Get a schema by name from MongoDB."""
-    doc = db.schema.find_one({"_id": name})
-    if doc:
-        # Remove MongoDB _id before converting
-        schema_dict = {k: v for k, v in doc.items() if k != "_id"}
-        return schema_from_dict(schema_dict)
+def _repository() -> SchemaRepository:
+    return SchemaRepository(db)
+
+
+def _get_schema(name: str, revision: int | None = None) -> Schema | None:
+    """Get the active schema or one exact historical revision."""
+    definition = _repository().definition(name, revision=revision)
+    if definition is not None:
+        return schema_from_dict(definition)
     return None
 
 
-def _save_schema(name: str, schema: Schema) -> None:
-    """Save a schema to MongoDB."""
-    doc = schema_to_dict(schema)
-    doc["_id"] = name
-    db.schema.replace_one({"_id": name}, doc, upsert=True)
-    record_mutation(
-        db, kind="schema.save", target=name, actor=current_actor().durable_ref()
+def _save_schema(
+    name: str,
+    schema: Schema,
+    *,
+    expected: SchemaHead,
+) -> None:
+    """Publish a schema revision if its definition changed."""
+    publication = _repository().publish(
+        name,
+        schema_to_dict(schema),
+        actor=current_actor().durable_ref(),
+        expected=expected,
     )
+    if publication.changed:
+        record_mutation(
+            db,
+            kind="schema.save",
+            target=name,
+            actor=current_actor().durable_ref(),
+        )
 
 
-def _delete_schema(name: str) -> bool:
-    """Delete a schema from MongoDB."""
-    result = db.schema.delete_one({"_id": name})
-    if result.deleted_count:
+def _delete_schema(name: str, *, expected: SchemaHead) -> bool:
+    """Deactivate a schema without erasing its publication history."""
+    changed = _repository().deactivate(name, expected=expected)
+    if changed:
         record_mutation(
             db, kind="schema.delete", target=name, actor=current_actor().durable_ref()
         )
-    return result.deleted_count > 0
+    return changed
+
+
+def _requested_revision():
+    revision_text = request.args.get("revision")
+    if revision_text is None:
+        return None, None
+    try:
+        revision = int(revision_text)
+    except ValueError:
+        return None, (jsonify({"error": "revision must be an integer"}), 400)
+    if revision < 1:
+        return None, (jsonify({"error": "revision must be at least 1"}), 400)
+    return revision, None
+
+
+def _schema_for_read(name: str):
+    revision, error_response = _requested_revision()
+    if error_response is not None:
+        return None, error_response
+    return _get_schema(name, revision), None
+
+
+def _edit_conflict_response(name: str):
+    return jsonify({
+        "error": f"Schema '{name}' changed. Reload it and try again."
+    }), 409
 
 
 @bp.route("/list", methods=["GET"])
 def list_schemas():
     """List available schemas from MongoDB."""
-    schema_docs = db.schema.find({}, {"_id": 1})
-    schema_names = [doc["_id"] for doc in schema_docs]
+    schema_names = _repository().active_names()
     return jsonify({
         "schemas": schema_names
     })
@@ -64,7 +111,9 @@ def list_schemas():
 @bp.route("/<name>", methods=["GET"])
 def get_schema(name: str):
     """Get a schema definition by name."""
-    schema = _get_schema(name)
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
@@ -74,7 +123,9 @@ def get_schema(name: str):
 @bp.route("/<name>/roots", methods=["GET"])
 def get_root_mixins(name: str):
     """Get the root mixins for a schema (available at form start)."""
-    schema = _get_schema(name)
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
@@ -112,7 +163,9 @@ def evaluate_schema(name: str):
         "available_fields": [...]
     }
     """
-    schema = _get_schema(name)
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
@@ -155,6 +208,7 @@ def create_or_update_schema(name: str):
 
     Request body: Full schema definition (root_mixins, mixins, intersections)
     """
+    expected = _repository().head(name)
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body required"}), 400
@@ -164,15 +218,23 @@ def create_or_update_schema(name: str):
     except Exception as e:
         return jsonify({"error": f"Invalid schema: {str(e)}"}), 400
 
-    _save_schema(name, schema)
+    try:
+        _save_schema(name, schema, expected=expected)
+    except SchemaEditConflict:
+        return _edit_conflict_response(name)
     return jsonify({"message": f"Schema '{name}' saved", "schema": schema_to_dict(schema)}), 200
 
 
 @bp.route("/<name>", methods=["DELETE"])
 @require_capability("schema.admin")
 def delete_schema(name: str):
-    """Delete a schema by name."""
-    if _delete_schema(name):
+    """Deactivate a schema while retaining its immutable history."""
+    expected = _repository().head(name)
+    try:
+        changed = _delete_schema(name, expected=expected)
+    except SchemaEditConflict:
+        return _edit_conflict_response(name)
+    if changed:
         return jsonify({"message": f"Schema '{name}' deleted"}), 200
     else:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
@@ -188,9 +250,10 @@ def create_or_update_mixin(name: str, mixin_name: str):
     """
     from .trigger_engine import mixin_from_dict, mixin_to_dict
 
-    schema = _get_schema(name)
-    if not schema:
+    expected = _repository().head(name)
+    if not expected.active:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
+    schema = schema_from_dict(deepcopy(expected.definition))
 
     data = request.get_json()
     if not data:
@@ -205,7 +268,10 @@ def create_or_update_mixin(name: str, mixin_name: str):
         return jsonify({"error": f"Invalid mixin: {str(e)}"}), 400
 
     schema.mixins[mixin_name] = mixin
-    _save_schema(name, schema)
+    try:
+        _save_schema(name, schema, expected=expected)
+    except SchemaEditConflict:
+        return _edit_conflict_response(name)
 
     return jsonify({
         "message": f"Mixin '{mixin_name}' saved in schema '{name}'",
@@ -217,9 +283,10 @@ def create_or_update_mixin(name: str, mixin_name: str):
 @require_capability("schema.admin")
 def delete_mixin(name: str, mixin_name: str):
     """Delete a mixin from a schema."""
-    schema = _get_schema(name)
-    if not schema:
+    expected = _repository().head(name)
+    if not expected.active:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
+    schema = schema_from_dict(deepcopy(expected.definition))
 
     if mixin_name not in schema.mixins:
         return jsonify({"error": f"Mixin '{mixin_name}' not found in schema '{name}'"}), 404
@@ -229,7 +296,10 @@ def delete_mixin(name: str, mixin_name: str):
         schema.root_mixins.remove(mixin_name)
 
     del schema.mixins[mixin_name]
-    _save_schema(name, schema)
+    try:
+        _save_schema(name, schema, expected=expected)
+    except SchemaEditConflict:
+        return _edit_conflict_response(name)
 
     return jsonify({"message": f"Mixin '{mixin_name}' deleted from schema '{name}'"}), 200
 
@@ -238,16 +308,20 @@ def delete_mixin(name: str, mixin_name: str):
 @require_capability("schema.admin")
 def add_root_mixin(name: str, mixin_name: str):
     """Add a mixin to the root_mixins list."""
-    schema = _get_schema(name)
-    if not schema:
+    expected = _repository().head(name)
+    if not expected.active:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
+    schema = schema_from_dict(deepcopy(expected.definition))
 
     if mixin_name not in schema.mixins:
         return jsonify({"error": f"Mixin '{mixin_name}' does not exist in schema"}), 400
 
     if mixin_name not in schema.root_mixins:
         schema.root_mixins.append(mixin_name)
-        _save_schema(name, schema)
+        try:
+            _save_schema(name, schema, expected=expected)
+        except SchemaEditConflict:
+            return _edit_conflict_response(name)
 
     return jsonify({
         "message": f"'{mixin_name}' added to root_mixins",
@@ -259,13 +333,17 @@ def add_root_mixin(name: str, mixin_name: str):
 @require_capability("schema.admin")
 def remove_root_mixin(name: str, mixin_name: str):
     """Remove a mixin from the root_mixins list."""
-    schema = _get_schema(name)
-    if not schema:
+    expected = _repository().head(name)
+    if not expected.active:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
+    schema = schema_from_dict(deepcopy(expected.definition))
 
     if mixin_name in schema.root_mixins:
         schema.root_mixins.remove(mixin_name)
-        _save_schema(name, schema)
+        try:
+            _save_schema(name, schema, expected=expected)
+        except SchemaEditConflict:
+            return _edit_conflict_response(name)
         return jsonify({
             "message": f"'{mixin_name}' removed from root_mixins",
             "root_mixins": schema.root_mixins
@@ -299,7 +377,9 @@ def search_bundles(name: str):
     """
     from .trigger_engine import schema_field_to_dict
 
-    schema = _get_schema(name)
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
@@ -380,7 +460,12 @@ def seed_schemas():
     """
     force = request.args.get("force", "false").lower() == "true"
     factories = {**DEFAULT_SCHEMA_FACTORIES, **EXAMPLE_SCHEMA_FACTORIES}
-    result = install_schemas(db.schema, factories, force=force)
+    result = install_schemas(
+        db.schema,
+        factories,
+        force=force,
+        actor=current_actor().durable_ref(),
+    )
     record_mutation(
         db,
         kind="schema.seed",
@@ -412,6 +497,11 @@ def bootstrap_schemas(force: bool, include_examples: bool) -> None:
     if include_examples:
         factories.update(EXAMPLE_SCHEMA_FACTORIES)
 
-    result = install_schemas(db.schema, factories, force=force)
+    result = install_schemas(
+        db.schema,
+        factories,
+        force=force,
+        actor=BOOTSTRAP_ACTOR,
+    )
     click.echo(f"Installed: {', '.join(result.installed) or 'none'}")
     click.echo(f"Preserved: {', '.join(result.skipped) or 'none'}")
