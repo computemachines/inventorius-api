@@ -96,6 +96,10 @@ def batch_get(id):
     existing = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
 
     if not existing:
+        if not current_actor().can("catalog.mutate"):
+            return problem.missing_resource_response(
+                url_for("batch.batch_get", id=id)
+            )
         return problem.missing_batch_response(id)
     else:
         return BatchEndpoint.from_batch(existing).get_response()
@@ -152,7 +156,7 @@ def batch_patch(id):
         db, kind="catalog.batch.update", target=id,
         actor=current_actor().durable_ref(),
     )
-    return BatchEndpoint.from_batch(updated_batch).redirect_response(False)
+    return BatchEndpoint.from_batch(updated_batch).updated_success_response()
 
 
 @batch.route("/api/batch/<id>", methods=["DELETE"])

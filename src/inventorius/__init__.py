@@ -17,6 +17,7 @@ from flask import Flask, jsonify
 
 from inventorius.bin import bin
 from inventorius.batch import batch
+import inventorius.resource_operations as resource_operation
 from inventorius.inventorius import inventorius
 from inventorius.sku import sku
 from inventorius.files import files
@@ -129,7 +130,7 @@ def api_root():
         command_operations.extend([
             {"rel": "create-bin", "method": "POST", "href": "/api/bins"},
             {"rel": "create-sku", "method": "POST", "href": "/api/skus"},
-            {"rel": "create-batch", "method": "POST", "href": "/api/batches"},
+            resource_operation.batch_create(rel="create-batch"),
             {
                 "rel": "define-process",
                 "method": "POST",
