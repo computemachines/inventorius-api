@@ -117,9 +117,14 @@ def _identity_sort_key(
     )
 
 
-def canonical_audit_fingerprint(command: dict[str, Any]) -> str:
+def canonical_audit_fingerprint(
+    command: dict[str, Any],
+    *,
+    actor: dict[str, str] | None = None,
+) -> str:
     """Hash domain equality, ignoring incidental row/evidence order."""
     canonical = {
+        "actor": actor,
         "location_id": command["location_id"],
         "snapshot_token": command["snapshot_token"],
         "counts": sorted(
@@ -274,9 +279,10 @@ class AuditObservationRepository:
         command: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> AuditObservationResult:
         """Append one reviewed count against the exact current snapshot."""
-        request_fingerprint = canonical_audit_fingerprint(command)
+        request_fingerprint = canonical_audit_fingerprint(command, actor=actor)
 
         def write(session):
             existing = self._existing_request(
@@ -405,6 +411,25 @@ class AuditObservationRepository:
                     command.get("unresolved_evidence", [])
                 ),
             }
+            if actor is not None:
+                document.update({
+                    "fact_id": document["_id"],
+                    "fact_type": "inventory.audit-observation",
+                    "envelope_version": 1,
+                    "fact_schema": {
+                        "name": "inventory.audit-observation",
+                        "version": 1,
+                    },
+                    "actor": actor,
+                    "command": {
+                        "command_id": document["_id"],
+                        "name": "inventory.audit-observation",
+                        "idempotency_key": idempotency_key,
+                        "request_fingerprint": request_fingerprint,
+                    },
+                    "causation": {},
+                    "evidence": [],
+                })
             self.db.audit_observations.insert_one(document, session=session)
             return AuditObservationResult(
                 self._serialize(document),

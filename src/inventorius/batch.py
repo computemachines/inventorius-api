@@ -2,7 +2,8 @@ from flask import Blueprint, jsonify, request, Response, url_for, after_this_req
 from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
+from inventorius.mutation_receipts import record_mutation
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedBatch,
@@ -59,6 +60,7 @@ def batches_post():
             "BAT",
             command,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except ResourceIdempotencyConflict:
         return problem.duplicate_resource_response(
@@ -130,27 +132,26 @@ def batch_patch(id):
     new_batch_doc = Batch.from_json({"_id": id, **json}).to_mongodb_doc()
 
     if "props" in json.keys():
-        db.batch.update_one({"_id": id},
-                            {"$set": {"props": new_batch_doc['props']}})
+        db.batch.update_one({"_id": id}, {"$set": {"props": new_batch_doc['props']}})
     if "name" in json.keys():
-        db.batch.update_one({"_id": id},
-                            {"$set": {"name": new_batch_doc['name']}})
+        db.batch.update_one({"_id": id}, {"$set": {"name": new_batch_doc['name']}})
 
     if "sku_id" in json.keys():
         if not json["sku_id"]:
             db.batch.update_one({"_id": id}, {"$unset": {"sku_id": ""}})
         else:
-            db.batch.update_one({"_id": id},
-                                {"$set": {"sku_id": json['sku_id']}})
+            db.batch.update_one({"_id": id}, {"$set": {"sku_id": json['sku_id']}})
 
     if "owned_codes" in json.keys():
-        db.batch.update_one({"_id": id},
-                            {"$set": {"owned_codes": json['owned_codes']}})
+        db.batch.update_one({"_id": id}, {"$set": {"owned_codes": json['owned_codes']}})
     if "associated_codes" in json.keys():
-        db.batch.update_one({"_id": id},
-                            {"$set": {"associated_codes": json['associated_codes']}})
+        db.batch.update_one({"_id": id}, {"$set": {"associated_codes": json['associated_codes']}})
 
     updated_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    record_mutation(
+        db, kind="catalog.batch.update", target=id,
+        actor=current_actor().durable_ref(),
+    )
     return BatchEndpoint.from_batch(updated_batch).redirect_response(False)
 
 
@@ -182,6 +183,10 @@ def batch_delete(id):
             }],
         })
 
+    record_mutation(
+        db, kind="catalog.batch.delete", target=id,
+        actor=current_actor().durable_ref(),
+    )
     return BatchEndpoint.from_batch(existing).deleted_success_response()
 
 

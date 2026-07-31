@@ -26,11 +26,12 @@ class BinRepository:
     def db(self):
         return self.repository.db
 
-    def create(self, command, *, idempotency_key):
+    def create(self, command, *, idempotency_key, actor=None):
         return self.repository.create(
             self.prefix,
             command,
             idempotency_key=idempotency_key,
+            actor=actor,
         )
 
     def next_available_id(self):

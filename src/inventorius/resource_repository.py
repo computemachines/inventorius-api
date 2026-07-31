@@ -666,6 +666,7 @@ class ResourceRepository:
         self,
         prefix: str,
         state: dict[str, Any],
+        actor: dict[str, str] | None,
         session,
     ) -> None:
         if prefix == "BAT" and state["sku_id"] is not None:
@@ -683,6 +684,7 @@ class ResourceRepository:
         idempotency_key: str,
         request_fingerprint: str,
         state: dict[str, Any],
+        actor: dict[str, str] | None,
         session,
     ) -> None:
         self.db.resource_commands.insert_one(
@@ -691,6 +693,7 @@ class ResourceRepository:
                 "request_fingerprint": request_fingerprint,
                 "kind": command_kind,
                 "result": state,
+                "actor": actor,
                 "created_at": datetime.now(timezone.utc),
             },
             session=session,
@@ -722,10 +725,11 @@ class ResourceRepository:
         command: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> ResourceCreationResult:
         command_kind = RESOURCE_COMMAND_KINDS[prefix]
         canonical_command = self._canonical_command(prefix, command)
-        request_fingerprint = _fingerprint(canonical_command)
+        request_fingerprint = _fingerprint({"actor": actor, "command": canonical_command})
 
         def write(session):
             existing = self._existing_request(
@@ -743,12 +747,13 @@ class ResourceRepository:
                 requested_id=canonical_command["id"],
             )
             state = {**canonical_command, "id": identifier}
-            self._insert_resource(prefix, state, session)
+            self._insert_resource(prefix, state, actor, session)
             self._insert_receipt(
                 command_kind=command_kind,
                 idempotency_key=idempotency_key,
                 request_fingerprint=request_fingerprint,
                 state=state,
+                actor=actor,
                 session=session,
             )
             return ResourceCreationResult(state, replayed=False)

@@ -4,7 +4,8 @@ import click
 from flask import Blueprint, jsonify, request
 
 from ..db import db
-from ..auth import public_unsafe, require_capability
+from ..auth import current_actor, public_unsafe, require_capability
+from ..mutation_receipts import record_mutation
 from .trigger_engine import (
     Schema,
     TriggerEngine,
@@ -35,11 +36,18 @@ def _save_schema(name: str, schema: Schema) -> None:
     doc = schema_to_dict(schema)
     doc["_id"] = name
     db.schema.replace_one({"_id": name}, doc, upsert=True)
+    record_mutation(
+        db, kind="schema.save", target=name, actor=current_actor().durable_ref()
+    )
 
 
 def _delete_schema(name: str) -> bool:
     """Delete a schema from MongoDB."""
     result = db.schema.delete_one({"_id": name})
+    if result.deleted_count:
+        record_mutation(
+            db, kind="schema.delete", target=name, actor=current_actor().durable_ref()
+        )
     return result.deleted_count > 0
 
 
@@ -373,6 +381,12 @@ def seed_schemas():
     force = request.args.get("force", "false").lower() == "true"
     factories = {**DEFAULT_SCHEMA_FACTORIES, **EXAMPLE_SCHEMA_FACTORIES}
     result = install_schemas(db.schema, factories, force=force)
+    record_mutation(
+        db,
+        kind="schema.seed",
+        target="catalog",
+        actor=current_actor().durable_ref(),
+    )
 
     return jsonify({
         "message": "Seeding complete",

@@ -14,7 +14,8 @@ import uuid
 import mimetypes
 
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
+from inventorius.mutation_receipts import record_mutation
 from inventorius.util import no_cache
 import inventorius.util_error_responses as problem
 
@@ -239,7 +240,7 @@ def files_post():
         "content_type": content_type,
         "size": final_size,
         "uploaded_at": datetime.now(timezone.utc),
-        "uploaded_by": None,  # TODO: get from current_user when auth added
+        "uploaded_by": current_actor().durable_ref(),
         "is_image": is_image,
         "has_thumbnail": has_thumbnail,
         "width": width,
@@ -247,6 +248,9 @@ def files_post():
     }
 
     db.files.insert_one(metadata)
+    record_mutation(
+        db, kind="file.upload", target=file_id, actor=current_actor().durable_ref()
+    )
 
     # Build response
     state = {
@@ -401,6 +405,9 @@ def file_delete(id):
 
     # Delete from MongoDB
     db.files.delete_one({"_id": id})
+    record_mutation(
+        db, kind="file.delete", target=id, actor=current_actor().durable_ref()
+    )
 
     response = Response()
     response.status_code = 200

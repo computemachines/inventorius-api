@@ -191,6 +191,19 @@ def test_reconciliation_applies_exact_differences_and_links_both_receipts(
     assert stored_operation["reconciles_observation_id"] == (
         observation["observation_id"]
     )
+    assert stored_operation["actor"] == {
+        "actor_id": "owner",
+        "actor_type": "owner",
+    }
+    assert stored_operation["command"] == {
+        "command_id": operation_id,
+        "name": "inventory.reconciliation",
+        "idempotency_key": "apply-audit-variance",
+        "request_fingerprint": stored_operation["request_fingerprint"],
+    }
+    assert stored_operation["causation"] == {
+        "caused_by": [observation["observation_id"]],
+    }
     assert len(stored_operation["request_fingerprint"]) == 64
     assert "idempotency_key" not in str(receipt)
     assert "request_fingerprint" not in str(receipt)

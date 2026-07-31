@@ -167,6 +167,18 @@ def test_records_expected_and_unexpected_counts_without_mutating_inventory(
     document = audit_observation_database.audit_observations.find_one({})
     assert document["idempotency_key"] == "reviewed-bin-1"
     assert len(document["request_fingerprint"]) == 64
+    assert document["actor"] == {
+        "actor_id": "owner",
+        "actor_type": "owner",
+    }
+    assert document["fact_id"] == document["_id"]
+    assert document["fact_type"] == "inventory.audit-observation"
+    assert document["command"] == {
+        "command_id": document["_id"],
+        "name": "inventory.audit-observation",
+        "idempotency_key": "reviewed-bin-1",
+        "request_fingerprint": document["request_fingerprint"],
+    }
     assert document["counts"][0]["recorded_quantity"].to_decimal() == Decimal(5)
     assert "idempotency_key" not in str(response.json)
     assert "request_fingerprint" not in str(response.json)

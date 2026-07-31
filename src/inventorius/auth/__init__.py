@@ -93,6 +93,9 @@ def init_auth(app: Flask):
         "AUTH_LOCAL_LOGIN_ENABLED",
         _truthy(os.getenv("INVENTORIUS_AUTH_LOCAL_LOGIN_ENABLED")),
     )
+    app.config.setdefault("AUTH_SESSION_IDLE_TTL", timedelta(hours=12))
+    app.config.setdefault("AUTH_SESSION_ABSOLUTE_TTL", timedelta(days=30))
+    app.config.setdefault("AUTH_RECENT_AUTH_TTL", timedelta(minutes=5))
     local_login_error = local_login_safety_error(app.config)
     if local_login_error:
         raise RuntimeError(local_login_error)
