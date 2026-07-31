@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 COMPONENT = "inventorius-api"
-VERSION = "0.3.11"
+VERSION = "0.4.1"
 MANIFEST_COMPONENT = "api"
 
 

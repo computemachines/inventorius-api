@@ -128,6 +128,9 @@ def test_sku_server_allocation_replays_and_persists_returned_state(
         "props": {},
     }
     assert clean_resource_database.resource_commands.count_documents({}) == 1
+    assert clean_resource_database.resource_commands.find_one({})["actor"] == {
+        "actor_id": "owner", "actor_type": "owner",
+    }
     assert clean_resource_database.resource_identifiers.count_documents({
         "_id": "SKU000001",
     }) == 1

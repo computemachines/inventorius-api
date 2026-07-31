@@ -79,6 +79,13 @@ def test_create_list_and_get_process_definition(client, clean_process_database):
     assert summary["name"] == "Open glue-stick case"
     assert summary["revision"] == 1
     assert summary["is_current"] is True
+    stored = clean_process_database.process_definition.find_one({
+        "_id": "PRC000001",
+    })
+    assert stored["created_by"] == {"actor_id": "owner", "actor_type": "owner"}
+    assert stored["revisions"][0]["actor"] == {
+        "actor_id": "owner", "actor_type": "owner",
+    }
 
     fetched = client.get("/api/process-definition/PRC1")
     assert fetched.status_code == 200
@@ -117,6 +124,12 @@ def test_patch_appends_revision_and_preserves_old_definition(
     assert current["name"] == "Open case into boxes"
     assert current["outputs"][0]["sku_id"] == "SKU000001"
     assert current["outputs"][0]["quantity"] == 12
+    stored = clean_process_database.process_definition.find_one({
+        "_id": "PRC000001",
+    })
+    assert stored["revisions"][-1]["actor"] == {
+        "actor_id": "owner", "actor_type": "owner",
+    }
 
     original = client.get(
         "/api/process-definition/PRC000001",

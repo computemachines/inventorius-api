@@ -87,15 +87,22 @@ uv run coverage run --source=inventorius -m pytest
 uv run coverage report
 ```
 
-## Docker Deployment
+## Container Release Channels
 
-The API is deployed as a Docker container via GitHub Actions CI/CD:
+Pushes to `development` publish both the moving `development` image and an
+immutable full-revision image. Pushes to `main` publish only the immutable image:
 
 ```bash
 docker pull ghcr.io/computemachines/inventorius-api:sha-<full-40-character-commit>
 ```
 
-See [inventorius-deploy](https://github.com/computemachines/inventorius-deploy) for the full Docker Compose stack.
+The `main` branch is the component promotion source for coordinated workspace
+releases; it does not publish a mutable deployment tag. Staging advances from a
+coordinated release-candidate manifest, and production uses the accepted image
+digest from that manifest. `latest` is not a deployment channel. See
+[inventorius-deploy](https://github.com/computemachines/inventorius-deploy) for
+the full Docker Compose stack and the workspace `RELEASING.md` for promotion and
+acceptance policy.
 
 ## Environment Variables
 

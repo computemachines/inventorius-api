@@ -148,6 +148,17 @@ def test_correction_replaces_simple_receive_quantity_or_destination(
         "_id": correction_id,
     })
     assert correction["corrects_operation_id"] == original_id
+    assert correction["actor"] == {
+        "actor_id": "owner",
+        "actor_type": "owner",
+    }
+    assert correction["command"] == {
+        "command_id": correction_id,
+        "name": "inventory.correction",
+        "idempotency_key": "correct-original",
+        "request_fingerprint": correction["request_fingerprint"],
+    }
+    assert correction["causation"] == {"corrects": original_id}
     assert correction["result"]["mode"] == "replace-receipt"
     assert correction["result"]["original_state"] == {
         "batch_id": "BAT000001",

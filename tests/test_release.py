@@ -23,7 +23,7 @@ def test_release_metadata_accepts_matching_manifest(tmp_path, monkeypatch):
 
     assert metadata() == {
         "component": "inventorius-api",
-        "component_version": "0.3.11",
+        "component_version": "0.4.1",
         "revision": "a" * 40,
         "product_release": "v0.5.0-rc.1",
         "environment": "development",
@@ -110,7 +110,7 @@ def test_sentry_scrubber_removes_request_and_user_material():
 def test_status_endpoint_preserves_release_provenance():
     with app.test_request_context():
         response = StatusEndpoint(
-            version="0.3.11",
+            version="0.4.1",
             db_connected=True,
             build_id="a" * 40,
             component="inventorius-api",
@@ -120,7 +120,7 @@ def test_status_endpoint_preserves_release_provenance():
         ).get_response()
 
     assert response.get_json()["state"] == {
-        "version": "0.3.11",
+        "version": "0.4.1",
         "is-up": True,
         "db-connected": True,
         "build-id": "a" * 40,

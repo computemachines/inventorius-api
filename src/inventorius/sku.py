@@ -3,7 +3,8 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
+from inventorius.mutation_receipts import record_mutation
 from inventorius.inventory_repository import (
     InventoryRepository,
     LedgerReferencedSku,
@@ -56,6 +57,7 @@ def skus_post():
             "SKU",
             command,
             idempotency_key=idempotency_key,
+            actor=current_actor().durable_ref(),
         )
     except ResourceIdempotencyConflict:
         return problem.duplicate_resource_response(
@@ -108,19 +110,19 @@ def sku_patch(id):
         return problem.invalid_params_response(problem.missing_resource_param_error("id"))
 
     if "owned_codes" in json:
-        db.sku.update_one({"_id": id},
-                          {"$set": {"owned_codes": json["owned_codes"]}})
+        db.sku.update_one({"_id": id}, {"$set": {"owned_codes": json["owned_codes"]}})
     if "associated_codes" in json:
-        db.sku.update_one({"_id": id},
-                          {"$set": {"associated_codes": json["associated_codes"]}})
+        db.sku.update_one({"_id": id}, {"$set": {"associated_codes": json["associated_codes"]}})
     if "name" in json:
-        db.sku.update_one({"_id": id},
-                          {"$set": {"name": json["name"]}})
+        db.sku.update_one({"_id": id}, {"$set": {"name": json["name"]}})
     if "props" in json:
-        db.sku.update_one({"_id": id},
-                          {"$set": {"props": json["props"]}})
+        db.sku.update_one({"_id": id}, {"$set": {"props": json["props"]}})
 
     updated_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    record_mutation(
+        db, kind="catalog.sku.update", target=id,
+        actor=current_actor().durable_ref(),
+    )
     return SkuEndpoint.from_sku(updated_sku).updated_success_response()
 
 @ sku.route('/api/sku/<id>', methods=['DELETE'])
@@ -173,6 +175,10 @@ def sku_delete(id):
         return resp
 
     resp.status_code = 204
+    record_mutation(
+        db, kind="catalog.sku.delete", target=id,
+        actor=current_actor().durable_ref(),
+    )
     return resp
 
 

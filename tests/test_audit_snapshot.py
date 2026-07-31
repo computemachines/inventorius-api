@@ -252,7 +252,9 @@ def test_missing_and_invalid_bin_ids_are_rejected(client, audit_database):
     assert invalid.json["type"] == "validation-error"
 
 
-def test_snapshot_request_does_not_mutate_any_collection(client, audit_database):
+def test_snapshot_request_does_not_mutate_any_collection(
+    anonymous_client, audit_database
+):
     audit_database.bin.insert_one({
         "_id": "BIN000001",
         "contents": {"BAT009999": 7},
@@ -270,7 +272,7 @@ def test_snapshot_request_does_not_mutate_any_collection(client, audit_database)
     )
     before = database_state(audit_database)
 
-    response = get_snapshot(client)
+    response = get_snapshot(anonymous_client)
 
     assert response.status_code == 200
     assert database_state(audit_database) == before

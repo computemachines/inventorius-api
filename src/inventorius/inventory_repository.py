@@ -1059,6 +1059,7 @@ class InventoryRepository:
         intended_state: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> RepositoryResult:
         """Replace one simple intake receipt with an explicit compensating fact.
 
@@ -1068,6 +1069,7 @@ class InventoryRepository:
         derives every signed leg from that receipt plus the intended state.
         """
         fingerprint_command = {
+            "actor": actor,
             "kind": OperationKind.CORRECTION.value,
             "mode": "replace-receipt",
             "corrects_operation_id": original_operation_id,
@@ -1214,6 +1216,8 @@ class InventoryRepository:
                     request_fingerprint,
                     result,
                     now,
+                    actor=actor,
+                    application_command="inventory.correction",
                 ),
                 session=session,
             )
@@ -1250,6 +1254,7 @@ class InventoryRepository:
         disposition: dict[str, Any],
         *,
         idempotency_key: str,
+        actor: dict[str, str] | None = None,
     ) -> RepositoryResult:
         """Apply one complete, current physical count as an explicit variance.
 
@@ -1259,6 +1264,7 @@ class InventoryRepository:
         boundary rather than inventing a physical counterparty.
         """
         fingerprint_command = {
+            "actor": actor,
             "kind": OperationKind.RECONCILIATION.value,
             "mode": "accept-physical-count",
             "observation_id": observation_id,
@@ -1465,6 +1471,8 @@ class InventoryRepository:
                     request_fingerprint,
                     result,
                     now,
+                    actor=actor,
+                    application_command="inventory.reconciliation",
                 ),
                 session=session,
             )

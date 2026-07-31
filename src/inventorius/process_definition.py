@@ -8,7 +8,8 @@ from pymongo.errors import DuplicateKeyError
 from voluptuous.error import MultipleInvalid
 
 from inventorius.db import db
-from inventorius.auth import require_capability
+from inventorius.auth import current_actor, require_capability
+from inventorius.mutation_receipts import record_mutation
 from inventorius.resource_models import ProcessDefinitionEndpoint
 from inventorius.util import (
     IdentifierSpaceExhausted,
@@ -149,11 +150,13 @@ def process_definitions_post():
         "instructions": content.get("instructions", []),
         "revision": 1,
         "created_at": timestamp,
+        "actor": current_actor().durable_ref(),
     }
     document = {
         "_id": process_id,
         "current_revision": 1,
         "created_at": timestamp,
+        "created_by": current_actor().durable_ref(),
         "revisions": [revision],
     }
 
@@ -163,6 +166,10 @@ def process_definitions_post():
         db.process_definition.insert_one(document)
     except DuplicateKeyError:
         return problem.duplicate_resource_response("id")
+    record_mutation(
+        db, kind="process-definition.create", target=process_id,
+        actor=current_actor().durable_ref(),
+    )
 
     return ProcessDefinitionEndpoint.from_state(
         _state(document)
@@ -272,6 +279,7 @@ def process_definition_patch(id):
         **normalized_content,
         "revision": revision_number,
         "created_at": _now(),
+        "actor": current_actor().durable_ref(),
     }
     result = db.process_definition.update_one(
         {"_id": id, "current_revision": document["current_revision"]},
@@ -285,6 +293,10 @@ def process_definition_patch(id):
             "type": "edit-conflict",
             "title": "The process definition changed. Reload it and try again.",
         })
+    record_mutation(
+        db, kind="process-definition.update", target=id,
+        actor=current_actor().durable_ref(),
+    )
 
     refreshed = db.process_definition.find_one({"_id": id})
     return ProcessDefinitionEndpoint.from_state(
@@ -309,4 +321,8 @@ def process_definition_delete(id):
 
     state = _state(document)
     db.process_definition.delete_one({"_id": id})
+    record_mutation(
+        db, kind="process-definition.delete", target=id,
+        actor=current_actor().durable_ref(),
+    )
     return ProcessDefinitionEndpoint.from_state(state).deleted_success_response()
