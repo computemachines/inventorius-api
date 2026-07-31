@@ -158,11 +158,20 @@ def test_batch_server_allocation_replays_and_validates_sku_transactionally(
         "owned_codes": [],
         "props": {},
     })
+    conflict = post_batch(client, "create-lot", {
+        **payload,
+        "name": "A different receiving lot",
+    })
     missing = post_batch(client, "missing-sku", {"sku_id": "SKU999999"})
 
     assert first.status_code == 201
     assert replay.status_code == 200
     assert replay.json == first.json
+    assert conflict.status_code == 409
+    assert conflict.json["invalid-params"] == [{
+        "name": "Idempotency-Key",
+        "reason": "must not be reused for a different request",
+    }]
     assert first.json["state"] == {
         "id": "BAT000001",
         "sku_id": "SKU000007",
