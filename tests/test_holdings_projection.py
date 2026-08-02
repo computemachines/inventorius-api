@@ -5,6 +5,13 @@ import math
 import pytest
 
 from inventorius.holdings_projection import compare_holdings_projection
+from inventorius.ledger import HoldingKey
+from inventorius.quantity_codec import (
+    QuantityClaim,
+    opening_effect_document,
+    output_state_id,
+)
+from inventorius.quantity_constraints import QuantityDomain
 
 
 def leg(batch, location, quantity, *, unit="each", package=None):
@@ -63,9 +70,40 @@ def test_actorless_legacy_and_version_one_fact_envelopes_are_accepted():
     assert result["unverifiable_facts"] == [{"operation_id": "old", "reason": "legacy actor-less fact envelope"}]
 
 
+def test_quantity_native_v2_fact_is_validated_but_excluded_from_exact_projection():
+    holding = HoldingKey("BAT000001", "BIN000001", "each", None)
+    operation_id = "quantity-opening"
+    quantity_operation = operation(
+        operation_id,
+        "receive",
+        [],
+        fact_schema={"name": "inventory.operation", "version": 2},
+        fact_type="inventory.operation",
+        envelope_version=1,
+        quantity_effect=opening_effect_document(
+            sequence=0,
+            holding=holding,
+            domain=QuantityDomain.DISCRETE,
+            output_state=output_state_id(operation_id, holding),
+            claim=QuantityClaim.estimated(50),
+        ),
+    )
+
+    result = compare_holdings_projection([quantity_operation], [])
+
+    assert result["is_consistent"] is True
+    assert result["operation_count"] == 0
+    assert result["malformed_facts"] == []
+    assert result["excluded_quantity_facts"] == [{
+        "operation_id": operation_id,
+        "reason": "quantity-native fact has no exact holding leg",
+    }]
+
+
 @pytest.mark.parametrize("mutator, reason", [
     (lambda doc: doc.update(kind="other"), "unknown operation kind"),
-    (lambda doc: doc.update(fact_schema={"name": "inventory.operation", "version": 2}), "unknown explicit fact_schema version"),
+    (lambda doc: doc.update(fact_schema={"name": "inventory.operation", "version": 99}), "unknown explicit fact_schema version"),
+    (lambda doc: doc.update(fact_schema={"name": "inventory.operation", "version": 2}), "quantity-native operation must not have exact legs"),
     (lambda doc: doc.update(legs=[{}]), "malformed holding identity"),
     (lambda doc: doc.update(legs=[leg("b", "l", 1), leg("b", "l", 2)]), "duplicate holding identity in legs"),
     (lambda doc: doc.update(legs=[leg("b", "l", 0)]), "zero quantity"),

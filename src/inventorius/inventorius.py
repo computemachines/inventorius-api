@@ -103,6 +103,33 @@ def _search_locations(models):
                 ),
             })
 
+        # Quantity-native holdings are physical evidence, not exact available
+        # inventory. Keep their interval shape visible instead of inserting a
+        # preferred guess into the legacy ``quantity`` field.
+        from inventorius.quantity_projection import quantity_holding_resource
+
+        for head in db.quantity_heads.find(
+            {"holding.batch_id": {"$in": sorted(all_batch_ids)}}, {"_id": 1}
+        ):
+            resource = quantity_holding_resource(db, head["_id"])
+            holding = resource["holding"]
+            physical = resource["feasible_physical"]
+            batch_id = holding["batch_id"]
+            holdings_by_batch.setdefault(batch_id, []).append({
+                "location_id": holding["location_id"],
+                "batch_id": batch_id,
+                "quantity": None,
+                "quantity_kind": "feasible-physical",
+                "minimum": physical["minimum"],
+                "preferred": physical["preferred"],
+                "maximum": physical["maximum"],
+                "quantity_status": physical["status"],
+                "unit": holding["unit"],
+                "packaging_configuration_id": holding[
+                    "packaging_configuration_id"
+                ],
+            })
+
     locations_by_resource = {}
     for model in models:
         locations = [

@@ -26,7 +26,7 @@ COPY src /app/src
 # Immutable source provenance is baked into an image; product release and
 # deployment environment remain runtime settings so one image promotes unchanged.
 ARG BUILD_ID=dev
-ARG COMPONENT_VERSION=0.4.1
+ARG COMPONENT_VERSION=0.5.0
 ENV BUILD_ID=${BUILD_ID}
 LABEL org.opencontainers.image.revision=${BUILD_ID} \
       org.opencontainers.image.version=${COMPONENT_VERSION} \

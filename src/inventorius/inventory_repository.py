@@ -254,8 +254,9 @@ class InventoryRepository:
             "note",
             "boundary",
             "snapshot_token",
+            "quantity_native",
         }
-        quantity_fields = {"quantity"}
+        quantity_fields = {"quantity", "amount"}
         nested_state_fields = {"original_state", "intended_state"}
         sanitized: dict[str, Any] = {}
         for key in scalar_fields:
@@ -272,6 +273,16 @@ class InventoryRepository:
             sanitized["observed_codes"] = [
                 value for value in observed_codes if isinstance(value, str)
             ]
+        quantity_claim = result.get("quantity_claim")
+        if isinstance(quantity_claim, dict):
+            sanitized["quantity_claim"] = {
+                key: value
+                for key, value in quantity_claim.items()
+                if key in {
+                    "domain", "basis", "lower", "preferred", "upper", "capacity"
+                }
+                and (isinstance(value, (str, int)) or value is None)
+            }
         for key in nested_state_fields:
             value = result.get(key)
             if isinstance(value, dict):
@@ -370,6 +381,13 @@ class InventoryRepository:
                         else None
                     ),
                 })
+        quantity_effect = document.get("quantity_effect")
+        if isinstance(quantity_effect, dict):
+            raw_holding = quantity_effect.get("holding")
+            if isinstance(raw_holding, dict):
+                batch_id = raw_holding.get("batch_id")
+                if isinstance(batch_id, str):
+                    batch_ids.add(batch_id)
 
         if hydration is None:
             corrected_by = self.db.inventory_operations.find_one(
@@ -502,6 +520,15 @@ class InventoryRepository:
             )
             if isinstance(leg, dict) and isinstance(leg.get("batch_id"), str)
         }
+        batch_ids.update({
+            holding.get("batch_id")
+            for document in documents
+            for effect in [document.get("quantity_effect")]
+            if isinstance(effect, dict)
+            for holding in [effect.get("holding")]
+            if isinstance(holding, dict)
+            and isinstance(holding.get("batch_id"), str)
+        })
         corrected_by = {
             correction["corrects_operation_id"]: correction["_id"]
             for correction in self.db.inventory_operations.find(
@@ -670,11 +697,22 @@ class InventoryRepository:
         return document
 
     def _apply_projection(self, operation: InventoryOperation, session, now: datetime) -> None:
+        from inventorius.quantity_codec import quantity_stream_id
+        from inventorius.quantity_repository import QuantityManagedHolding
+
         deltas: dict[HoldingKey, Decimal] = {}
         for leg in operation.legs:
             deltas[leg.holding] = deltas.get(leg.holding, Decimal(0)) + leg.amount
 
         for holding, delta in deltas.items():
+            if self.db.quantity_heads.find_one(
+                {"_id": quantity_stream_id(holding)},
+                {"_id": 1},
+                session=session,
+            ) is not None:
+                raise QuantityManagedHolding(
+                    "quantity-native holdings require quantity commands"
+                )
             existing = self.db.inventory_holdings.find_one(
                 {
                     "batch_id": holding.batch_id,
@@ -748,6 +786,19 @@ class InventoryRepository:
             self.db.inventory_operations.find_one(
                 {"legs.location_id": bin_id}, {"_id": 1}, session=session
             ) is not None
+            or self.db.inventory_operations.find_one(
+                {"quantity_effect.holding.location_id": bin_id},
+                {"_id": 1},
+                session=session,
+            ) is not None
+            or self.db.quantity_observations.find_one(
+                {"observation.holding.location_id": bin_id},
+                {"_id": 1},
+                session=session,
+            ) is not None
+            or self.db.quantity_heads.find_one(
+                {"holding.location_id": bin_id}, {"_id": 1}, session=session
+            ) is not None
             or self.db.inventory_holdings.find_one(
                 {"location_id": bin_id}, {"_id": 1}, session=session
             ) is not None
@@ -769,6 +820,19 @@ class InventoryRepository:
             ),
             self.db.inventory_operations.find_one(
                 {"legs.batch_id": batch_id}, {"_id": 1}, session=session
+            ),
+            self.db.inventory_operations.find_one(
+                {"quantity_effect.holding.batch_id": batch_id},
+                {"_id": 1},
+                session=session,
+            ),
+            self.db.quantity_observations.find_one(
+                {"observation.holding.batch_id": batch_id},
+                {"_id": 1},
+                session=session,
+            ),
+            self.db.quantity_heads.find_one(
+                {"holding.batch_id": batch_id}, {"_id": 1}, session=session
             ),
             self.db.inventory_code_observations.find_one(
                 {"batch_id": batch_id}, {"_id": 1}, session=session
@@ -1508,6 +1572,14 @@ class InventoryRepository:
         actor: dict[str, str] | None = None,
     ) -> RepositoryResult:
         """Atomically create the captured identity, evidence, receive, and holding."""
+        quantity_native = "quantity_claim" in capture
+        if quantity_native:
+            # Install the projection indexes before entering the transaction;
+            # index creation is deliberately never an incidental transaction
+            # side effect.
+            from inventorius.quantity_repository import QuantityRepository
+
+            QuantityRepository(self.db)
         request_fingerprint = canonical_fingerprint({
             "actor": actor,
             "command": capture,
@@ -1548,12 +1620,31 @@ class InventoryRepository:
                 "batch_id": batch_id,
                 "operation_id": operation_id,
                 "bin_id": capture["bin_id"],
-                "quantity": capture["quantity"],
                 "unit": capture["unit"],
                 "observed_codes": observed_codes,
                 "provisional": True,
                 "created_sku": created_sku,
             }
+            if quantity_native:
+                from inventorius.quantity_codec import claim_from_input
+                from inventorius.quantity_constraints import QuantityDomain
+                from inventorius.quantity_projection import quantity_json
+
+                claim = claim_from_input(capture["quantity_claim"])
+                domain = QuantityDomain(capture["quantity_claim"]["domain"])
+                result.update({
+                    "quantity_native": True,
+                    "quantity_claim": {
+                        "domain": domain.value,
+                        "basis": claim.basis.value,
+                        "lower": quantity_json(claim.lower),
+                        "preferred": quantity_json(claim.preferred),
+                        "upper": quantity_json(claim.upper),
+                        "capacity": quantity_json(claim.capacity),
+                    },
+                })
+            else:
+                result["quantity"] = capture["quantity"]
             if description is not None:
                 result["description"] = description
 
@@ -1598,30 +1689,49 @@ class InventoryRepository:
                     session=session,
                 )
 
-            operation = InventoryOperation(
-                operation_id=operation_id,
-                idempotency_key=idempotency_key,
-                kind=OperationKind.RECEIVE,
-                legs=(
-                    # Intake has no packaging configuration yet.
-                    HoldingLeg(
-                        HoldingKey(batch_id, capture["bin_id"], capture["unit"]),
-                        capture["quantity"],
-                    ),
-                ),
-            )
-            self._apply_projection(operation, session, now)
-            self.db.inventory_operations.insert_one(
-                self._operation_document(
-                    operation,
-                    request_fingerprint,
-                    result,
-                    now,
+            holding = HoldingKey(batch_id, capture["bin_id"], capture["unit"])
+            if quantity_native:
+                from inventorius.quantity_repository import (
+                    opening_operation_and_head,
+                )
+
+                operation_document, head_document = opening_operation_and_head(
+                    operation_id=operation_id,
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=request_fingerprint,
+                    result=result,
+                    now=now,
                     actor=actor,
-                    application_command="inventory.intake",
-                ),
-                session=session,
-            )
+                    holding=holding,
+                    domain=domain,
+                    claim=claim,
+                )
+                self.db.inventory_operations.insert_one(
+                    operation_document, session=session
+                )
+                self.db.quantity_heads.insert_one(head_document, session=session)
+            else:
+                operation = InventoryOperation(
+                    operation_id=operation_id,
+                    idempotency_key=idempotency_key,
+                    kind=OperationKind.RECEIVE,
+                    legs=(
+                        # Intake has no packaging configuration yet.
+                        HoldingLeg(holding, capture["quantity"]),
+                    ),
+                )
+                self._apply_projection(operation, session, now)
+                self.db.inventory_operations.insert_one(
+                    self._operation_document(
+                        operation,
+                        request_fingerprint,
+                        result,
+                        now,
+                        actor=actor,
+                        application_command="inventory.intake",
+                    ),
+                    session=session,
+                )
             return RepositoryResult(result, replayed=False)
 
         try:

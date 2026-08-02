@@ -16,6 +16,7 @@ from inventorius.inventory_repository import (
     MissingBin,
     MissingInventoryOperation,
 )
+from inventorius.quantity_repository import QuantityManagedHolding
 from inventorius.util import no_cache
 from inventorius.validation import (
     inventory_correction_command_schema,
@@ -203,6 +204,15 @@ def inventory_operations_post():
                 "name": "quantity",
                 "reason": "would make the source holding negative",
             }],
+        })
+    except QuantityManagedHolding:
+        return problem.problem_response(status_code=409, json={
+            "type": "quantity-managed-holding",
+            "title": "This holding uses physical quantity evidence.",
+            "detail": (
+                "Use the quantity observation or withdrawal command instead "
+                "of treating an estimate as exact available inventory."
+            ),
         })
     except IdempotencyConflict:
         return problem.duplicate_resource_response(

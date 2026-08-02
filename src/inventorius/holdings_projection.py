@@ -136,6 +136,40 @@ def _fact_schema(raw: Mapping[str, Any], operation_id: object) -> bool:
     return True
 
 
+def _decode_quantity_native_operation(raw: Mapping[str, Any]) -> str | None:
+    """Validate and identify operation-v2 facts outside the exact projection.
+
+    Quantity-native operations intentionally have no exact ledger legs.  The
+    exact holdings verifier must acknowledge them without either inventing an
+    exact balance or declaring a supported fact malformed.
+    """
+    schema = raw.get("fact_schema")
+    if not isinstance(schema, Mapping):
+        return None
+    if schema.get("name") != "inventory.operation" or schema.get("version") != 2:
+        return None
+    operation_id = raw.get("_id")
+    if not isinstance(operation_id, str) or not operation_id:
+        raise ProjectionDecodeError(operation_id, "missing operation ID")
+    if raw.get("fact_type", "inventory.operation") != "inventory.operation":
+        raise ProjectionDecodeError(operation_id, "unknown explicit fact type")
+    if raw.get("envelope_version", 1) != 1:
+        raise ProjectionDecodeError(operation_id, "unknown explicit envelope version")
+    if raw.get("legs") != []:
+        raise ProjectionDecodeError(
+            operation_id, "quantity-native operation must not have exact legs"
+        )
+    try:
+        from inventorius.quantity_codec import effect_from_document
+
+        effect_from_document(raw.get("quantity_effect"))
+    except ValueError as error:
+        raise ProjectionDecodeError(
+            operation_id, f"malformed quantity effect: {error}"
+        ) from error
+    return operation_id
+
+
 def _decode_operation(raw: Mapping[str, Any]) -> tuple[str, str, tuple[tuple[tuple[str, str, str, str | None], Decimal], ...], bool]:
     if not isinstance(raw, Mapping):
         raise ProjectionDecodeError(None, "malformed operation document")
@@ -205,10 +239,23 @@ def compare_holdings_projection(
     """
     malformed: list[dict[str, str]] = []
     unverifiable: list[dict[str, str]] = []
+    excluded_quantity_facts: list[dict[str, str]] = []
     decoded: list[tuple[str, str, tuple[tuple[tuple[str, str, str, str | None], Decimal], ...]]] = []
     operation_ids: set[str] = set()
     for raw in operations:
         try:
+            quantity_operation_id = _decode_quantity_native_operation(raw)
+            if quantity_operation_id is not None:
+                if quantity_operation_id in operation_ids:
+                    raise ProjectionDecodeError(
+                        quantity_operation_id, "duplicate operation ID"
+                    )
+                operation_ids.add(quantity_operation_id)
+                excluded_quantity_facts.append({
+                    "operation_id": quantity_operation_id,
+                    "reason": "quantity-native fact has no exact holding leg",
+                })
+                continue
             operation_id, kind, legs, verifiable = _decode_operation(raw)
             if operation_id in operation_ids:
                 raise ProjectionDecodeError(operation_id, "duplicate operation ID")
@@ -239,6 +286,9 @@ def compare_holdings_projection(
         "source_digest": _source_digest(decoded),
         "malformed_facts": sorted(malformed, key=lambda item: (item["operation_id"], item["reason"])),
         "unverifiable_facts": sorted(unverifiable, key=lambda item: item["operation_id"]),
+        "excluded_quantity_facts": sorted(
+            excluded_quantity_facts, key=lambda item: item["operation_id"]
+        ),
         "malformed_holdings": sorted(malformed_holdings, key=lambda item: (item["holding_id"], item["reason"])),
     }
     if malformed or malformed_holdings:

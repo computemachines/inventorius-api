@@ -26,6 +26,7 @@ from inventorius.inventory_operations import inventory_operations
 from inventorius.inventory_candidates import inventory_candidates
 from inventorius.audit_snapshots import audit_snapshots
 from inventorius.audit_observations import audit_observations
+from inventorius.quantity_routes import quantity_routes
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.auth import current_actor, init_auth
 from inventorius.schema.routes import bp as schema_bp
@@ -100,6 +101,7 @@ app.register_blueprint(inventory_operations)
 app.register_blueprint(inventory_candidates)
 app.register_blueprint(audit_snapshots)
 app.register_blueprint(audit_observations)
+app.register_blueprint(quantity_routes)
 app.register_blueprint(schema_bp)
 app.register_blueprint(process_definition)
 init_auth(app)
@@ -149,6 +151,16 @@ def api_root():
                 "rel": "audit-observation",
                 "method": "POST",
                 "href": "/api/audit-observations",
+            },
+            {
+                "rel": "quantity-observation",
+                "method": "POST",
+                "href": "/api/quantity-observations",
+            },
+            {
+                "rel": "quantity-withdrawal",
+                "method": "POST",
+                "href": "/api/quantity-withdrawals",
             },
         ])
     if actor.can("schema.admin"):

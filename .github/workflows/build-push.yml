@@ -97,7 +97,7 @@ jobs:
           labels: |
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.computemachines.component.version=0.4.1
+            org.computemachines.component.version=0.5.0
           build-args: |
             BUILD_ID=${{ github.sha }}
 

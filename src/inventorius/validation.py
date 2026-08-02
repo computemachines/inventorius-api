@@ -169,6 +169,44 @@ def each_unit(value):
     return value
 
 
+def quantity_unit(value):
+    """A small exact unit label; conversions remain an explicit later fact."""
+    value = trimmed_non_empty_string(value)
+    if len(value) > 40:
+        raise Invalid("must be at most 40 characters")
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise Invalid("must not contain control characters")
+    return value
+
+
+def exact_nonnegative_quantity(value):
+    """Accept an integer or exact decimal/fraction string, never a float."""
+    from fractions import Fraction
+
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise Invalid("must be a whole number or exact numeric string")
+    if isinstance(value, str):
+        value = value.strip()
+        if not value or len(value) > 100:
+            raise Invalid("must be a bounded exact numeric string")
+    try:
+        quantity = Fraction(value)
+    except (ValueError, ZeroDivisionError):
+        raise Invalid("must be an exact numeric value") from None
+    if quantity < 0:
+        raise Invalid("must be at least 0")
+    return value
+
+
+def exact_positive_quantity(value):
+    from fractions import Fraction
+
+    value = exact_nonnegative_quantity(value)
+    if Fraction(value) <= 0:
+        raise Invalid("must be greater than 0")
+    return value
+
+
 def audit_snapshot_token(value):
     value = trimmed_non_empty_string(value).lower()
     if re.fullmatch(r"[0-9a-f]{64}", value) is None:
@@ -278,13 +316,28 @@ sku_patch_schema = Schema(
     }
 )
 
+quantity_claim_schema = Schema(
+    {
+        Required("domain"): Any("discrete", "continuous"),
+        Required("basis"): Any(
+            "counted", "measured", "estimated", "calculated"
+        ),
+        "lower": exact_nonnegative_quantity,
+        "preferred": exact_nonnegative_quantity,
+        "upper": exact_nonnegative_quantity,
+        "capacity": exact_nonnegative_quantity,
+    }
+)
+
+
 quick_capture_schema = Schema(
     {
         "description": All(trimmed_non_empty_string, Length(max=500)),
         "sku_id": prefixed_id("SKU"),
         Required("bin_id"): prefixed_id("BIN"),
-        Required("quantity"): safe_positive_whole_number,
-        Required("unit", default="each"): each_unit,
+        "quantity": safe_positive_whole_number,
+        "quantity_claim": quantity_claim_schema,
+        Required("unit", default="each"): quantity_unit,
         "observed_codes": All(
             [All(observed_code, Length(max=500))],
             Length(max=50),
@@ -303,7 +356,83 @@ def intake_capture_schema(value):
             "must provide exactly one of description or sku_id",
             ["description"],
         )])
+    has_exact = "quantity" in capture
+    has_claim = "quantity_claim" in capture
+    if has_exact == has_claim:
+        raise MultipleInvalid([Invalid(
+            "must provide exactly one of quantity or quantity_claim",
+            ["quantity"],
+        )])
+    if has_exact:
+        try:
+            capture["unit"] = each_unit(capture["unit"])
+        except Invalid as error:
+            error.path = ["unit"]
+            raise MultipleInvalid([error]) from error
+        return capture
+
+    from fractions import Fraction
+    from inventorius.quantity_codec import claim_from_input
+    from inventorius.quantity_constraints import QuantityDomain
+
+    claim_input = capture["quantity_claim"]
+    try:
+        claim = claim_from_input(claim_input)
+        domain = QuantityDomain(claim_input["domain"])
+    except ValueError as error:
+        raise MultipleInvalid([Invalid(str(error), ["quantity_claim"])]) from error
+    values = (claim.lower, claim.preferred, claim.upper, claim.capacity)
+    if domain == QuantityDomain.DISCRETE and any(
+        quantity is not None and quantity.denominator != 1
+        for quantity in values
+    ):
+        raise MultipleInvalid([Invalid(
+            "discrete claims must use whole amounts",
+            ["quantity_claim"],
+        )])
+    if domain == QuantityDomain.DISCRETE and capture["unit"] != "each":
+        raise MultipleInvalid([Invalid(
+            "discrete capture currently uses the 'each' unit",
+            ["unit"],
+        )])
+    if domain == QuantityDomain.CONTINUOUS and capture["unit"] == "each":
+        raise MultipleInvalid([Invalid(
+            "continuous capture needs a measured unit",
+            ["unit"],
+        )])
+    capture["quantity_claim"] = {
+        **claim_input,
+        "domain": domain.value,
+    }
     return capture
+
+
+quantity_observation_command_schema = Schema(
+    {
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("location_id"): prefixed_id("BIN"),
+        Required("unit"): quantity_unit,
+        Required("domain"): Any("discrete", "continuous"),
+        Required("claim"): quantity_claim_schema,
+        "packaging_configuration_id": Any(None),
+        "supersedes_fact_id": All(
+            trimmed_non_empty_string,
+            Length(max=100),
+        ),
+    }
+)
+
+
+quantity_withdrawal_command_schema = Schema(
+    {
+        Required("batch_id"): prefixed_id("BAT"),
+        Required("location_id"): prefixed_id("BIN"),
+        Required("unit"): quantity_unit,
+        Required("domain"): Any("discrete", "continuous"),
+        Required("amount"): exact_positive_quantity,
+        "packaging_configuration_id": Any(None),
+    }
+)
 
 
 inventory_operation_command_schema = Schema(
