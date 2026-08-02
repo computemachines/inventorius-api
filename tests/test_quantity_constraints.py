@@ -391,6 +391,34 @@ def test_preferred_only_observation_does_not_become_a_false_bound():
     assert_bounds(history.current_physical_bounds(FASTENERS), 0, None)
 
 
+def test_unmeasured_capacity_and_rough_estimate_need_no_unknown_type():
+    unmeasured = HoldingKey("BAT-OIL", "BIN-BOTTLE", "milliliter")
+    estimated = HoldingKey("BAT-OIL", "BIN-JUG", "milliliter")
+    history = QuantityHistory()
+    history.open_holding(
+        unmeasured,
+        QuantityDomain.CONTINUOUS,
+        QuantityObservation(
+            "OBS-bottle-capacity",
+            lower=0,
+            upper=1_000,
+            basis=ObservationBasis.ESTIMATED,
+        ),
+    )
+    history.open_holding(
+        estimated,
+        QuantityDomain.CONTINUOUS,
+        QuantityObservation.estimated(
+            "OBS-about-two-hundred",
+            200,
+        ),
+    )
+
+    assert_bounds(history.current_physical_bounds(unmeasured), 0, 1_000)
+    assert_bounds(history.current_physical_bounds(estimated), 0, 400)
+    assert history.observations[-1][1].preferred == 200
+
+
 def test_quantity_history_reuses_package_aware_canonical_holding_identity():
     loose = HoldingKey("BAT-PART", "BIN-A", "each")
     boxed = HoldingKey("BAT-PART", "BIN-A", "each", "PKG-BOX")

@@ -730,6 +730,26 @@ class QuantityObservation:
             basis=basis,
         )
 
+    @classmethod
+    def estimated(
+        cls,
+        observation_id: str,
+        preferred: Number,
+        *,
+        lower: Number = 0,
+        upper: Number | None = None,
+    ) -> QuantityObservation:
+        """Create a rough estimate, defaulting its upper bound to twice it."""
+
+        estimate = _positive_fraction(preferred, "preferred")
+        return cls(
+            observation_id,
+            lower=lower,
+            preferred=estimate,
+            upper=estimate * 2 if upper is None else upper,
+            basis=ObservationBasis.ESTIMATED,
+        )
+
 
 class QuantityHistory:
     """Append-only evidence about possible physical quantity histories.
