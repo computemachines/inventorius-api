@@ -5,15 +5,18 @@ from datetime import datetime, timezone
 
 from inventorius.ledger import HoldingKey
 from inventorius.process_quantities import (
-    ALL_REMAINING,
+    BatchReplacement,
+    CandidateSelection,
     ExactAmount,
     FromInput,
+    FromSource,
     ObservationEvent,
     ProcessEvent,
     ProcessInput,
     ProcessOutput,
     ProcessQuantityTimeline,
     ProcessSink,
+    ProcessSource,
 )
 from inventorius.quantity_constraints import (
     InfeasibleQuantityFacts,
@@ -48,6 +51,16 @@ def amount(bounds) -> str:
     low = "unbounded" if bounds.minimum is None else str(bounds.minimum)
     high = "unbounded" if bounds.maximum is None else str(bounds.maximum)
     return low if low == high else f"{low}..{high}"
+
+
+def selection(selection_id, sku_id, location_id, *candidates):
+    return CandidateSelection(
+        selection_id,
+        sku_id,
+        location_id,
+        candidates[0].unit,
+        candidates[0].packaging_configuration_id,
+    )
 
 
 def show(title: str, timeline: ProcessQuantityTimeline, holdings=()):
@@ -106,7 +119,13 @@ def ambiguous_trace():
             "fasteners",
             (first, second),
             ExactAmount(5),
-            selector="SKU-FASTENER observed in BIN-SHARED",
+            selector=selection(
+                "SEL-fasteners",
+                "SKU-FASTENER",
+                "BIN-SHARED",
+                first,
+                second,
+            ),
         ),),
         sinks=(ProcessSink(
             "project",
@@ -168,7 +187,9 @@ def audit_trace():
 
 def reclassification_trace():
     old = HoldingKey("BAT-WRONG", "BIN-PARTS", "each")
+    old_bench = HoldingKey("BAT-WRONG", "BENCH", "each")
     new = HoldingKey("BAT-CORRECT", "BIN-PARTS", "each")
+    new_bench = HoldingKey("BAT-CORRECT", "BENCH", "each")
     timeline = ProcessQuantityTimeline()
     timeline.record(ObservationEvent(
         old,
@@ -183,21 +204,131 @@ def reclassification_trace():
         time(1),
         time(1),
     ))
+    timeline.record(exact("OBS-old-bench", old_bench, 3, 1))
     timeline.record(ProcessEvent(
         "PROC-reclassify",
         "reclassify",
         time(2),
         time(2),
-        inputs=(ProcessInput("old-batch", (old,), ALL_REMAINING),),
-        outputs=(ProcessOutput(
-            "new-batch", new, DISCRETE, FromInput("old-batch")
+        batch_replacements=(BatchReplacement(
+            "replace-identity",
+            "BAT-WRONG",
+            "BAT-CORRECT",
         ),),
     ))
     show(
         "Whole-Batch reclassification",
         timeline,
-        (("old Batch", old), ("new Batch", new)),
+        (
+            ("old Batch in bin", old),
+            ("old Batch on bench", old_bench),
+            ("new Batch in bin", new),
+            ("new Batch on bench", new_bench),
+        ),
     )
+
+
+def receive_trace():
+    holding = HoldingKey("BAT-LIQUID", "SHELF", "milliliter")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(ProcessEvent(
+        "PROC-receive-liquid",
+        "receive",
+        time(1),
+        time(1),
+        sources=(ProcessSource(
+            "supplier-bottle",
+            "supplier shipment",
+            "milliliter",
+            QuantityDomain.CONTINUOUS,
+            QuantityObservation.estimated("OBS-bottle-estimate", 50),
+        ),),
+        outputs=(ProcessOutput(
+            "received-bottle",
+            holding,
+            QuantityDomain.CONTINUOUS,
+            FromSource("supplier-bottle"),
+        ),),
+    ))
+    show(
+        "Receive crosses an explicit external boundary",
+        timeline,
+        (("received liquid", holding),),
+    )
+
+
+def late_candidate_trace():
+    first = HoldingKey("BAT-A", "BIN-SHARED", "each")
+    second = HoldingKey("BAT-B", "BIN-SHARED", "each")
+    late = HoldingKey("BAT-C", "BIN-SHARED", "each")
+    selector = selection(
+        "SEL-shared-fasteners",
+        "SKU-FASTENER",
+        "BIN-SHARED",
+        first,
+        second,
+    )
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact("OBS-A-two", first, 2, 1))
+    timeline.record(exact("OBS-B-two", second, 2, 1))
+    timeline.record(ObservationEvent(
+        late,
+        DISCRETE,
+        QuantityObservation.exact(
+            "OBS-C-two-recorded-late",
+            2,
+            basis=ObservationBasis.COUNTED,
+        ),
+        time(1),
+        time(3),
+    ))
+    timeline.record(ProcessEvent(
+        "PROC-take-three",
+        "consume",
+        time(2),
+        time(2),
+        inputs=(ProcessInput(
+            "fasteners",
+            (first, second),
+            ExactAmount(3),
+            selector=selector,
+        ),),
+        sinks=(ProcessSink(
+            "project",
+            "consumed by project",
+            "each",
+            DISCRETE,
+            FromInput("fasteners"),
+        ),),
+    ))
+
+    def resolve(
+        candidate_selection,
+        candidates_at_recording,
+        occurred_at,
+        known_at,
+    ):
+        return (first, second, late) if known_at is None else (first, second)
+
+    historical = timeline.compile(
+        known_at=time(2, 13),
+        candidate_resolver=resolve,
+    )
+    current = timeline.compile(candidate_resolver=resolve)
+    print("\n=== Late Batch discovery changes possibilities, not the observation ===")
+    print(
+        "  historical candidate remainder: "
+        f"{amount(historical.current_total_bounds((first, second)))} each"
+    )
+    print(
+        "  current candidate remainder: "
+        f"{amount(current.current_total_bounds((first, second, late)))} each"
+    )
+    for label, holding in (("Batch A", first), ("Batch B", second), ("Batch C", late)):
+        print(
+            f"  current possible draw from {label}: "
+            f"{amount(current.allocation_bounds('PROC-take-three', 'fasteners', holding))} each"
+        )
 
 
 def assembly_trace():
@@ -285,7 +416,9 @@ def main():
     move_trace()
     ambiguous_trace()
     audit_trace()
+    receive_trace()
     reclassification_trace()
+    late_candidate_trace()
     assembly_trace()
     late_conflict_trace()
 

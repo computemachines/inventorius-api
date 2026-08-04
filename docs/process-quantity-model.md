@@ -7,6 +7,9 @@ authorization, or frontend contracts.
 
 - A process records only participating inputs and actual outputs. A source
   remainder is a derived holding state, never a process output.
+- Receive crosses a named external-source boundary. Its quantity is an
+  observation with exact, bounded, or preferred evidence; it is not anonymous
+  creation and is linked algebraically to the received holding.
 - An input consumes either one exact amount or all quantity then feasible in one
   exact holding.
 - An output may have an exact amount or reuse the compiled quantity of one
@@ -15,7 +18,10 @@ authorization, or frontend contracts.
   sink, or a structural contribution to an output. The model deliberately
   rejects a bare numerical withdrawal with no meaning.
 - Several same-unit, same-package candidate Batches may satisfy one observed SKU
-  selection. The compiler retains a latent allocation per candidate and one
+  selection. The durable semantic fact is the SKU/location selection plus the
+  candidate snapshot known when it was recorded. A knowledge-aware resolver can
+  add a Batch discovered later, while historical compilation retains the old
+  candidate set. The compiler retains a latent allocation per candidate and one
   shared total instead of selecting a Batch or storing independent ranges.
 - An audit produces non-consuming observations. Lower, upper, interval, exact,
   and preferred-only claims remain distinct.
@@ -30,19 +36,27 @@ authorization, or frontend contracts.
 - A late record is an ordinary process whose `occurred_at` precedes
   `recorded_at`. The timeline recompiles by occurrence time and may expose a
   contradiction in later history.
+- Physical replay uses `(occurred_at, effective_order)`. Recording time filters
+  historical knowledge but never silently chooses physical order. Equal-time,
+  equal-order events may remain unordered only when their holdings are disjoint;
+  overlapping events fail closed.
+- Whole-Batch reclassification is retained as one Batch-replacement meaning and
+  expanded during replay across every then-current holding. A late-discovered
+  source holding is therefore reclassified on current-truth replay rather than
+  being permanently omitted from a frozen list of holding legs.
 - Correction and conflict-resolution semantics remain deliberately deferred.
   The current experiment only retains and names contradictions.
 
 ## Intentional limitations
 
-- Events with identical occurrence timestamps need an explicit causal-order
-  design before persistence; the experiment uses deterministic ordering only
-  so traces are reproducible.
-- External sources are not modeled yet, so output-only Receive processes fail
-  closed rather than manufacturing inventory from an unnamed source.
-- The compiler receives an explicit candidate set for ambiguous SKU selection.
-  A future identity/time resolver must determine those candidates from the SKU,
-  location, evidence, and occurrence time.
+- `effective_order` is a deliberately small ordering mechanism, not a final
+  claim that integer sequence numbers will be sufficient for concurrent or
+  partially ordered physical histories.
+- One external source feeds one output in this slice. Split receipts and
+  multi-output boundary allocation still need explicit flow semantics.
+- The experiment defines the knowledge-aware candidate-resolver seam, not the
+  database implementation that will resolve SKU membership and presence at the
+  event's occurrence time.
 - A process cannot consume from and produce into the identical holding in this
   slice. That case needs explicit semantics instead of an accidental ordering.
 - An unresolved multi-Batch input cannot be collapsed into one concrete output
@@ -50,6 +64,9 @@ authorization, or frontend contracts.
   through moves, splits, or transformations.
 - Process definitions, provenance allocation modes, corrections, database
   codecs, and public operations remain outside this slice.
+- Batch replacement currently preserves location, unit, and package
+  configuration. Reclassification that also changes those dimensions should be
+  an ordinary explicit transformation, not hidden inside identity replacement.
 - Generated holding states, flow variables, allocation variables, intervals,
   witnesses, and conflicts are disposable projections. Only semantic events
   are candidates for future persistence.

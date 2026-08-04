@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from fractions import Fraction
-from typing import Sequence
+from itertools import groupby
+from typing import Callable, Sequence
 
 from inventorius.ledger import HoldingKey
 from inventorius.quantity_constraints import (
@@ -91,8 +92,44 @@ class FromInput:
         _nonblank(self.input_id, "input_id")
 
 
+@dataclass(frozen=True)
+class FromSource:
+    """Produce exactly the quantity admitted through one external boundary."""
+
+    source_id: str
+
+    def __post_init__(self) -> None:
+        _nonblank(self.source_id, "source_id")
+
+
+@dataclass(frozen=True)
+class CandidateSelection:
+    """The observed SKU/location query behind an unresolved Batch choice.
+
+    The enclosing ``ProcessInput.candidates`` preserves what the recorder could
+    identify at the time. A knowledge-aware resolver may later return a
+    different set without rewriting the physical observation into an arbitrary
+    Batch fact.
+    """
+
+    selection_id: str
+    sku_id: str
+    location_id: str
+    unit: str
+    packaging_configuration_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _nonblank(self.selection_id, "selection_id")
+        _nonblank(self.sku_id, "sku_id")
+        _nonblank(self.location_id, "location_id")
+        _nonblank(self.unit, "unit")
 InputAmount = ExactAmount | AllRemaining
-OutputAmount = ExactAmount | FromInput
+OutputAmount = ExactAmount | FromInput | FromSource
+
+CandidateResolver = Callable[
+    [CandidateSelection, tuple[HoldingKey, ...], datetime, datetime | None],
+    Sequence[HoldingKey],
+]
 
 
 @dataclass(frozen=True)
@@ -103,7 +140,7 @@ class ProcessInput:
     candidates: tuple[HoldingKey, ...]
     amount: InputAmount
     role: str = "input"
-    selector: str | None = None
+    selector: CandidateSelection | None = None
     contributes_to: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -117,10 +154,22 @@ class ProcessInput:
             raise ValueError("process input amount has an unsupported type")
         if isinstance(self.amount, AllRemaining) and len(self.candidates) != 1:
             raise ValueError("all remaining requires one exact holding")
-        if len(self.candidates) > 1:
-            _nonblank(self.selector, "selector")
-        elif self.selector is not None:
-            _nonblank(self.selector, "selector")
+        if len(self.candidates) > 1 and self.selector is None:
+            raise ValueError("ambiguous input needs its observed selection")
+        if self.selector is not None:
+            if not isinstance(self.selector, CandidateSelection):
+                raise ValueError("selector must be a CandidateSelection")
+            for holding in self.candidates:
+                if (
+                    holding.location_id != self.selector.location_id
+                    or holding.unit != self.selector.unit
+                    or holding.packaging_configuration_id
+                    != self.selector.packaging_configuration_id
+                ):
+                    raise ValueError(
+                        "input candidates must match the selection location, "
+                        "unit, and package configuration"
+                    )
         if len(set(self.contributes_to)) != len(self.contributes_to):
             raise ValueError("contributes_to output identifiers must be distinct")
         for output_id in self.contributes_to:
@@ -144,8 +193,46 @@ class ProcessOutput:
             raise ValueError("process output holding must be a HoldingKey")
         if not isinstance(self.domain, QuantityDomain):
             raise ValueError("process output domain must be a QuantityDomain")
-        if not isinstance(self.amount, (ExactAmount, FromInput)):
+        if not isinstance(self.amount, (ExactAmount, FromInput, FromSource)):
             raise ValueError("process output amount has an unsupported type")
+
+
+@dataclass(frozen=True)
+class ProcessSource:
+    """A named external boundary admitting quantity into tracked holdings."""
+
+    source_id: str
+    kind: str
+    unit: str
+    domain: QuantityDomain
+    observation: QuantityObservation
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        _nonblank(self.source_id, "source_id")
+        _nonblank(self.kind, "kind")
+        _nonblank(self.unit, "unit")
+        if not isinstance(self.domain, QuantityDomain):
+            raise ValueError("process source domain must be a QuantityDomain")
+        if not isinstance(self.observation, QuantityObservation):
+            raise ValueError("process source needs a quantity observation")
+        _validate_observation(self.domain, self.observation)
+
+
+@dataclass(frozen=True)
+class BatchReplacement:
+    """Replace one Batch identity everywhere it is held at this point in time."""
+
+    replacement_id: str
+    source_batch_id: str
+    destination_batch_id: str
+
+    def __post_init__(self) -> None:
+        _nonblank(self.replacement_id, "replacement_id")
+        _nonblank(self.source_batch_id, "source_batch_id")
+        _nonblank(self.destination_batch_id, "destination_batch_id")
+        if self.source_batch_id == self.destination_batch_id:
+            raise ValueError("a Batch replacement needs two distinct identities")
 
 
 @dataclass(frozen=True)
@@ -180,7 +267,10 @@ class ProcessEvent:
     inputs: tuple[ProcessInput, ...] = ()
     outputs: tuple[ProcessOutput, ...] = ()
     sinks: tuple[ProcessSink, ...] = ()
+    sources: tuple[ProcessSource, ...] = ()
+    batch_replacements: tuple[BatchReplacement, ...] = ()
     note: str = ""
+    effective_order: int = 0
 
     def __post_init__(self) -> None:
         _nonblank(self.process_id, "process_id")
@@ -189,19 +279,36 @@ class ProcessEvent:
         recorded = _aware(self.recorded_at, "recorded_at")
         if recorded < occurred:
             raise ValueError("recorded_at cannot precede occurred_at")
-        if not self.inputs:
+        if (
+            isinstance(self.effective_order, bool)
+            or not isinstance(self.effective_order, int)
+            or self.effective_order < 0
+        ):
+            raise ValueError("effective_order must be a nonnegative integer")
+        if not self.inputs and not self.sources and not self.batch_replacements:
             raise ValueError(
                 "output-only processes need explicit external-source semantics"
             )
+        if self.batch_replacements and (
+            self.inputs or self.outputs or self.sinks or self.sources
+        ):
+            raise ValueError(
+                "Batch replacement is an exclusive semantic process in this slice"
+            )
+        if len(self.batch_replacements) > 1:
+            raise ValueError("one process may replace only one Batch in this slice")
         input_ids = [item.input_id for item in self.inputs]
         output_ids = [item.output_id for item in self.outputs]
         sink_ids = [item.sink_id for item in self.sinks]
+        source_ids = [item.source_id for item in self.sources]
         if len(set(input_ids)) != len(input_ids):
             raise ValueError("process input identifiers must be distinct")
         if len(set(output_ids)) != len(output_ids):
             raise ValueError("process output identifiers must be distinct")
         if len(set(sink_ids)) != len(sink_ids):
             raise ValueError("process sink identifiers must be distinct")
+        if len(set(source_ids)) != len(source_ids):
+            raise ValueError("process source identifiers must be distinct")
         known_inputs = set(input_ids)
         for output in self.outputs:
             if (
@@ -220,6 +327,11 @@ class ProcessEvent:
                         "an ambiguous input cannot become one concrete output "
                         "Batch without allocation semantics"
                     )
+            if (
+                isinstance(output.amount, FromSource)
+                and output.amount.source_id not in set(source_ids)
+            ):
+                raise ValueError("process output references an unknown source")
         for sink in self.sinks:
             if sink.amount.input_id not in known_inputs:
                 raise ValueError("process sink references an unknown input")
@@ -240,6 +352,17 @@ class ProcessEvent:
                 raise ValueError(
                     "every process input needs an output, sink, or structural "
                     "contribution"
+                )
+        for source_id in source_ids:
+            references = [
+                output
+                for output in self.outputs
+                if isinstance(output.amount, FromSource)
+                and output.amount.source_id == source_id
+            ]
+            if len(references) != 1:
+                raise ValueError(
+                    "each external source must feed exactly one output in this slice"
                 )
         touched_inputs = [
             holding for item in self.inputs for holding in item.candidates
@@ -264,6 +387,7 @@ class ObservationEvent:
     observation: QuantityObservation
     occurred_at: datetime
     recorded_at: datetime
+    effective_order: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.holding, HoldingKey):
@@ -276,6 +400,12 @@ class ObservationEvent:
         recorded = _aware(self.recorded_at, "recorded_at")
         if recorded < occurred:
             raise ValueError("recorded_at cannot precede occurred_at")
+        if (
+            isinstance(self.effective_order, bool)
+            or not isinstance(self.effective_order, int)
+            or self.effective_order < 0
+        ):
+            raise ValueError("effective_order must be a nonnegative integer")
 
     @property
     def event_id(self) -> str:
@@ -310,6 +440,7 @@ class ProcessQuantityTimeline:
         self,
         *,
         known_at: datetime | None = None,
+        candidate_resolver: CandidateResolver | None = None,
     ) -> CompiledProcessQuantities:
         if known_at is not None:
             _aware(known_at, "known_at")
@@ -321,11 +452,15 @@ class ProcessQuantityTimeline:
         events.sort(
             key=lambda event: (
                 event.occurred_at,
-                event.recorded_at,
+                event.effective_order,
                 _event_id(event),
             )
         )
-        return _ProcessCompiler(self._query_timeout_ms).compile(events)
+        return _ProcessCompiler(
+            self._query_timeout_ms,
+            known_at=known_at,
+            candidate_resolver=candidate_resolver,
+        ).compile(events)
 
 
 class CompiledProcessQuantities:
@@ -337,6 +472,8 @@ class CompiledProcessQuantities:
         current: dict[HoldingKey, HoldingState],
         input_variables: dict[tuple[str, str], str],
         allocation_variables: dict[tuple[str, str, HoldingKey], str],
+        source_variables: dict[tuple[str, str], str],
+        replacement_holdings: dict[str, tuple[tuple[HoldingKey, HoldingKey], ...]],
         labels: dict[str, str],
         event_order: tuple[str, ...],
     ) -> None:
@@ -344,6 +481,8 @@ class CompiledProcessQuantities:
         self._current = current
         self._input_variables = input_variables
         self._allocation_variables = allocation_variables
+        self._source_variables = source_variables
+        self._replacement_holdings = replacement_holdings
         self._labels = labels
         self._event_order = event_order
 
@@ -424,6 +563,22 @@ class CompiledProcessQuantities:
             ) from error
         return self._system.bounds(variable_id)
 
+    def source_bounds(self, process_id: str, source_id: str) -> QuantityBounds:
+        try:
+            variable_id = self._source_variables[(process_id, source_id)]
+        except KeyError as error:
+            raise ValueError("process source has no compiled quantity") from error
+        return self._system.bounds(variable_id)
+
+    def replacement_holdings(
+        self,
+        process_id: str,
+    ) -> tuple[tuple[HoldingKey, HoldingKey], ...]:
+        try:
+            return self._replacement_holdings[process_id]
+        except KeyError as error:
+            raise ValueError("process has no compiled Batch replacement") from error
+
     def rendered_constraints(self) -> tuple[str, ...]:
         """Return readable algebra without exposing generated Z3 expressions."""
 
@@ -435,7 +590,13 @@ class CompiledProcessQuantities:
 
 
 class _ProcessCompiler:
-    def __init__(self, timeout_ms: int) -> None:
+    def __init__(
+        self,
+        timeout_ms: int,
+        *,
+        known_at: datetime | None,
+        candidate_resolver: CandidateResolver | None,
+    ) -> None:
         self._system = QuantityConstraintSystem(timeout_ms=timeout_ms)
         self._current: dict[HoldingKey, HoldingState] = {}
         self._revisions: dict[HoldingKey, int] = {}
@@ -443,27 +604,133 @@ class _ProcessCompiler:
         self._allocation_variables: dict[
             tuple[str, str, HoldingKey], str
         ] = {}
+        self._source_variables: dict[tuple[str, str], str] = {}
+        self._replacement_holdings: dict[
+            str, tuple[tuple[HoldingKey, HoldingKey], ...]
+        ] = {}
         self._labels: dict[str, str] = {}
+        self._known_at = known_at
+        self._candidate_resolver = candidate_resolver
 
     def compile(
         self,
         events: Sequence[QuantityEvent],
     ) -> CompiledProcessQuantities:
         order = []
-        for event in events:
-            order.append(_event_id(event))
-            if isinstance(event, ObservationEvent):
-                self._compile_observation(event)
-            else:
-                self._compile_process(event)
+        for _, simultaneous in groupby(
+            events,
+            key=lambda event: (event.occurred_at, event.effective_order),
+        ):
+            group = tuple(simultaneous)
+            resolved = self._resolve_group_candidates(group)
+            self._reject_overlapping_simultaneous_events(group, resolved)
+            for event in group:
+                order.append(_event_id(event))
+                if isinstance(event, ObservationEvent):
+                    self._compile_observation(event)
+                else:
+                    self._compile_process(event, resolved)
         return CompiledProcessQuantities(
             self._system,
             dict(self._current),
             dict(self._input_variables),
             dict(self._allocation_variables),
+            dict(self._source_variables),
+            dict(self._replacement_holdings),
             dict(self._labels),
             tuple(order),
         )
+
+    def _resolve_group_candidates(
+        self,
+        events: Sequence[QuantityEvent],
+    ) -> dict[tuple[str, str], tuple[HoldingKey, ...]]:
+        resolved: dict[tuple[str, str], tuple[HoldingKey, ...]] = {}
+        for event in events:
+            if not isinstance(event, ProcessEvent):
+                continue
+            for process_input in event.inputs:
+                candidates: Sequence[HoldingKey] = process_input.candidates
+                if (
+                    process_input.selector is not None
+                    and self._candidate_resolver is not None
+                ):
+                    candidates = self._candidate_resolver(
+                        process_input.selector,
+                        process_input.candidates,
+                        event.occurred_at,
+                        self._known_at,
+                    )
+                normalized = tuple(candidates)
+                if not normalized:
+                    raise ValueError("candidate resolver returned no holdings")
+                if len(set(normalized)) != len(normalized):
+                    raise ValueError("candidate resolver returned duplicate holdings")
+                selector = process_input.selector
+                if selector is not None:
+                    for holding in normalized:
+                        if (
+                            holding.location_id != selector.location_id
+                            or holding.unit != selector.unit
+                            or holding.packaging_configuration_id
+                            != selector.packaging_configuration_id
+                        ):
+                            raise ValueError(
+                                "resolved candidates must match the observed "
+                                "selection location, unit, and package configuration"
+                            )
+                if (
+                    isinstance(process_input.amount, AllRemaining)
+                    and len(normalized) != 1
+                ):
+                    raise ValueError(
+                        "all remaining requires one resolved exact holding"
+                    )
+                resolved[(event.process_id, process_input.input_id)] = normalized
+        return resolved
+
+    def _reject_overlapping_simultaneous_events(
+        self,
+        events: Sequence[QuantityEvent],
+        resolved: dict[tuple[str, str], tuple[HoldingKey, ...]],
+    ) -> None:
+        touched: list[tuple[str, set[HoldingKey]]] = []
+        for event in events:
+            holdings: set[HoldingKey]
+            if isinstance(event, ObservationEvent):
+                holdings = {event.holding}
+            else:
+                holdings = {
+                    holding
+                    for process_input in event.inputs
+                    for holding in resolved[
+                        (event.process_id, process_input.input_id)
+                    ]
+                }
+                holdings.update(output.holding for output in event.outputs)
+                for replacement in event.batch_replacements:
+                    for current_holding in self._current:
+                        if current_holding.batch_id in {
+                            replacement.source_batch_id,
+                            replacement.destination_batch_id,
+                        }:
+                            holdings.add(current_holding)
+                            holdings.add(
+                                HoldingKey(
+                                    replacement.destination_batch_id,
+                                    current_holding.location_id,
+                                    current_holding.unit,
+                                    current_holding.packaging_configuration_id,
+                                )
+                            )
+            for prior_id, prior_holdings in touched:
+                overlap = holdings & prior_holdings
+                if overlap:
+                    raise ValueError(
+                        "events sharing occurred_at and effective_order touch the "
+                        f"same holding: {prior_id}, {_event_id(event)}"
+                    )
+            touched.append((_event_id(event), holdings))
 
     def _compile_observation(self, event: ObservationEvent) -> None:
         state = self._current.get(event.holding)
@@ -473,40 +740,50 @@ class _ProcessCompiler:
         elif state.domain != event.domain:
             raise ValueError("observation domain does not match holding state")
         _validate_observation(event.domain, event.observation)
-        observation = event.observation
-        if (
-            observation.lower is not None
-            and observation.lower == observation.upper
-        ):
-            self._system.add_constraint(
-                f"{event.event_id}:exact",
-                {state.variable_id: 1},
-                ConstraintRelation.EQUAL,
-                observation.lower,
-            )
-            return
-        if observation.lower is not None:
-            self._system.add_constraint(
-                f"{event.event_id}:lower",
-                {state.variable_id: 1},
-                ConstraintRelation.AT_LEAST,
-                observation.lower,
-            )
-        if observation.upper is not None:
-            self._system.add_constraint(
-                f"{event.event_id}:upper",
-                {state.variable_id: 1},
-                ConstraintRelation.AT_MOST,
-                observation.upper,
-            )
+        _add_observation_constraints(
+            self._system,
+            event.observation,
+            state.variable_id,
+            event.event_id,
+        )
 
-    def _compile_process(self, event: ProcessEvent) -> None:
+    def _compile_process(
+        self,
+        event: ProcessEvent,
+        resolved_candidates: dict[tuple[str, str], tuple[HoldingKey, ...]],
+    ) -> None:
+        if event.batch_replacements:
+            self._compile_batch_replacement(event, event.batch_replacements[0])
+            return
+        for output in event.outputs:
+            if isinstance(output.amount, FromInput):
+                candidates = resolved_candidates[
+                    (event.process_id, output.amount.input_id)
+                ]
+                if len(candidates) > 1:
+                    raise ValueError(
+                        "a resolved ambiguous input cannot become one concrete "
+                        "output Batch without allocation semantics"
+                    )
         input_variables: dict[str, str] = {}
         for process_input in event.inputs:
-            variable_id = self._compile_input(event, process_input)
+            variable_id = self._compile_input(
+                event,
+                process_input,
+                resolved_candidates[(event.process_id, process_input.input_id)],
+            )
             input_variables[process_input.input_id] = variable_id
+        source_variables = {
+            source.source_id: self._compile_source(event, source)
+            for source in event.sources
+        }
         for output in event.outputs:
-            self._compile_output(event, output, input_variables)
+            self._compile_output(
+                event,
+                output,
+                input_variables,
+                source_variables,
+            )
         for sink in event.sinks:
             self._compile_sink(event, sink, input_variables)
 
@@ -514,9 +791,10 @@ class _ProcessCompiler:
         self,
         event: ProcessEvent,
         process_input: ProcessInput,
+        candidates: tuple[HoldingKey, ...],
     ) -> str:
         before_states = []
-        for holding in process_input.candidates:
+        for holding in candidates:
             try:
                 before_states.append(self._current[holding])
             except KeyError as error:
@@ -619,9 +897,15 @@ class _ProcessCompiler:
         event: ProcessEvent,
         output: ProcessOutput,
         input_variables: dict[str, str],
+        source_variables: dict[str, str],
     ) -> None:
         if isinstance(output.amount, FromInput):
             flow_id = input_variables[output.amount.input_id]
+        elif isinstance(output.amount, FromSource):
+            flow_id = source_variables[output.amount.source_id]
+        else:
+            flow_id = ""
+        if isinstance(output.amount, (FromInput, FromSource)):
             variable = next(
                 variable
                 for variable in self._system.variables
@@ -661,6 +945,95 @@ class _ProcessCompiler:
             0,
         )
         self._current[output.holding] = after
+
+    def _compile_source(
+        self,
+        event: ProcessEvent,
+        source: ProcessSource,
+    ) -> str:
+        variable_id = f"source:{event.process_id}:{source.source_id}"
+        self._add_variable(
+            variable_id,
+            source.unit,
+            source.domain,
+            f"source[{event.process_id}.{source.source_id}:{source.kind}]",
+        )
+        self._source_variables[(event.process_id, source.source_id)] = variable_id
+        _add_observation_constraints(
+            self._system,
+            source.observation,
+            variable_id,
+            f"{event.process_id}:{source.source_id}",
+        )
+        return variable_id
+
+    def _compile_batch_replacement(
+        self,
+        event: ProcessEvent,
+        replacement: BatchReplacement,
+    ) -> None:
+        source_states = sorted(
+            (
+                state
+                for holding, state in self._current.items()
+                if holding.batch_id == replacement.source_batch_id
+            ),
+            key=lambda state: _holding_label(state.holding),
+        )
+        if not source_states:
+            raise ValueError("Batch replacement source has no earlier holding state")
+        mappings = []
+        for index, before in enumerate(source_states):
+            source_after = self._new_state(before.holding, before.domain)
+            flow_id = f"replacement:{event.process_id}:{index}"
+            self._add_variable(
+                flow_id,
+                before.holding.unit,
+                before.domain,
+                f"replacement[{event.process_id} <- {_holding_label(before.holding)}]",
+            )
+            self._system.add_constraint(
+                f"{event.process_id}:{replacement.replacement_id}:source:{index}",
+                {
+                    before.variable_id: 1,
+                    source_after.variable_id: -1,
+                    flow_id: -1,
+                },
+                ConstraintRelation.EQUAL,
+                0,
+            )
+            self._system.add_constraint(
+                f"{event.process_id}:{replacement.replacement_id}:all:{index}",
+                {source_after.variable_id: 1},
+                ConstraintRelation.EQUAL,
+                0,
+            )
+            self._current[before.holding] = source_after
+
+            destination = HoldingKey(
+                replacement.destination_batch_id,
+                before.holding.location_id,
+                before.holding.unit,
+                before.holding.packaging_configuration_id,
+            )
+            destination_before = self._current.get(destination)
+            destination_after = self._new_state(destination, before.domain)
+            coefficients = {destination_after.variable_id: 1, flow_id: -1}
+            if destination_before is not None:
+                if destination_before.domain != before.domain:
+                    raise ValueError(
+                        "Batch replacement destination has a different domain"
+                    )
+                coefficients[destination_before.variable_id] = -1
+            self._system.add_constraint(
+                f"{event.process_id}:{replacement.replacement_id}:destination:{index}",
+                coefficients,
+                ConstraintRelation.EQUAL,
+                0,
+            )
+            self._current[destination] = destination_after
+            mappings.append((before.holding, destination))
+        self._replacement_holdings[event.process_id] = tuple(mappings)
 
     def _compile_sink(
         self,
@@ -778,6 +1151,36 @@ def _validate_observation(
         ):
             if value is not None and value.denominator != 1:
                 raise ValueError("discrete observations must use whole amounts")
+
+
+def _add_observation_constraints(
+    system: QuantityConstraintSystem,
+    observation: QuantityObservation,
+    variable_id: str,
+    constraint_prefix: str,
+) -> None:
+    if observation.lower is not None and observation.lower == observation.upper:
+        system.add_constraint(
+            f"{constraint_prefix}:exact",
+            {variable_id: 1},
+            ConstraintRelation.EQUAL,
+            observation.lower,
+        )
+        return
+    if observation.lower is not None:
+        system.add_constraint(
+            f"{constraint_prefix}:lower",
+            {variable_id: 1},
+            ConstraintRelation.AT_LEAST,
+            observation.lower,
+        )
+    if observation.upper is not None:
+        system.add_constraint(
+            f"{constraint_prefix}:upper",
+            {variable_id: 1},
+            ConstraintRelation.AT_MOST,
+            observation.upper,
+        )
 
 
 def _validate_amount(
