@@ -13,6 +13,7 @@ from inventorius.process_quantities import (
     FromInput,
     FromSource,
     ObservationEvent,
+    PreservedIdentityOutput,
     ProcessEvent,
     ProcessInput,
     ProcessOutput,
@@ -611,3 +612,49 @@ def test_ambiguous_input_cannot_collapse_into_one_concrete_batch():
                 FromInput("moved"),
             ),),
         )
+
+
+def test_ambiguous_move_preserves_each_possible_batch_allocation():
+    first_source = HoldingKey("BAT-A", "BIN-A", "each")
+    second_source = HoldingKey("BAT-B", "BIN-A", "each")
+    first_destination = HoldingKey("BAT-A", "BIN-B", "each")
+    second_destination = HoldingKey("BAT-B", "BIN-B", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("OBS-A-ten", first_source, 10, 1))
+    timeline.record(exact_observation("OBS-B-ten", second_source, 10, 1))
+    timeline.record(ProcessEvent(
+        "PROC-ambiguous-move",
+        "move",
+        moment(2),
+        moment(2),
+        inputs=(ProcessInput(
+            "moved",
+            (first_source, second_source),
+            ExactAmount(5),
+            selector=selection(
+                "SEL-X",
+                "SKU-X",
+                "BIN-A",
+                first_source,
+                second_source,
+            ),
+        ),),
+        preserved_outputs=(PreservedIdentityOutput(
+            "destination",
+            "moved",
+            "BIN-B",
+        ),),
+    ))
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(first_source), 5, 10)
+    assert_bounds(compiled.current_bounds(second_source), 5, 10)
+    assert_bounds(compiled.current_total_bounds(
+        (first_source, second_source),
+    ), 15, 15)
+    assert_bounds(compiled.current_bounds(first_destination), 0, 5)
+    assert_bounds(compiled.current_bounds(second_destination), 0, 5)
+    assert_bounds(compiled.current_total_bounds(
+        (first_destination, second_destination),
+    ), 5, 5)

@@ -23,6 +23,9 @@ authorization, or frontend contracts.
   add a Batch discovered later, while historical compilation retains the old
   candidate set. The compiler retains a latent allocation per candidate and one
   shared total instead of selecting a Batch or storing independent ranges.
+- An identity-preserving move maps every latent source allocation to a holding
+  of that same Batch at the destination. The moved total can therefore be exact
+  while the destination's per-Batch composition remains ranged.
 - An audit produces non-consuming observations. Lower, upper, interval, exact,
   and preferred-only claims remain distinct.
 - Assembly and disassembly use ordinary process inputs and outputs. Quantities
@@ -60,8 +63,8 @@ authorization, or frontend contracts.
 - A process cannot consume from and produce into the identical holding in this
   slice. That case needs explicit semantics instead of an accidental ordering.
 - An unresolved multi-Batch input cannot be collapsed into one concrete output
-  Batch. A later allocation/identity design must preserve those possibilities
-  through moves, splits, or transformations.
+  Batch. Identity-preserving moves now retain the alternatives; transformations
+  that merge, split, or replace those identities remain fail-closed.
 - Process definitions, provenance allocation modes, corrections, database
   codecs, and public operations remain outside this slice.
 - Batch replacement currently preserves location, unit, and package

@@ -198,6 +198,22 @@ class ProcessOutput:
 
 
 @dataclass(frozen=True)
+class PreservedIdentityOutput:
+    """Move each possible source Batch allocation to a new location."""
+
+    output_id: str
+    input_id: str
+    destination_location_id: str
+    role: str = "output"
+
+    def __post_init__(self) -> None:
+        _nonblank(self.output_id, "output_id")
+        _nonblank(self.input_id, "input_id")
+        _nonblank(self.destination_location_id, "destination_location_id")
+        _nonblank(self.role, "role")
+
+
+@dataclass(frozen=True)
 class ProcessSource:
     """A named external boundary admitting quantity into tracked holdings."""
 
@@ -266,6 +282,7 @@ class ProcessEvent:
     recorded_at: datetime
     inputs: tuple[ProcessInput, ...] = ()
     outputs: tuple[ProcessOutput, ...] = ()
+    preserved_outputs: tuple[PreservedIdentityOutput, ...] = ()
     sinks: tuple[ProcessSink, ...] = ()
     sources: tuple[ProcessSource, ...] = ()
     batch_replacements: tuple[BatchReplacement, ...] = ()
@@ -290,7 +307,11 @@ class ProcessEvent:
                 "output-only processes need explicit external-source semantics"
             )
         if self.batch_replacements and (
-            self.inputs or self.outputs or self.sinks or self.sources
+            self.inputs
+            or self.outputs
+            or self.preserved_outputs
+            or self.sinks
+            or self.sources
         ):
             raise ValueError(
                 "Batch replacement is an exclusive semantic process in this slice"
@@ -298,7 +319,9 @@ class ProcessEvent:
         if len(self.batch_replacements) > 1:
             raise ValueError("one process may replace only one Batch in this slice")
         input_ids = [item.input_id for item in self.inputs]
-        output_ids = [item.output_id for item in self.outputs]
+        output_ids = [item.output_id for item in self.outputs] + [
+            item.output_id for item in self.preserved_outputs
+        ]
         sink_ids = [item.sink_id for item in self.sinks]
         source_ids = [item.source_id for item in self.sources]
         if len(set(input_ids)) != len(input_ids):
@@ -310,6 +333,23 @@ class ProcessEvent:
         if len(set(source_ids)) != len(source_ids):
             raise ValueError("process source identifiers must be distinct")
         known_inputs = set(input_ids)
+        for output in self.preserved_outputs:
+            if output.input_id not in known_inputs:
+                raise ValueError("preserved output references an unknown input")
+            process_input = next(
+                item for item in self.inputs if item.input_id == output.input_id
+            )
+            if process_input.selector is None:
+                raise ValueError(
+                    "preserved candidate output needs an observed selection"
+                )
+            if any(
+                holding.location_id == output.destination_location_id
+                for holding in process_input.candidates
+            ):
+                raise ValueError(
+                    "preserved output destination must differ from its sources"
+                )
         for output in self.outputs:
             if (
                 isinstance(output.amount, FromInput)
@@ -347,6 +387,9 @@ class ProcessEvent:
             ) or any(
                 sink.amount.input_id == process_input.input_id
                 for sink in self.sinks
+            ) or any(
+                output.input_id == process_input.input_id
+                for output in self.preserved_outputs
             ) or bool(process_input.contributes_to)
             if not accounted:
                 raise ValueError(
@@ -367,7 +410,18 @@ class ProcessEvent:
         touched_inputs = [
             holding for item in self.inputs for holding in item.candidates
         ]
-        touched_outputs = [item.holding for item in self.outputs]
+        touched_outputs = [item.holding for item in self.outputs] + [
+            HoldingKey(
+                holding.batch_id,
+                output.destination_location_id,
+                holding.unit,
+                holding.packaging_configuration_id,
+            )
+            for output in self.preserved_outputs
+            for process_input in self.inputs
+            if process_input.input_id == output.input_id
+            for holding in process_input.candidates
+        ]
         if len(set(touched_inputs)) != len(touched_inputs):
             raise ValueError("one process cannot consume a holding twice")
         if len(set(touched_outputs)) != len(touched_outputs):
@@ -604,6 +658,9 @@ class _ProcessCompiler:
         self._allocation_variables: dict[
             tuple[str, str, HoldingKey], str
         ] = {}
+        self._input_candidate_variables: dict[
+            tuple[str, str, HoldingKey], str
+        ] = {}
         self._source_variables: dict[tuple[str, str], str] = {}
         self._replacement_holdings: dict[
             str, tuple[tuple[HoldingKey, HoldingKey], ...]
@@ -708,6 +765,14 @@ class _ProcessCompiler:
                     ]
                 }
                 holdings.update(output.holding for output in event.outputs)
+                for output in event.preserved_outputs:
+                    for source in resolved[(event.process_id, output.input_id)]:
+                        holdings.add(HoldingKey(
+                            source.batch_id,
+                            output.destination_location_id,
+                            source.unit,
+                            source.packaging_configuration_id,
+                        ))
                 for replacement in event.batch_replacements:
                     for current_holding in self._current:
                         if current_holding.batch_id in {
@@ -784,6 +849,12 @@ class _ProcessCompiler:
                 input_variables,
                 source_variables,
             )
+        for output in event.preserved_outputs:
+            self._compile_preserved_output(
+                event,
+                output,
+                resolved_candidates[(event.process_id, output.input_id)],
+            )
         for sink in event.sinks:
             self._compile_sink(event, sink, input_variables)
 
@@ -849,6 +920,9 @@ class _ProcessCompiler:
                     0,
                 )
             self._current[before.holding] = after
+            self._input_candidate_variables[
+                (event.process_id, process_input.input_id, before.holding)
+            ] = flow_id
             return flow_id
 
         allocation_ids = []
@@ -878,6 +952,9 @@ class _ProcessCompiler:
             )
             self._current[before.holding] = after
             self._allocation_variables[
+                (event.process_id, process_input.input_id, before.holding)
+            ] = allocation_id
+            self._input_candidate_variables[
                 (event.process_id, process_input.input_id, before.holding)
             ] = allocation_id
             allocation_ids.append(allocation_id)
@@ -945,6 +1022,40 @@ class _ProcessCompiler:
             0,
         )
         self._current[output.holding] = after
+
+    def _compile_preserved_output(
+        self,
+        event: ProcessEvent,
+        output: PreservedIdentityOutput,
+        candidates: tuple[HoldingKey, ...],
+    ) -> None:
+        for index, source in enumerate(candidates):
+            flow_id = self._input_candidate_variables[
+                (event.process_id, output.input_id, source)
+            ]
+            source_state = self._current[source]
+            destination = HoldingKey(
+                source.batch_id,
+                output.destination_location_id,
+                source.unit,
+                source.packaging_configuration_id,
+            )
+            before = self._current.get(destination)
+            after = self._new_state(destination, source_state.domain)
+            coefficients = {after.variable_id: 1, flow_id: -1}
+            if before is not None:
+                if before.domain != source_state.domain:
+                    raise ValueError(
+                        "preserved output domain differs from destination state"
+                    )
+                coefficients[before.variable_id] = -1
+            self._system.add_constraint(
+                f"{event.process_id}:{output.output_id}:destination:{index}",
+                coefficients,
+                ConstraintRelation.EQUAL,
+                0,
+            )
+            self._current[destination] = after
 
     def _compile_source(
         self,

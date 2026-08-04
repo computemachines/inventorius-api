@@ -11,6 +11,7 @@ from inventorius.process_quantities import (
     FromInput,
     FromSource,
     ObservationEvent,
+    PreservedIdentityOutput,
     ProcessEvent,
     ProcessInput,
     ProcessOutput,
@@ -183,6 +184,53 @@ def audit_trace():
     show("Audit: later upper bound", timeline, (("bolts", holding),))
     timeline.record(exact("OBS-complete-count", holding, 25, 3))
     show("Audit: complete count", timeline, (("bolts", holding),))
+
+
+def ambiguous_move_trace():
+    first_source = HoldingKey("BAT-A", "BIN-A", "each")
+    second_source = HoldingKey("BAT-B", "BIN-A", "each")
+    first_destination = HoldingKey("BAT-A", "BIN-B", "each")
+    second_destination = HoldingKey("BAT-B", "BIN-B", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact("OBS-A-ten-move", first_source, 10, 1))
+    timeline.record(exact("OBS-B-ten-move", second_source, 10, 1))
+    timeline.record(ProcessEvent(
+        "PROC-ambiguous-move",
+        "move",
+        time(2),
+        time(2),
+        inputs=(ProcessInput(
+            "moved",
+            (first_source, second_source),
+            ExactAmount(5),
+            selector=selection(
+                "SEL-move-fasteners",
+                "SKU-FASTENER",
+                "BIN-A",
+                first_source,
+                second_source,
+            ),
+        ),),
+        preserved_outputs=(PreservedIdentityOutput(
+            "destination",
+            "moved",
+            "BIN-B",
+        ),),
+    ))
+    compiled = show(
+        "Ambiguous move preserves possible Batch identities",
+        timeline,
+        (
+            ("Batch A source", first_source),
+            ("Batch B source", second_source),
+            ("Batch A destination", first_destination),
+            ("Batch B destination", second_destination),
+        ),
+    )
+    destination_total = compiled.current_total_bounds(
+        (first_destination, second_destination)
+    )
+    print(f"  combined destination: {amount(destination_total)} each")
 
 
 def reclassification_trace():
@@ -415,6 +463,7 @@ def late_conflict_trace():
 def main():
     move_trace()
     ambiguous_trace()
+    ambiguous_move_trace()
     audit_trace()
     receive_trace()
     reclassification_trace()
