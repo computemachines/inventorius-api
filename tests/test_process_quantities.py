@@ -77,6 +77,9 @@ def assert_bounds(bounds, minimum, maximum):
     assert bounds.minimum == (
         None if minimum is None else Fraction(str(minimum))
     )
+    assert bounds.maximum == (
+        None if maximum is None else Fraction(str(maximum))
+    )
 
 
 def selection(
@@ -91,9 +94,6 @@ def selection(
         location_id,
         candidates[0].unit,
         candidates[0].packaging_configuration_id,
-    )
-    assert bounds.maximum == (
-        None if maximum is None else Fraction(str(maximum))
     )
 
 
