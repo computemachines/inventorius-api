@@ -7,10 +7,12 @@ from inventorius.ledger import HoldingKey
 from inventorius.process_quantities import (
     BatchReplacement,
     CandidateSelection,
+    DeclaredOneToOneTransformation,
     ExactAmount,
     FromInput,
     FromSource,
     ObservationEvent,
+    OneToOneTransformedFromInput,
     PreservedIdentityOutput,
     ProcessEvent,
     ProcessInput,
@@ -233,6 +235,89 @@ def ambiguous_move_trace():
     print(f"  combined destination: {amount(destination_total)} each")
 
 
+def ambiguous_transformation_trace():
+    first = HoldingKey("BAT-A", "BIN-SHARED", "each")
+    second = HoldingKey("BAT-B", "BIN-SHARED", "each")
+    transformed = HoldingKey("BAT-C", "BIN-OUTPUT", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact("OBS-A-ten-transform", first, 10, 1))
+    timeline.record(exact("OBS-B-ten-transform", second, 10, 1))
+    timeline.record(ProcessEvent(
+        "PROC-transform-five",
+        "one-to-one transformation",
+        time(2),
+        time(2),
+        inputs=(ProcessInput(
+            "unprocessed",
+            (first, second),
+            ExactAmount(5),
+            selector=selection(
+                "SEL-unprocessed",
+                "SKU-UNPROCESSED",
+                "BIN-SHARED",
+                first,
+                second,
+            ),
+        ),),
+        outputs=(ProcessOutput(
+            "processed",
+            transformed,
+            DISCRETE,
+            OneToOneTransformedFromInput(
+                "unprocessed",
+                DeclaredOneToOneTransformation(
+                    "SKU-UNPROCESSED",
+                    "SKU-PROCESSED",
+                    "each",
+                    DISCRETE,
+                ),
+            ),
+        ),),
+    ))
+    compiled = show(
+        "Ambiguous sources form one new Batch without losing correlation",
+        timeline,
+        (
+            ("Batch A remainder", first),
+            ("Batch B remainder", second),
+            ("new Batch C", transformed),
+        ),
+    )
+    for label, holding in (("Batch A", first), ("Batch B", second)):
+        source_allocation = compiled.output_source_allocation_bounds(
+            "PROC-transform-five",
+            "processed",
+            holding,
+        )
+        print(
+            f"  possible source allocation from {label}: "
+            f"{amount(source_allocation)} each"
+        )
+    combined = compiled.output_source_allocation_total_bounds(
+        "PROC-transform-five",
+        "processed",
+        (first, second),
+    )
+    print(f"  combined source allocation: {amount(combined)} each")
+
+    timeline.record(exact("OBS-A-seven-remain", first, 7, 3))
+    tightened = show(
+        "A later audit tightens the earlier transformation",
+        timeline,
+        (("Batch A remainder", first), ("Batch B remainder", second)),
+    )
+    for label, holding in (("Batch A", first), ("Batch B", second)):
+        source_allocation = tightened.output_source_allocation_bounds(
+            "PROC-transform-five",
+            "processed",
+            holding,
+        )
+        print(
+            f"  proven source allocation from {label}: "
+            f"{amount(source_allocation)} each"
+        )
+
+
 def reclassification_trace():
     old = HoldingKey("BAT-WRONG", "BIN-PARTS", "each")
     old_bench = HoldingKey("BAT-WRONG", "BENCH", "each")
@@ -397,14 +482,14 @@ def assembly_trace():
                 (screws,),
                 ExactAmount(4),
                 "fasteners",
-                contributes_to=("machine",),
+                structurally_contributes_to=("machine",),
             ),
             ProcessInput(
                 "body",
                 (body,),
                 ExactAmount(1),
                 "machine body",
-                contributes_to=("machine",),
+                structurally_contributes_to=("machine",),
             ),
         ),
         outputs=(ProcessOutput(
@@ -464,6 +549,7 @@ def main():
     move_trace()
     ambiguous_trace()
     ambiguous_move_trace()
+    ambiguous_transformation_trace()
     audit_trace()
     receive_trace()
     reclassification_trace()

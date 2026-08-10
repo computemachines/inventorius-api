@@ -9,10 +9,12 @@ from inventorius.ledger import HoldingKey
 from inventorius.process_quantities import (
     BatchReplacement,
     CandidateSelection,
+    DeclaredOneToOneTransformation,
     ExactAmount,
     FromInput,
     FromSource,
     ObservationEvent,
+    OneToOneTransformedFromInput,
     PreservedIdentityOutput,
     ProcessEvent,
     ProcessInput,
@@ -95,6 +97,72 @@ def selection(
         candidates[0].unit,
         candidates[0].packaging_configuration_id,
     )
+
+
+def declared_one_to_one_transformation(
+    source_sku_id: str,
+    output_sku_id: str,
+) -> DeclaredOneToOneTransformation:
+    return DeclaredOneToOneTransformation(
+        source_sku_id,
+        output_sku_id,
+        "each",
+        DISCRETE,
+    )
+
+
+def ambiguous_transformation_timeline(
+    first_amount: int = 10,
+    second_amount: int = 10,
+    process_id: str = "PROC-transform-five",
+):
+    first = HoldingKey("BAT-A", "BIN-SHARED", "each")
+    second = HoldingKey("BAT-B", "BIN-SHARED", "each")
+    transformed = HoldingKey("BAT-C", "BIN-OUTPUT", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation(
+        "OBS-A-opening",
+        first,
+        first_amount,
+        1,
+    ))
+    timeline.record(exact_observation(
+        "OBS-B-opening",
+        second,
+        second_amount,
+        1,
+    ))
+    timeline.record(ProcessEvent(
+        process_id,
+        "one-to-one transformation",
+        moment(2),
+        moment(2),
+        inputs=(ProcessInput(
+            "unprocessed",
+            (first, second),
+            ExactAmount(5),
+            selector=selection(
+                "SEL-unprocessed",
+                "SKU-UNPROCESSED",
+                "BIN-SHARED",
+                first,
+                second,
+            ),
+        ),),
+        outputs=(ProcessOutput(
+            "processed",
+            transformed,
+            DISCRETE,
+            OneToOneTransformedFromInput(
+                "unprocessed",
+                declared_one_to_one_transformation(
+                    "SKU-UNPROCESSED",
+                    "SKU-PROCESSED",
+                ),
+            ),
+        ),),
+    ))
+    return timeline, first, second, transformed
 
 
 def test_move_consumes_only_the_selected_amount_and_derives_the_remainder():
@@ -315,14 +383,14 @@ def test_assembly_is_a_normal_process_without_adding_incompatible_units():
                 (screws,),
                 ExactAmount(4),
                 "fasteners",
-                contributes_to=("machine",),
+                structurally_contributes_to=("machine",),
             ),
             ProcessInput(
                 "body",
                 (body,),
                 ExactAmount(1),
                 "machine body",
-                contributes_to=("machine",),
+                structurally_contributes_to=("machine",),
             ),
         ),
         outputs=(ProcessOutput(
@@ -424,6 +492,91 @@ def test_process_input_cannot_be_a_meaningless_withdrawal():
         )
 
 
+def test_process_input_cannot_feed_two_concrete_outputs_in_full():
+    source = HoldingKey("BAT-X", "BIN-A", "each")
+    first_output = HoldingKey("BAT-X", "BIN-B", "each")
+    second_output = HoldingKey("BAT-X", "BIN-C", "each")
+
+    with pytest.raises(ValueError, match="multiple quantity destinations"):
+        ProcessEvent(
+            "PROC-duplicate-output",
+            "invalid split",
+            moment(1),
+            moment(1),
+            inputs=(ProcessInput("input", (source,), ExactAmount(5)),),
+            outputs=(
+                ProcessOutput(
+                    "first",
+                    first_output,
+                    DISCRETE,
+                    FromInput("input"),
+                ),
+                ProcessOutput(
+                    "second",
+                    second_output,
+                    DISCRETE,
+                    FromInput("input"),
+                ),
+            ),
+        )
+
+
+def test_process_input_cannot_feed_an_output_and_sink_in_full():
+    source = HoldingKey("BAT-X", "BIN-A", "each")
+    output = HoldingKey("BAT-X", "BIN-B", "each")
+
+    with pytest.raises(ValueError, match="multiple quantity destinations"):
+        ProcessEvent(
+            "PROC-output-and-sink",
+            "invalid split",
+            moment(1),
+            moment(1),
+            inputs=(ProcessInput("input", (source,), ExactAmount(5)),),
+            outputs=(ProcessOutput(
+                "output",
+                output,
+                DISCRETE,
+                FromInput("input"),
+            ),),
+            sinks=(ProcessSink(
+                "sink",
+                "also consumed",
+                "each",
+                DISCRETE,
+                FromInput("input"),
+            ),),
+        )
+
+
+def test_process_input_cannot_feed_two_preserved_outputs_in_full():
+    first = HoldingKey("BAT-A", "BIN-A", "each")
+    second = HoldingKey("BAT-B", "BIN-A", "each")
+
+    with pytest.raises(ValueError, match="multiple quantity destinations"):
+        ProcessEvent(
+            "PROC-two-preserved-outputs",
+            "invalid split",
+            moment(1),
+            moment(1),
+            inputs=(ProcessInput(
+                "input",
+                (first, second),
+                ExactAmount(5),
+                selector=selection(
+                    "SEL-X",
+                    "SKU-X",
+                    "BIN-A",
+                    first,
+                    second,
+                ),
+            ),),
+            preserved_outputs=(
+                PreservedIdentityOutput("first", "input", "BIN-B"),
+                PreservedIdentityOutput("second", "input", "BIN-C"),
+            ),
+        )
+
+
 def test_output_only_process_waits_for_explicit_external_source_semantics():
     holding = HoldingKey("BAT-X", "BIN-X", "each")
     with pytest.raises(ValueError, match="external-source"):
@@ -516,6 +669,131 @@ def test_equal_time_overlap_requires_explicit_effective_order():
     assert_bounds(compiled.current_bounds(destination), 1, 1)
 
 
+@pytest.mark.parametrize("batch_id", ("BAT-WRONG", "BAT-CORRECT"))
+@pytest.mark.parametrize("replacement_process_id", ("AAA-replace", "ZZZ-replace"))
+def test_same_time_new_observation_overlaps_whole_batch_replacement(
+    batch_id,
+    replacement_process_id,
+):
+    observed = HoldingKey(batch_id, "BIN-NEW", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("MMM-observation", observed, 3, 1))
+    timeline.record(ProcessEvent(
+        replacement_process_id,
+        "reclassify",
+        moment(1),
+        moment(1),
+        batch_replacements=(BatchReplacement(
+            "replace-identity",
+            "BAT-WRONG",
+            "BAT-CORRECT",
+        ),),
+    ))
+
+    with pytest.raises(ValueError, match="effective_order"):
+        timeline.compile()
+
+
+@pytest.mark.parametrize("batch_id", ("BAT-WRONG", "BAT-CORRECT"))
+@pytest.mark.parametrize("producer_process_id", ("AAA-produce", "ZZZ-produce"))
+def test_same_time_new_output_overlaps_whole_batch_replacement(
+    batch_id,
+    producer_process_id,
+):
+    produced = HoldingKey(batch_id, "BIN-NEW", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(ProcessEvent(
+        producer_process_id,
+        "receive",
+        moment(1),
+        moment(1),
+        sources=(ProcessSource(
+            "supplier",
+            "supplier",
+            "each",
+            DISCRETE,
+            QuantityObservation.exact(
+                "OBS-received",
+                3,
+                basis=ObservationBasis.COUNTED,
+            ),
+        ),),
+        outputs=(ProcessOutput(
+            "received",
+            produced,
+            DISCRETE,
+            FromSource("supplier"),
+        ),),
+    ))
+    timeline.record(ProcessEvent(
+        "MMM-replace",
+        "reclassify",
+        moment(1),
+        moment(1),
+        batch_replacements=(BatchReplacement(
+            "replace-identity",
+            "BAT-WRONG",
+            "BAT-CORRECT",
+        ),),
+    ))
+
+    with pytest.raises(ValueError, match="effective_order"):
+        timeline.compile()
+
+
+def test_same_time_overlapping_batch_replacements_need_explicit_order():
+    timeline = ProcessQuantityTimeline()
+    timeline.record(ProcessEvent(
+        "PROC-first-replacement",
+        "reclassify",
+        moment(1),
+        moment(1),
+        batch_replacements=(BatchReplacement(
+            "replace-a-with-b",
+            "BAT-A",
+            "BAT-B",
+        ),),
+    ))
+    timeline.record(ProcessEvent(
+        "PROC-second-replacement",
+        "reclassify",
+        moment(1),
+        moment(1),
+        batch_replacements=(BatchReplacement(
+            "replace-b-with-c",
+            "BAT-B",
+            "BAT-C",
+        ),),
+    ))
+
+    with pytest.raises(ValueError, match="effective_order"):
+        timeline.compile()
+
+
+def test_explicit_order_allows_observation_before_whole_batch_replacement():
+    old = HoldingKey("BAT-WRONG", "BIN-NEW", "each")
+    corrected = HoldingKey("BAT-CORRECT", "BIN-NEW", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("OBS-opening", old, 3, 1))
+    timeline.record(ProcessEvent(
+        "PROC-replace",
+        "reclassify",
+        moment(1),
+        moment(1),
+        batch_replacements=(BatchReplacement(
+            "replace-identity",
+            "BAT-WRONG",
+            "BAT-CORRECT",
+        ),),
+        effective_order=1,
+    ))
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(old), 0, 0)
+    assert_bounds(compiled.current_bounds(corrected), 3, 3)
+
+
 def test_ambiguous_selection_can_gain_a_late_discovered_candidate():
     first = HoldingKey("BAT-A", "BIN-SHARED", "each")
     second = HoldingKey("BAT-B", "BIN-SHARED", "each")
@@ -583,11 +861,110 @@ def test_ambiguous_selection_can_gain_a_late_discovered_candidate():
     ), 0, 2)
 
 
-def test_ambiguous_input_cannot_collapse_into_one_concrete_batch():
+def test_resolver_cannot_make_two_inputs_consume_the_same_holding():
+    first = HoldingKey("BAT-A", "BIN-SHARED", "each")
+    second = HoldingKey("BAT-B", "BIN-SHARED", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("OBS-A-two", first, 2, 1))
+    timeline.record(exact_observation("OBS-B-two", second, 2, 1))
+    timeline.record(ProcessEvent(
+        "PROC-consume-two-legs",
+        "consume",
+        moment(2),
+        moment(2),
+        inputs=(
+            ProcessInput(
+                "first-leg",
+                (first,),
+                ExactAmount(1),
+                selector=selection(
+                    "SEL-first",
+                    "SKU-X",
+                    "BIN-SHARED",
+                    first,
+                ),
+            ),
+            ProcessInput(
+                "second-leg",
+                (second,),
+                ExactAmount(1),
+                selector=selection(
+                    "SEL-second",
+                    "SKU-X",
+                    "BIN-SHARED",
+                    second,
+                ),
+            ),
+        ),
+        sinks=(
+            ProcessSink(
+                "first-use",
+                "consumed",
+                "each",
+                DISCRETE,
+                FromInput("first-leg"),
+            ),
+            ProcessSink(
+                "second-use",
+                "consumed",
+                "each",
+                DISCRETE,
+                FromInput("second-leg"),
+            ),
+        ),
+    ))
+
+    def resolve(*_):
+        return (first,)
+
+    with pytest.raises(ValueError, match="consume a holding twice"):
+        timeline.compile(candidate_resolver=resolve)
+
+
+def test_resolver_cannot_turn_an_input_into_its_exact_output_holding():
+    declared = HoldingKey("BAT-A", "BIN-SHARED", "each")
+    transformed = HoldingKey("BAT-C", "BIN-SHARED", "each")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("OBS-A-two", declared, 2, 1))
+    timeline.record(ProcessEvent(
+        "PROC-transform-one",
+        "one-to-one transformation",
+        moment(2),
+        moment(2),
+        inputs=(ProcessInput(
+            "input",
+            (declared,),
+            ExactAmount(1),
+            selector=selection(
+                "SEL-input",
+                "SKU-A",
+                "BIN-SHARED",
+                declared,
+            ),
+        ),),
+        outputs=(ProcessOutput(
+            "output",
+            transformed,
+            DISCRETE,
+            OneToOneTransformedFromInput(
+                "input",
+                declared_one_to_one_transformation("SKU-A", "SKU-C"),
+            ),
+        ),),
+    ))
+
+    def resolve(*_):
+        return (transformed,)
+
+    with pytest.raises(ValueError, match="same-holding"):
+        timeline.compile(candidate_resolver=resolve)
+
+
+def test_ambiguous_input_needs_explicit_transformation_or_preserved_outputs():
     first = HoldingKey("BAT-A", "BIN-A", "each")
     second = HoldingKey("BAT-B", "BIN-A", "each")
     output = HoldingKey("BAT-A", "BIN-B", "each")
-    with pytest.raises(ValueError, match="ambiguous input"):
+    with pytest.raises(ValueError, match="explicit one-to-one"):
         ProcessEvent(
             "PROC-ambiguous-move",
             "move",
@@ -612,6 +989,142 @@ def test_ambiguous_input_cannot_collapse_into_one_concrete_batch():
                 FromInput("moved"),
             ),),
         )
+
+
+def test_from_input_cannot_silently_change_batch_identity():
+    source = HoldingKey("BAT-A", "BIN-A", "each")
+    output = HoldingKey("BAT-B", "BIN-B", "each")
+
+    with pytest.raises(ValueError, match="must preserve its input Batch"):
+        ProcessEvent(
+            "PROC-implicit-transformation",
+            "implicit transformation",
+            moment(1),
+            moment(1),
+            inputs=(ProcessInput("input", (source,), ExactAmount(1)),),
+            outputs=(ProcessOutput(
+                "output",
+                output,
+                DISCRETE,
+                FromInput("input"),
+            ),),
+        )
+
+
+def test_ambiguous_input_can_form_one_new_batch_with_correlated_provenance():
+    timeline, first, second, transformed = ambiguous_transformation_timeline()
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(first), 5, 10)
+    assert_bounds(compiled.current_bounds(second), 5, 10)
+    assert_bounds(compiled.current_total_bounds((first, second)), 15, 15)
+    assert_bounds(compiled.current_bounds(transformed), 5, 5)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        first,
+    ), 0, 5)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        second,
+    ), 0, 5)
+    assert_bounds(compiled.output_source_allocation_total_bounds(
+        "PROC-transform-five",
+        "processed",
+        (first, second),
+    ), 5, 5)
+    rendered = "\n".join(compiled.rendered_constraints())
+    assert "PROC-transform-five:processed:one-to-one" in rendered
+    assert "output-source-allocation[BAT-A @ BIN-SHARED" in rendered
+    assert "output-source-allocation[BAT-B @ BIN-SHARED" in rendered
+
+
+def test_later_audit_tightens_ambiguous_transformation_and_provenance():
+    timeline, first, second, _ = ambiguous_transformation_timeline()
+    timeline.record(exact_observation("OBS-A-seven-remain", first, 7, 3))
+
+    historical = timeline.compile(known_at=moment(2, 13))
+    assert_bounds(historical.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        first,
+    ), 0, 5)
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(first), 7, 7)
+    assert_bounds(compiled.current_bounds(second), 8, 8)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        first,
+    ), 3, 3)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        second,
+    ), 2, 2)
+
+
+def test_one_to_one_transformation_respects_each_source_capacity():
+    timeline, first, second, transformed = (
+        ambiguous_transformation_timeline(2, 4)
+    )
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(first), 0, 1)
+    assert_bounds(compiled.current_bounds(second), 0, 1)
+    assert_bounds(compiled.current_total_bounds((first, second)), 1, 1)
+    assert_bounds(compiled.current_bounds(transformed), 5, 5)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        first,
+    ), 1, 2)
+    assert_bounds(compiled.output_source_allocation_bounds(
+        "PROC-transform-five",
+        "processed",
+        second,
+    ), 3, 4)
+
+
+def test_one_to_one_transformation_requires_a_fresh_output_batch():
+    timeline, _, _, transformed = ambiguous_transformation_timeline()
+    timeline.record(exact_observation(
+        "OBS-output-already-exists",
+        transformed,
+        1,
+        1,
+    ))
+
+    with pytest.raises(ValueError, match="output Batch already exists"):
+        timeline.compile()
+
+
+@pytest.mark.parametrize("process_id", ("AAA-transform", "ZZZ-transform"))
+def test_same_time_observation_overlaps_fresh_transformed_batch_identity(
+    process_id,
+):
+    timeline, _, _, transformed = ambiguous_transformation_timeline(
+        process_id=process_id,
+    )
+    other_holding = HoldingKey(
+        transformed.batch_id,
+        "BIN-OTHER",
+        transformed.unit,
+    )
+    timeline.record(exact_observation(
+        "MMM-observation",
+        other_holding,
+        1,
+        2,
+    ))
+
+    with pytest.raises(ValueError, match="effective_order"):
+        timeline.compile()
 
 
 def test_ambiguous_move_preserves_each_possible_batch_allocation():

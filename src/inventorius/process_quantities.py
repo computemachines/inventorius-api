@@ -84,12 +84,53 @@ ALL_REMAINING = AllRemaining()
 
 @dataclass(frozen=True)
 class FromInput:
-    """Produce exactly the amount compiled for one process input."""
+    """Reference one compiled input flow.
+
+    A ``ProcessOutput`` using this amount preserves the input Batch identity;
+    a ``ProcessSink`` using it sends the same flow beyond tracked holdings.
+    """
 
     input_id: str
 
     def __post_init__(self) -> None:
         _nonblank(self.input_id, "input_id")
+
+
+@dataclass(frozen=True)
+class DeclaredOneToOneTransformation:
+    """A caller-declared one-input-unit to one-output-unit transformation."""
+
+    source_sku_id: str
+    output_sku_id: str
+    unit: str
+    domain: QuantityDomain
+
+    def __post_init__(self) -> None:
+        _nonblank(self.source_sku_id, "source_sku_id")
+        _nonblank(self.output_sku_id, "output_sku_id")
+        _nonblank(self.unit, "unit")
+        if self.source_sku_id == self.output_sku_id:
+            raise ValueError("one-to-one transformation needs two distinct SKUs")
+        if not isinstance(self.domain, QuantityDomain):
+            raise ValueError("transformation domain must be a QuantityDomain")
+
+
+@dataclass(frozen=True)
+class OneToOneTransformedFromInput:
+    """Create one new Batch under a declared one-to-one transformation."""
+
+    input_id: str
+    transformation: DeclaredOneToOneTransformation
+
+    def __post_init__(self) -> None:
+        _nonblank(self.input_id, "input_id")
+        if not isinstance(
+            self.transformation,
+            DeclaredOneToOneTransformation,
+        ):
+            raise ValueError(
+                "transformed input needs a DeclaredOneToOneTransformation"
+            )
 
 
 @dataclass(frozen=True)
@@ -124,7 +165,9 @@ class CandidateSelection:
         _nonblank(self.location_id, "location_id")
         _nonblank(self.unit, "unit")
 InputAmount = ExactAmount | AllRemaining
-OutputAmount = ExactAmount | FromInput | FromSource
+OutputAmount = (
+    ExactAmount | FromInput | OneToOneTransformedFromInput | FromSource
+)
 
 CandidateResolver = Callable[
     [CandidateSelection, tuple[HoldingKey, ...], datetime, datetime | None],
@@ -141,7 +184,7 @@ class ProcessInput:
     amount: InputAmount
     role: str = "input"
     selector: CandidateSelection | None = None
-    contributes_to: tuple[str, ...] = ()
+    structurally_contributes_to: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _nonblank(self.input_id, "input_id")
@@ -170,10 +213,14 @@ class ProcessInput:
                         "input candidates must match the selection location, "
                         "unit, and package configuration"
                     )
-        if len(set(self.contributes_to)) != len(self.contributes_to):
-            raise ValueError("contributes_to output identifiers must be distinct")
-        for output_id in self.contributes_to:
-            _nonblank(output_id, "contributes_to output identifier")
+        if len(set(self.structurally_contributes_to)) != len(
+            self.structurally_contributes_to
+        ):
+            raise ValueError(
+                "structural output identifiers must be distinct"
+            )
+        for output_id in self.structurally_contributes_to:
+            _nonblank(output_id, "structural output identifier")
 
 
 @dataclass(frozen=True)
@@ -193,7 +240,15 @@ class ProcessOutput:
             raise ValueError("process output holding must be a HoldingKey")
         if not isinstance(self.domain, QuantityDomain):
             raise ValueError("process output domain must be a QuantityDomain")
-        if not isinstance(self.amount, (ExactAmount, FromInput, FromSource)):
+        if not isinstance(
+            self.amount,
+            (
+                ExactAmount,
+                FromInput,
+                OneToOneTransformedFromInput,
+                FromSource,
+            ),
+        ):
             raise ValueError("process output amount has an unsupported type")
 
 
@@ -333,6 +388,43 @@ class ProcessEvent:
         if len(set(source_ids)) != len(source_ids):
             raise ValueError("process source identifiers must be distinct")
         known_inputs = set(input_ids)
+        transformed_outputs = [
+            output
+            for output in self.outputs
+            if isinstance(output.amount, OneToOneTransformedFromInput)
+        ]
+        if transformed_outputs:
+            if (
+                len(transformed_outputs) != 1
+                or len(self.inputs) != 1
+                or len(self.outputs) != 1
+                or self.preserved_outputs
+                or self.sinks
+                or self.sources
+            ):
+                raise ValueError(
+                    "one-to-one transformation currently requires exactly one "
+                    "input leg and one output"
+                )
+            transformed_output = transformed_outputs[0]
+            transformed_input = self.inputs[0]
+            if not isinstance(
+                transformed_output.amount,
+                OneToOneTransformedFromInput,
+            ):
+                raise ValueError("one-to-one transformation output is invalid")
+            if transformed_output.amount.input_id != transformed_input.input_id:
+                raise ValueError(
+                    "transformed output must reference the process's one input"
+                )
+            if not isinstance(transformed_input.amount, ExactAmount):
+                raise ValueError(
+                    "one-to-one transformation currently requires an exact input"
+                )
+            if transformed_input.structurally_contributes_to:
+                raise ValueError(
+                    "one-to-one transformation cannot also be structural provenance"
+                )
         for output in self.preserved_outputs:
             if output.input_id not in known_inputs:
                 raise ValueError("preserved output references an unknown input")
@@ -352,7 +444,10 @@ class ProcessEvent:
                 )
         for output in self.outputs:
             if (
-                isinstance(output.amount, FromInput)
+                isinstance(
+                    output.amount,
+                    (FromInput, OneToOneTransformedFromInput),
+                )
                 and output.amount.input_id not in known_inputs
             ):
                 raise ValueError("process output references an unknown input")
@@ -364,8 +459,50 @@ class ProcessEvent:
                 )
                 if len(source.candidates) > 1:
                     raise ValueError(
-                        "an ambiguous input cannot become one concrete output "
-                        "Batch without allocation semantics"
+                        "an ambiguous input needs an explicit one-to-one "
+                        "transformation or preserved candidate outputs"
+                    )
+                if source.candidates[0].batch_id != output.holding.batch_id:
+                    raise ValueError(
+                        "FromInput must preserve its input Batch; use "
+                        "OneToOneTransformedFromInput to create a new Batch"
+                    )
+            if isinstance(output.amount, OneToOneTransformedFromInput):
+                source = next(
+                    item
+                    for item in self.inputs
+                    if item.input_id == output.amount.input_id
+                )
+                transformation = output.amount.transformation
+                if output.holding.batch_id in {
+                    holding.batch_id for holding in source.candidates
+                }:
+                    raise ValueError(
+                        "a one-to-one transformation must create a new Batch"
+                    )
+                if output.holding.unit != transformation.unit:
+                    raise ValueError(
+                        "transformed output unit differs from its declaration"
+                    )
+                if output.domain != transformation.domain:
+                    raise ValueError(
+                        "transformed output domain differs from its declaration"
+                    )
+                if any(
+                    holding.unit != transformation.unit
+                    for holding in source.candidates
+                ):
+                    raise ValueError(
+                        "transformed input unit differs from its declaration"
+                    )
+                if (
+                    source.selector is not None
+                    and source.selector.sku_id
+                    != transformation.source_sku_id
+                ):
+                    raise ValueError(
+                        "transformed input selector differs from its declared "
+                        "source SKU"
                     )
             if (
                 isinstance(output.amount, FromSource)
@@ -377,21 +514,36 @@ class ProcessEvent:
                 raise ValueError("process sink references an unknown input")
         known_outputs = set(output_ids)
         for process_input in self.inputs:
-            unknown = set(process_input.contributes_to) - known_outputs
+            unknown = (
+                set(process_input.structurally_contributes_to) - known_outputs
+            )
             if unknown:
-                raise ValueError("process input contributes to an unknown output")
-            accounted = any(
-                isinstance(output.amount, FromInput)
+                raise ValueError(
+                    "process input structurally contributes to an unknown output"
+                )
+            quantity_destinations = sum(
+                isinstance(
+                    output.amount,
+                    (FromInput, OneToOneTransformedFromInput),
+                )
                 and output.amount.input_id == process_input.input_id
                 for output in self.outputs
-            ) or any(
+            ) + sum(
                 sink.amount.input_id == process_input.input_id
                 for sink in self.sinks
-            ) or any(
+            ) + sum(
                 output.input_id == process_input.input_id
                 for output in self.preserved_outputs
-            ) or bool(process_input.contributes_to)
-            if not accounted:
+            )
+            if quantity_destinations > 1:
+                raise ValueError(
+                    "a process input cannot feed multiple quantity destinations "
+                    "without explicit split allocation"
+                )
+            if (
+                quantity_destinations == 0
+                and not process_input.structurally_contributes_to
+            ):
                 raise ValueError(
                     "every process input needs an output, sink, or structural "
                     "contribution"
@@ -469,6 +621,26 @@ class ObservationEvent:
 QuantityEvent = ProcessEvent | ObservationEvent
 
 
+@dataclass(frozen=True)
+class _EventTouches:
+    """Concrete holdings and whole-Batch identities touched by one event."""
+
+    holdings: frozenset[HoldingKey]
+    whole_batch_ids: frozenset[str]
+
+    @property
+    def holding_batch_ids(self) -> frozenset[str]:
+        return frozenset(holding.batch_id for holding in self.holdings)
+
+    def overlaps(self, other: _EventTouches) -> bool:
+        return bool(
+            self.holdings & other.holdings
+            or self.whole_batch_ids & other.holding_batch_ids
+            or other.whole_batch_ids & self.holding_batch_ids
+            or self.whole_batch_ids & other.whole_batch_ids
+        )
+
+
 class ProcessQuantityTimeline:
     """Append recorded events and recompile physical history when queried."""
 
@@ -526,6 +698,9 @@ class CompiledProcessQuantities:
         current: dict[HoldingKey, HoldingState],
         input_variables: dict[tuple[str, str], str],
         allocation_variables: dict[tuple[str, str, HoldingKey], str],
+        output_source_allocation_variables: dict[
+            tuple[str, str, HoldingKey], str
+        ],
         source_variables: dict[tuple[str, str], str],
         replacement_holdings: dict[str, tuple[tuple[HoldingKey, HoldingKey], ...]],
         labels: dict[str, str],
@@ -535,6 +710,9 @@ class CompiledProcessQuantities:
         self._current = current
         self._input_variables = input_variables
         self._allocation_variables = allocation_variables
+        self._output_source_allocation_variables = (
+            output_source_allocation_variables
+        )
         self._source_variables = source_variables
         self._replacement_holdings = replacement_holdings
         self._labels = labels
@@ -617,6 +795,56 @@ class CompiledProcessQuantities:
             ) from error
         return self._system.bounds(variable_id)
 
+    def output_source_allocation_bounds(
+        self,
+        process_id: str,
+        output_id: str,
+        source_holding: HoldingKey,
+    ) -> QuantityBounds:
+        """Bound one source holding's allocation into a transformed output."""
+
+        try:
+            variable_id = self._output_source_allocation_variables[
+                (process_id, output_id, source_holding)
+            ]
+        except KeyError as error:
+            raise ValueError(
+                "process output has no source allocation from that holding"
+            ) from error
+        return self._system.bounds(variable_id)
+
+    def output_source_allocation_total_bounds(
+        self,
+        process_id: str,
+        output_id: str,
+        source_holdings: Sequence[HoldingKey],
+    ) -> QuantityBounds:
+        """Bound a correlated total over several output source allocations."""
+
+        selected = tuple(source_holdings)
+        if not selected:
+            raise ValueError(
+                "an output source allocation total needs a source holding"
+            )
+        if len(set(selected)) != len(selected):
+            raise ValueError(
+                "an output source allocation total needs distinct source holdings"
+            )
+        try:
+            variable_ids = [
+                self._output_source_allocation_variables[
+                    (process_id, output_id, holding)
+                ]
+                for holding in selected
+            ]
+        except KeyError as error:
+            raise ValueError(
+                "process output has no source allocation from one selected holding"
+            ) from error
+        return self._system.expression_bounds(
+            {variable_id: 1 for variable_id in variable_ids}
+        )
+
     def source_bounds(self, process_id: str, source_id: str) -> QuantityBounds:
         try:
             variable_id = self._source_variables[(process_id, source_id)]
@@ -658,6 +886,9 @@ class _ProcessCompiler:
         self._allocation_variables: dict[
             tuple[str, str, HoldingKey], str
         ] = {}
+        self._output_source_allocation_variables: dict[
+            tuple[str, str, HoldingKey], str
+        ] = {}
         self._input_candidate_variables: dict[
             tuple[str, str, HoldingKey], str
         ] = {}
@@ -680,6 +911,7 @@ class _ProcessCompiler:
         ):
             group = tuple(simultaneous)
             resolved = self._resolve_group_candidates(group)
+            self._validate_resolved_process_shapes(group, resolved)
             self._reject_overlapping_simultaneous_events(group, resolved)
             for event in group:
                 order.append(_event_id(event))
@@ -692,6 +924,7 @@ class _ProcessCompiler:
             dict(self._current),
             dict(self._input_variables),
             dict(self._allocation_variables),
+            dict(self._output_source_allocation_variables),
             dict(self._source_variables),
             dict(self._replacement_holdings),
             dict(self._labels),
@@ -746,16 +979,57 @@ class _ProcessCompiler:
                 resolved[(event.process_id, process_input.input_id)] = normalized
         return resolved
 
+    @staticmethod
+    def _validate_resolved_process_shapes(
+        events: Sequence[QuantityEvent],
+        resolved: dict[tuple[str, str], tuple[HoldingKey, ...]],
+    ) -> None:
+        """Recheck holding collisions after knowledge-aware candidate lookup."""
+
+        for event in events:
+            if not isinstance(event, ProcessEvent) or event.batch_replacements:
+                continue
+            touched_inputs = [
+                holding
+                for process_input in event.inputs
+                for holding in resolved[
+                    (event.process_id, process_input.input_id)
+                ]
+            ]
+            touched_outputs = [output.holding for output in event.outputs]
+            touched_outputs.extend(
+                HoldingKey(
+                    source.batch_id,
+                    output.destination_location_id,
+                    source.unit,
+                    source.packaging_configuration_id,
+                )
+                for output in event.preserved_outputs
+                for source in resolved[(event.process_id, output.input_id)]
+            )
+            if len(set(touched_inputs)) != len(touched_inputs):
+                raise ValueError(
+                    "resolved process inputs cannot consume a holding twice"
+                )
+            if len(set(touched_outputs)) != len(touched_outputs):
+                raise ValueError(
+                    "resolved process outputs cannot produce into a holding twice"
+                )
+            if set(touched_inputs) & set(touched_outputs):
+                raise ValueError(
+                    "same-holding input/output semantics are not defined yet"
+                )
+
     def _reject_overlapping_simultaneous_events(
         self,
         events: Sequence[QuantityEvent],
         resolved: dict[tuple[str, str], tuple[HoldingKey, ...]],
     ) -> None:
-        touched: list[tuple[str, set[HoldingKey]]] = []
+        touched: list[tuple[str, _EventTouches]] = []
         for event in events:
-            holdings: set[HoldingKey]
             if isinstance(event, ObservationEvent):
                 holdings = {event.holding}
+                whole_batch_ids: set[str] = set()
             else:
                 holdings = {
                     holding
@@ -773,29 +1047,34 @@ class _ProcessCompiler:
                             source.unit,
                             source.packaging_configuration_id,
                         ))
-                for replacement in event.batch_replacements:
-                    for current_holding in self._current:
-                        if current_holding.batch_id in {
-                            replacement.source_batch_id,
-                            replacement.destination_batch_id,
-                        }:
-                            holdings.add(current_holding)
-                            holdings.add(
-                                HoldingKey(
-                                    replacement.destination_batch_id,
-                                    current_holding.location_id,
-                                    current_holding.unit,
-                                    current_holding.packaging_configuration_id,
-                                )
-                            )
-            for prior_id, prior_holdings in touched:
-                overlap = holdings & prior_holdings
-                if overlap:
-                    raise ValueError(
-                        "events sharing occurred_at and effective_order touch the "
-                        f"same holding: {prior_id}, {_event_id(event)}"
+                whole_batch_ids = {
+                    batch_id
+                    for replacement in event.batch_replacements
+                    for batch_id in (
+                        replacement.source_batch_id,
+                        replacement.destination_batch_id,
                     )
-            touched.append((_event_id(event), holdings))
+                }
+                whole_batch_ids.update(
+                    output.holding.batch_id
+                    for output in event.outputs
+                    if isinstance(
+                        output.amount,
+                        OneToOneTransformedFromInput,
+                    )
+                )
+            event_touches = _EventTouches(
+                frozenset(holdings),
+                frozenset(whole_batch_ids),
+            )
+            for prior_id, prior_touches in touched:
+                if event_touches.overlaps(prior_touches):
+                    raise ValueError(
+                        "events sharing occurred_at and effective_order overlap "
+                        "on a holding or whole-Batch identity: "
+                        f"{prior_id}, {_event_id(event)}"
+                    )
+            touched.append((_event_id(event), event_touches))
 
     def _compile_observation(self, event: ObservationEvent) -> None:
         state = self._current.get(event.holding)
@@ -827,8 +1106,29 @@ class _ProcessCompiler:
                 ]
                 if len(candidates) > 1:
                     raise ValueError(
-                        "a resolved ambiguous input cannot become one concrete "
-                        "output Batch without allocation semantics"
+                        "a resolved ambiguous input needs an explicit one-to-one "
+                        "transformation or preserved candidate outputs"
+                    )
+                if candidates[0].batch_id != output.holding.batch_id:
+                    raise ValueError(
+                        "FromInput must preserve its resolved input Batch"
+                    )
+            if isinstance(output.amount, OneToOneTransformedFromInput):
+                candidates = resolved_candidates[
+                    (event.process_id, output.amount.input_id)
+                ]
+                if output.holding.batch_id in {
+                    holding.batch_id for holding in candidates
+                }:
+                    raise ValueError(
+                        "a one-to-one transformation must create a new Batch"
+                    )
+                if any(
+                    holding.batch_id == output.holding.batch_id
+                    for holding in self._current
+                ):
+                    raise ValueError(
+                        "one-to-one transformation output Batch already exists"
                     )
         input_variables: dict[str, str] = {}
         for process_input in event.inputs:
@@ -848,6 +1148,7 @@ class _ProcessCompiler:
                 output,
                 input_variables,
                 source_variables,
+                resolved_candidates,
             )
         for output in event.preserved_outputs:
             self._compile_preserved_output(
@@ -975,8 +1276,20 @@ class _ProcessCompiler:
         output: ProcessOutput,
         input_variables: dict[str, str],
         source_variables: dict[str, str],
+        resolved_candidates: dict[
+            tuple[str, str], tuple[HoldingKey, ...]
+        ],
     ) -> None:
-        if isinstance(output.amount, FromInput):
+        if isinstance(output.amount, OneToOneTransformedFromInput):
+            flow_id = self._compile_transformed_output_flow(
+                event,
+                output,
+                input_variables,
+                resolved_candidates[
+                    (event.process_id, output.amount.input_id)
+                ],
+            )
+        elif isinstance(output.amount, FromInput):
             flow_id = input_variables[output.amount.input_id]
         elif isinstance(output.amount, FromSource):
             flow_id = source_variables[output.amount.source_id]
@@ -992,6 +1305,8 @@ class _ProcessCompiler:
                 raise ValueError("linked process input/output units differ")
             if variable.domain != output.domain:
                 raise ValueError("linked process input/output domains differ")
+        elif isinstance(output.amount, OneToOneTransformedFromInput):
+            pass
         else:
             _validate_amount(output.domain, output.amount.amount, "output amount")
             flow_id = f"output:{event.process_id}:{output.output_id}"
@@ -1022,6 +1337,77 @@ class _ProcessCompiler:
             0,
         )
         self._current[output.holding] = after
+
+    def _compile_transformed_output_flow(
+        self,
+        event: ProcessEvent,
+        output: ProcessOutput,
+        input_variables: dict[str, str],
+        candidates: tuple[HoldingKey, ...],
+    ) -> str:
+        amount = output.amount
+        if not isinstance(amount, OneToOneTransformedFromInput):
+            raise ValueError("one-to-one transformation output is invalid")
+        transformation = amount.transformation
+        input_flow_id = input_variables[amount.input_id]
+        input_variable = next(
+            variable
+            for variable in self._system.variables
+            if variable.variable_id == input_flow_id
+        )
+        if input_variable.unit != transformation.unit:
+            raise ValueError(
+                "transformed input flow unit differs from its declaration"
+            )
+        if input_variable.domain != transformation.domain:
+            raise ValueError(
+                "transformed input flow domain differs from its declaration"
+            )
+
+        output_flow_id = f"output:{event.process_id}:{output.output_id}"
+        self._add_variable(
+            output_flow_id,
+            transformation.unit,
+            transformation.domain,
+            f"output[{event.process_id}.{output.output_id}]",
+        )
+        self._system.add_constraint(
+            f"{event.process_id}:{output.output_id}:one-to-one",
+            {output_flow_id: 1, input_flow_id: -1},
+            ConstraintRelation.EQUAL,
+            0,
+        )
+
+        for index, source_holding in enumerate(candidates):
+            input_candidate_id = self._input_candidate_variables[
+                (event.process_id, amount.input_id, source_holding)
+            ]
+            source_allocation_id = (
+                "output-source-allocation:"
+                f"{event.process_id}:{output.output_id}:{index}"
+            )
+            self._add_variable(
+                source_allocation_id,
+                transformation.unit,
+                transformation.domain,
+                (
+                    f"output-source-allocation[{_holding_label(source_holding)} -> "
+                    f"{event.process_id}.{output.output_id}]"
+                ),
+            )
+            self._system.add_constraint(
+                (
+                    f"{event.process_id}:{output.output_id}:"
+                    f"source-allocation:{index}"
+                ),
+                {source_allocation_id: 1, input_candidate_id: -1},
+                ConstraintRelation.EQUAL,
+                0,
+            )
+            self._output_source_allocation_variables[
+                (event.process_id, output.output_id, source_holding)
+            ] = source_allocation_id
+        return output_flow_id
 
     def _compile_preserved_output(
         self,
