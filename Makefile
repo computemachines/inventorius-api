@@ -19,7 +19,7 @@ SOLVER_TESTS = \
 # MongoDB.  The solver laboratory must stay runnable from a clean checkout with
 # only the project's normal Python dependencies installed.
 test-solver:
-	PYTHONPATH=src uv run --with-requirements requirements.txt \
+	PYTHONPATH=src:. uv run --with-requirements requirements.txt \
 		pytest --confcutdir=tests/solver $(SOLVER_TESTS)
 
 clean:
