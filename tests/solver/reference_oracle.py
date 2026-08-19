@@ -458,3 +458,223 @@ class LEDAllocationScenario:
 
     def remaining_blue(self, world: Mapping[str, int]) -> int:
         return self.opening_blue - self.blue_used(world)
+
+
+@dataclass(frozen=True, init=False)
+class TwoStageLEDAssemblyScenario:
+    """Compact histories for color-untracked parts and a later final draw.
+
+    Each first-stage part records only its total size.  The second stage draws a
+    fixed total from each part, again without recording color.  A world chooses
+    the red quantity initially placed in each part and the red quantity left
+    behind there after the final draw.  Blue quantities follow from the known
+    totals, so enumeration retains every color allocation relevant to queries
+    without assigning identities to otherwise interchangeable LEDs.
+    """
+
+    opening_red: int
+    opening_blue: int
+    part_sizes: tuple[int, ...]
+    final_draws: tuple[int, ...]
+
+    def __init__(
+        self,
+        opening_red: int,
+        opening_blue: int,
+        part_sizes: Iterable[int],
+        final_draws: Iterable[int],
+    ) -> None:
+        sizes = tuple(part_sizes)
+        draws = tuple(final_draws)
+        for field_name, value in (
+            ("opening_red", opening_red),
+            ("opening_blue", opening_blue),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{field_name} must be a nonnegative integer")
+        if not sizes:
+            raise ValueError("a two-stage scenario needs at least one part")
+        if len(sizes) != len(draws):
+            raise ValueError("part sizes and final draws must have equal lengths")
+        for index, (size, draw) in enumerate(zip(sizes, draws)):
+            if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+                raise ValueError(
+                    f"part_sizes[{index}] must be a nonnegative integer"
+                )
+            if (
+                isinstance(draw, bool)
+                or not isinstance(draw, int)
+                or draw < 0
+            ):
+                raise ValueError(
+                    f"final_draws[{index}] must be a nonnegative integer"
+                )
+            if draw > size:
+                raise ValueError(
+                    f"final_draws[{index}] cannot exceed its part size"
+                )
+        if sum(sizes) > opening_red + opening_blue:
+            raise ValueError("first-stage parts exceed the opening LED quantity")
+
+        object.__setattr__(self, "opening_red", opening_red)
+        object.__setattr__(self, "opening_blue", opening_blue)
+        object.__setattr__(self, "part_sizes", sizes)
+        object.__setattr__(self, "final_draws", draws)
+
+    @property
+    def part_count(self) -> int:
+        return len(self.part_sizes)
+
+    @property
+    def final_size(self) -> int:
+        return sum(self.final_draws)
+
+    @property
+    def outside_size(self) -> int:
+        return self.opening_red + self.opening_blue - self.final_size
+
+    def oracle(
+        self,
+        *,
+        observed_outside_blue: int | None = None,
+    ) -> FiniteHistoryOracle:
+        """Build a fresh enumerator, optionally auditing all outside LEDs."""
+
+        if observed_outside_blue is not None and (
+            isinstance(observed_outside_blue, bool)
+            or not isinstance(observed_outside_blue, int)
+            or observed_outside_blue < 0
+        ):
+            raise ValueError(
+                "observed_outside_blue must be a nonnegative integer"
+            )
+
+        groups = [
+            EventGroup.one(
+                "opening:red-capacity",
+                lambda world: self.red_in_parts(world) <= self.opening_red,
+            ),
+            EventGroup.one(
+                "opening:blue-capacity",
+                lambda world: self.blue_in_parts(world) <= self.opening_blue,
+            ),
+        ]
+        variable_domains: dict[str, range] = {}
+        for index, (size, draw) in enumerate(
+            zip(self.part_sizes, self.final_draws)
+        ):
+            variable_domains[self._red_in_id(index)] = range(size + 1)
+            variable_domains[self._red_left_id(index)] = range(size - draw + 1)
+            groups.append(
+                EventGroup(
+                    f"part:{index}:leftover-capacity",
+                    (
+                        lambda world, selected=index: (
+                            self.red_left_in_part(world, selected)
+                            <= self.red_in_part(world, selected)
+                        ),
+                        lambda world, selected=index: (
+                            self.blue_left_in_part(world, selected)
+                            <= self.blue_in_part(world, selected)
+                        ),
+                    ),
+                )
+            )
+        if observed_outside_blue is not None:
+            groups.append(
+                EventGroup.one(
+                    "observation:outside-blue",
+                    lambda world: (
+                        self.outside_blue(world) == observed_outside_blue
+                    ),
+                )
+            )
+        return FiniteHistoryOracle(variable_domains, groups)
+
+    def red_in_part(self, world: Mapping[str, int], index: int) -> int:
+        return world[self._red_in_id(index)]
+
+    def blue_in_part(self, world: Mapping[str, int], index: int) -> int:
+        return self.part_sizes[index] - self.red_in_part(world, index)
+
+    def red_left_in_part(self, world: Mapping[str, int], index: int) -> int:
+        return world[self._red_left_id(index)]
+
+    def blue_left_in_part(self, world: Mapping[str, int], index: int) -> int:
+        leftover_size = self.part_sizes[index] - self.final_draws[index]
+        return leftover_size - self.red_left_in_part(world, index)
+
+    def red_to_final_from_part(
+        self,
+        world: Mapping[str, int],
+        index: int,
+    ) -> int:
+        return self.red_in_part(world, index) - self.red_left_in_part(
+            world,
+            index,
+        )
+
+    def blue_to_final_from_part(
+        self,
+        world: Mapping[str, int],
+        index: int,
+    ) -> int:
+        return self.final_draws[index] - self.red_to_final_from_part(
+            world,
+            index,
+        )
+
+    def red_in_parts(self, world: Mapping[str, int]) -> int:
+        return sum(
+            self.red_in_part(world, index) for index in range(self.part_count)
+        )
+
+    def blue_in_parts(self, world: Mapping[str, int]) -> int:
+        return sum(
+            self.blue_in_part(world, index) for index in range(self.part_count)
+        )
+
+    def red_final(self, world: Mapping[str, int]) -> int:
+        return sum(
+            self.red_to_final_from_part(world, index)
+            for index in range(self.part_count)
+        )
+
+    def blue_final(self, world: Mapping[str, int]) -> int:
+        return self.final_size - self.red_final(world)
+
+    def source_red_remaining(self, world: Mapping[str, int]) -> int:
+        return self.opening_red - self.red_in_parts(world)
+
+    def source_blue_remaining(self, world: Mapping[str, int]) -> int:
+        return self.opening_blue - self.blue_in_parts(world)
+
+    def outside_red(self, world: Mapping[str, int]) -> int:
+        return self.source_red_remaining(world) + sum(
+            self.red_left_in_part(world, index)
+            for index in range(self.part_count)
+        )
+
+    def outside_blue(self, world: Mapping[str, int]) -> int:
+        return self.source_blue_remaining(world) + sum(
+            self.blue_left_in_part(world, index)
+            for index in range(self.part_count)
+        )
+
+    def complement_outside_red(self, world: Mapping[str, int]) -> int:
+        """Derive the outside red total independently from final ancestry."""
+
+        return self.opening_red - self.red_final(world)
+
+    def complement_outside_blue(self, world: Mapping[str, int]) -> int:
+        """Derive the outside blue total independently from final ancestry."""
+
+        return self.opening_blue - self.blue_final(world)
+
+    @staticmethod
+    def _red_in_id(index: int) -> str:
+        return f"red_in_part_{index}"
+
+    @staticmethod
+    def _red_left_id(index: int) -> str:
+        return f"red_left_in_part_{index}"

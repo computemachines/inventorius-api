@@ -63,9 +63,42 @@ component ranges, because that discards their shared constraints. If a later
 observation says the one remaining source-bin LED is blue, the same final query
 returns exactly 25 red LEDs. The individual part allocations may remain vague.
 
-Follow-on experiments will introduce ranged opening quantities, a named source
-Batch, an explicit loss, a partial downstream use, and late-recorded evidence
-with both physical-time and knowledge-time scopes.
+### Two-stage partial-use stress case
+
+A harder experiment starts with exactly 12 red and 12 blue LEDs. Three
+color-untracked intermediate Batches contain 8, 7, and 6 loose one-LED modules.
+A final process then draws 7, 7, and 6 modules from those Batches. Three LEDs
+remain in the source holding and one remains in the first intermediate Batch.
+No LED is created or lost.
+
+Before any later observation, the red ancestry of the final 20-LED assembly is
+`8..12`. The red contributions from the three intermediate Batches are still
+individually as vague as `0..7`, `0..7`, and `0..6`.
+
+A later audit observes exactly one blue LED in the **union of every holding
+outside the final assembly**: the three source leftovers plus the one
+intermediate leftover. A fresh query then proves that the final assembly has
+exactly 9 red and 11 blue ancestors. Nevertheless, every individual Batch
+composition and contribution range remains unchanged. Even the source blue
+remainder and intermediate blue remainder are each `0..1`; only their direct
+union query is exactly one.
+
+The production-side experiment states only local opening conservation,
+per-Batch color totals and splits, and final aggregation. It does not add a
+shortcut equation between the final and outside totals. An independent bounded
+enumerator checks all 1,008 aggregate assignments: 340 histories are feasible
+before the audit and 86 afterward. A generated collection of smaller histories
+also checks the same graph shape against closed-form physical bounds.
+
+This proves that the linear kernel and query boundary preserve correlations
+through a correctly encoded two-stage graph. It does **not** yet prove that the
+event compiler can construct that graph from recorded Processes, or that a
+future semantic Batch-lineage query compiler selects the correct variables.
+Those remain separate integration gates.
+
+Follow-on experiments will introduce ranged opening quantities, named source
+Batches, explicit loss, late-recorded evidence with physical- and
+knowledge-time scopes, and event-compiled transitive lineage.
 
 ### Proposed move
 
