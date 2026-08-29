@@ -594,6 +594,44 @@ def test_output_only_process_waits_for_explicit_external_source_semantics():
         )
 
 
+def test_inputless_process_cannot_create_an_output_unlinked_to_its_source():
+    received = HoldingKey("BAT-RECEIVED", "SHELF", "each")
+    unlinked = HoldingKey("BAT-UNLINKED", "SHELF", "each")
+
+    with pytest.raises(ValueError, match="every output.*external source"):
+        ProcessEvent(
+            "PROC-invalid-receipt",
+            "receive",
+            moment(1),
+            moment(1),
+            sources=(ProcessSource(
+                "shipment",
+                "supplier shipment",
+                "each",
+                DISCRETE,
+                QuantityObservation.exact(
+                    "OBS-shipment",
+                    1,
+                    basis=ObservationBasis.COUNTED,
+                ),
+            ),),
+            outputs=(
+                ProcessOutput(
+                    "received",
+                    received,
+                    DISCRETE,
+                    FromSource("shipment"),
+                ),
+                ProcessOutput(
+                    "unlinked",
+                    unlinked,
+                    DISCRETE,
+                    ExactAmount(100),
+                ),
+            ),
+        )
+
+
 def test_receive_uses_an_explicit_bounded_external_source():
     holding = HoldingKey("BAT-LIQUID", "SHELF", "milliliter")
     timeline = ProcessQuantityTimeline()
@@ -624,6 +662,24 @@ def test_receive_uses_an_explicit_bounded_external_source():
         "supplier-bottle",
     ), 0, 100)
     assert_bounds(compiled.current_bounds(holding), 0, 100)
+
+
+def test_state_ids_distinguish_absent_and_literal_dash_package_ids():
+    unpackaged = HoldingKey("BAT-X", "SHELF", "each")
+    literal_dash_package = HoldingKey("BAT-X", "SHELF", "each", "-")
+    timeline = ProcessQuantityTimeline()
+    timeline.record(exact_observation("OBS-unpackaged", unpackaged, 3, 1))
+    timeline.record(exact_observation(
+        "OBS-literal-dash-package",
+        literal_dash_package,
+        7,
+        1,
+    ))
+
+    compiled = timeline.compile()
+
+    assert_bounds(compiled.current_bounds(unpackaged), 3, 3)
+    assert_bounds(compiled.current_bounds(literal_dash_package), 7, 7)
 
 
 def test_equal_time_overlap_requires_explicit_effective_order():

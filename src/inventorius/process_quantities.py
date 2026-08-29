@@ -559,6 +559,14 @@ class ProcessEvent:
                 raise ValueError(
                     "each external source must feed exactly one output in this slice"
                 )
+        if not self.inputs and self.sources and any(
+            not isinstance(output.amount, FromSource)
+            for output in self.outputs
+        ):
+            raise ValueError(
+                "every output of an inputless process must reference an "
+                "external source"
+            )
         touched_inputs = [
             holding for item in self.inputs for holding in item.candidates
         ]
@@ -897,6 +905,7 @@ class _ProcessCompiler:
             str, tuple[tuple[HoldingKey, HoldingKey], ...]
         ] = {}
         self._labels: dict[str, str] = {}
+        self._next_state_index = 0
         self._known_at = known_at
         self._candidate_resolver = candidate_resolver
 
@@ -1569,10 +1578,9 @@ class _ProcessCompiler:
     ) -> HoldingState:
         revision = self._revisions.get(holding, -1) + 1
         self._revisions[holding] = revision
-        variable_id = (
-            f"state:{holding.batch_id}:{holding.location_id}:"
-            f"{holding.unit}:{holding.packaging_configuration_id or '-'}:r{revision}"
-        )
+        state_index = self._next_state_index
+        self._next_state_index += 1
+        variable_id = f"state:{state_index}:r{revision}"
         self._add_variable(
             variable_id,
             holding.unit,
