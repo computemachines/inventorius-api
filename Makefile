@@ -1,4 +1,4 @@
-.PHONY: deb clean build install
+.PHONY: deb clean build install test-solver
 
 PACKAGE_ROOT = ./package-root
 
@@ -7,6 +7,20 @@ SYSTEMD_DIRECTORY = $(PACKAGE_ROOT)/usr/lib/systemd/system
 CONFIG_DIRECTORY = $(PACKAGE_ROOT)/etc/inventorius
 UWSGI_APPS_AVAILABLE = $(PACKAGE_ROOT)/etc/uwsgi/apps-available/
 UWSGI_APPS_ENABLED = $(PACKAGE_ROOT)/etc/uwsgi/apps-enabled/
+
+SOLVER_TESTS = \
+	tests/test_quantity_constraints.py \
+	tests/test_process_quantities.py \
+	tests/test_provenance.py \
+	tests/test_provenance_serialization.py \
+	tests/solver
+
+# Keep this lane independent of the repository conftest, whose fixtures require
+# MongoDB.  The solver laboratory must stay runnable from a clean checkout with
+# only the project's normal Python dependencies installed.
+test-solver:
+	PYTHONPATH=src:. uv run --no-project --with-requirements requirements.txt \
+		pytest --confcutdir=tests/solver $(SOLVER_TESTS)
 
 clean:
 	rm -rv dist/*
