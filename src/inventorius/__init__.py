@@ -27,6 +27,7 @@ from inventorius.inventory_candidates import inventory_candidates
 from inventorius.audit_snapshots import audit_snapshots
 from inventorius.audit_observations import audit_observations
 from inventorius.quantity_routes import quantity_routes
+from inventorius.constraint_query_routes import constraint_query_routes
 # from inventorius.data_models import Bin, MyEncoder, Uniq, Batch, Sku
 from inventorius.auth import current_actor, init_auth
 from inventorius.schema.routes import bp as schema_bp
@@ -102,6 +103,7 @@ app.register_blueprint(inventory_candidates)
 app.register_blueprint(audit_snapshots)
 app.register_blueprint(audit_observations)
 app.register_blueprint(quantity_routes)
+app.register_blueprint(constraint_query_routes)
 app.register_blueprint(schema_bp)
 app.register_blueprint(process_definition)
 init_auth(app)
@@ -168,6 +170,12 @@ def api_root():
             "rel": "schema-admin",
             "method": "GET",
             "href": "/api/schema/list",
+        })
+    if actor.can("solver.query"):
+        command_operations.append({
+            "rel": "solver-query",
+            "method": "POST",
+            "href": "/api/solver/query",
         })
     return jsonify({
         "Id": "/api",
