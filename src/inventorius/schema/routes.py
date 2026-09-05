@@ -1,6 +1,7 @@
 """API routes and operator commands for schema management."""
 
 from copy import deepcopy
+import re
 
 import click
 from flask import Blueprint, jsonify, request
@@ -151,6 +152,11 @@ def evaluate_schema(name: str):
     """
     Evaluate the schema with given active mixins and field values.
 
+    Resource forms pass use_schema_roots=true instead of hard-coding roots.
+    Existing SKU/batch editors also pass resource_id. Its exact canonical ID
+    activates the same-named mixin, if present, without changing shared roots.
+    Omitting both options preserves explicit mixin selection for admin previews.
+
     Request body:
     {
         "active_mixins": ["Resistor"],
@@ -169,12 +175,40 @@ def evaluate_schema(name: str):
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
-    data = request.get_json()
-    if not data:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data:
         return jsonify({"error": "Request body required"}), 400
 
     active_mixins = data.get("active_mixins", [])
     field_values = data.get("field_values", {})
+    use_schema_roots = data.get("use_schema_roots", False)
+    resource_id = data.get("resource_id")
+    if (
+        not isinstance(active_mixins, list)
+        or any(not isinstance(mixin, str) for mixin in active_mixins)
+        or not isinstance(field_values, dict)
+        or not isinstance(use_schema_roots, bool)
+    ):
+        return jsonify({"error": "Expected a mixin list, field-value object, and boolean use_schema_roots"}), 400
+
+    # Resource identity is evaluation context, never an editable property or a
+    # predicted next ID. Keep this convention separate from shared root storage.
+    implicit_roots = []
+    if resource_id is not None:
+        prefix = {"sku": "SKU", "batch": "BAT"}.get(name)
+        if (
+            prefix is None
+            or not isinstance(resource_id, str)
+            or re.fullmatch(prefix + r"[0-9]{6}", resource_id) is None
+        ):
+            return jsonify({"error": "resource_id must be a canonical ID for this SKU or batch schema"}), 400
+        if db[name].find_one({"_id": resource_id}, {"_id": 1}) is None:
+            return jsonify({"error": "Resource not found"}), 404
+        if resource_id in schema.mixins:
+            implicit_roots.append(resource_id)
+
+    roots = schema.root_mixins if use_schema_roots or resource_id is not None else []
+    active_mixins = list(dict.fromkeys([*roots, *active_mixins, *implicit_roots]))
 
     engine = TriggerEngine(schema)
     state = engine.evaluate(active_mixins, field_values)
@@ -196,6 +230,8 @@ def evaluate_schema(name: str):
 
     return jsonify({
         "active_mixins": state.active_mixins,
+        "root_mixins": schema.root_mixins,
+        "implicit_root_mixins": implicit_roots,
         "available_fields": fields,
     })
 
