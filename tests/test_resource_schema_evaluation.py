@@ -10,6 +10,10 @@ from tests.database import get_test_database
 @pytest.fixture
 def resource_schema(client):
     database = get_test_database()
+    # Other legacy fixtures can leave revisions after clearing only heads.
+    # This module owns these schemas in the per-process disposable test DB.
+    database.schema.delete_many({})
+    database.schema_revision.delete_many({})
     definitions = {}
     for name, prefix in (("sku", "SKU"), ("batch", "BAT")):
         for number in (1, 2):
