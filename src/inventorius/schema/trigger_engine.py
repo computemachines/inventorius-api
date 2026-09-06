@@ -19,6 +19,7 @@ class SchemaField:
     options: list[str] | None = None  # For enum type, or MIME types for file type
     unit: str | None = None  # For unit type (e.g., "Ω", "ppm/°C")
     required: bool = False
+    multiline: bool = False
 
 
 @dataclass
@@ -208,6 +209,8 @@ def schema_field_to_dict(f: SchemaField) -> dict:
         d["unit"] = f.unit
     if f.required:
         d["required"] = f.required
+    if f.multiline:
+        d["multiline"] = True
     return d
 
 
@@ -218,6 +221,7 @@ def schema_field_from_dict(d: dict) -> SchemaField:
         options=d.get("options"),
         unit=d.get("unit"),
         required=d.get("required", False),
+        multiline=d.get("multiline", False),
     )
 
 

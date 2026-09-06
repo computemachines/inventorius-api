@@ -226,6 +226,8 @@ def evaluate_schema(name: str):
             field_info["unit"] = f.unit
         if f.required:
             field_info["required"] = f.required
+        if f.multiline:
+            field_info["multiline"] = True
         fields.append(field_info)
 
     return jsonify({

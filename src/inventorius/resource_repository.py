@@ -17,6 +17,7 @@ import json
 import re
 from typing import Any, Callable
 from uuid import uuid4
+from inventorius.sku_properties import sku_display_name
 
 from pymongo import ASCENDING, ReturnDocument, UpdateOne
 from pymongo.errors import DuplicateKeyError
@@ -747,6 +748,8 @@ class ResourceRepository:
                 requested_id=canonical_command["id"],
             )
             state = {**canonical_command, "id": identifier}
+            if prefix == "SKU":
+                state["name"] = sku_display_name(state["props"], state["name"])
             self._insert_resource(prefix, state, actor, session)
             self._insert_receipt(
                 command_kind=command_kind,

@@ -3,6 +3,7 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.sku_properties import sku_display_name
 from inventorius.auth import current_actor, require_capability
 from inventorius.mutation_receipts import record_mutation
 from inventorius.inventory_repository import (
@@ -51,6 +52,11 @@ def skus_post():
         command = new_sku_schema(body)
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
+
+    try:
+        sku_display_name(command.get("props"), command.get("name"))
+    except ValueError as error:
+        return problem.invalid_params_response_simple("props.name", str(error))
 
     try:
         stored = ResourceRepository(db).create(
@@ -109,14 +115,29 @@ def sku_patch(id):
     if not existing:
         return problem.invalid_params_response(problem.missing_resource_param_error("id"))
 
-    if "owned_codes" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"owned_codes": json["owned_codes"]}})
-    if "associated_codes" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"associated_codes": json["associated_codes"]}})
-    if "name" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"name": json["name"]}})
-    if "props" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"props": json["props"]}})
+    updates = {key: json[key] for key in ("owned_codes", "associated_codes", "props") if key in json}
+    original_props = existing.props or {}
+    props = dict(json.get("props") or {}) if "props" in json else dict(original_props)
+    try:
+        if "name" in props:
+            # Old clients may still edit the top-level name. An explicitly
+            # supplied property wins when both representations are present.
+            if "name" in json and "props" not in json:
+                props["name"] = json["name"] or ""
+                updates["props"] = props
+            updates["name"] = sku_display_name(props)
+        elif "name" in json:
+            updates["name"] = json["name"]
+            if "name" in original_props:
+                props["name"] = json["name"] or ""
+                updates["props"] = props
+        elif "props" in json and "name" in original_props:
+            updates["name"] = ""
+    except ValueError as error:
+        return problem.invalid_params_response_simple("props.name", str(error))
+    if updates:
+        # Keep the property and its search/display projection in one write.
+        db.sku.update_one({"_id": id}, {"$set": updates})
 
     updated_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
     record_mutation(
