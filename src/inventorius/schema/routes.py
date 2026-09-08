@@ -133,9 +133,30 @@ def get_schema(name: str):
 
     definition = schema_to_dict(schema)
     response = jsonify(definition)
+    response.headers["Inventory-Schema-Defaults"] = "bool-v1"
     if name in {"sku", "batch"} and request.args.get("revision") is None:
         return advertise(response, _schema_etag(name, definition))
     return response
+
+
+@bp.route("/<name>/mixins", methods=["GET"])
+def discover_schema_mixins(name):
+    from .discovery import discover_mixins
+    names = request.args.getlist("name")
+    query = request.args.get("q", "").strip()
+    try:
+        limit = int(request.args.get("limit", "10"))
+        offset = int(request.args.get("offset", "0"))
+        if not 1 <= limit <= 20 or offset < 0 or len(names) > 20 or len(query) > 500:
+            raise ValueError()
+    except ValueError:
+        return jsonify({"error": "Use limit 1-20, nonnegative offset, at most 20 names, and a query up to 500 characters"}), 400
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
+    if schema is None:
+        return jsonify({"error": f"Schema '{name}' not found"}), 404
+    return jsonify({"schema": name, **discover_mixins(schema_to_dict(schema), query=query, names=names, limit=limit, offset=offset)})
 
 
 @bp.route("/<name>/roots", methods=["GET"])

@@ -384,14 +384,25 @@ def create_access_token():
             "Invalid token expiration",
             f"Choose an expiration from 1 to {ACCESS_TOKEN_MAX_DAYS} days.",
         )
+    allow_inventory_changes = payload.get("allow_inventory_changes", False)
+    if not isinstance(allow_inventory_changes, bool):
+        return _problem(
+            400,
+            "invalid-inventory-changes",
+            "Invalid stock permission",
+            "allow_inventory_changes must be true or false.",
+        )
     raw_token = f"ivt_{secrets.token_urlsafe(32)}"
     now = _now()
+    capabilities = list(ACCESS_TOKEN_CAPABILITIES)
+    if allow_inventory_changes:
+        capabilities.append("inventory.mutate")
     document = {
         "_id": token_digest(raw_token),
         "token_id": secrets.token_urlsafe(12),
         "principal_id": actor.id,
         "label": label,
-        "capabilities": list(ACCESS_TOKEN_CAPABILITIES),
+        "capabilities": capabilities,
         "created_at": now,
         "expires_at": now + timedelta(days=expires_in_days),
         "last_used_at": None,

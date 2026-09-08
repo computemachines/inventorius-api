@@ -113,3 +113,16 @@ def test_removing_mixin_does_not_remove_saved_values(client, resource_schema):
     response = client.post("/api/schema/sku/evaluate", json={"resource_id": "SKU000001"})
     assert response.json["active_mixins"] == ["Description"]
     assert database.sku.find_one({"_id": "SKU000001"})["props"] == {"jaw_count": 3}
+
+
+def test_discovery_api_and_boolean_default_capability(client, resource_schema):
+    _, definitions = resource_schema
+    assert client.get('/api/schema/sku').headers['Inventory-Schema-Defaults'] == 'bool-v1'
+    response = client.get('/api/schema/sku/mixins?q=jaw_count&limit=1')
+    assert response.status_code == 200
+    assert response.json['schema'] == 'sku'
+    assert response.json['matches'][0]['name'] == 'SKU000001'
+    exact = client.get('/api/schema/batch/mixins?name=Description&name=Unknown')
+    assert exact.json['matches'][0]['definition'] == definitions['batch']['mixins']['Description']
+    assert exact.json['missing_names'] == ['Unknown']
+    assert client.get('/api/schema/sku/mixins?limit=0').status_code == 400

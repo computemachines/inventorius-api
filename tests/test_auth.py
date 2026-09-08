@@ -928,6 +928,43 @@ def test_access_token_has_scoped_bearer_authority_without_account_security_acces
     assert create.status_code == 401
 
 
+def test_access_token_can_opt_into_inventory_mutation_authority(
+    auth_client, monkeypatch
+):
+    created = _create_access_token(
+        auth_client, monkeypatch, allow_inventory_changes=True
+    )
+    raw_token = created.json["state"]["secret"]
+    bearer = {"Authorization": f"Bearer {raw_token}", "Origin": ORIGIN}
+
+    assert created.json["state"]["token"]["capabilities"] == [
+        "inventory:read",
+        "catalog.mutate",
+        "schema.admin",
+        "inventory.mutate",
+    ]
+
+    # An absent idempotency key reaches the command's request validation,
+    # proving this scoped bearer passed the inventory.mutate boundary.
+    receipt = auth_client.post("/api/inventory-operations", headers=bearer)
+    assert receipt.status_code == 400
+    assert receipt.json["invalid-params"] == [{
+        "name": "Idempotency-Key", "reason": "header is required",
+    }]
+
+
+@pytest.mark.parametrize("value", ["true", 1, None, []])
+def test_access_token_rejects_non_boolean_inventory_change_permission(
+    auth_client, monkeypatch, value
+):
+    created = _create_access_token(
+        auth_client, monkeypatch, allow_inventory_changes=value
+    )
+
+    assert created.status_code == 400
+    assert created.json["type"] == "invalid-inventory-changes"
+
+
 def test_access_token_requires_exact_origin_and_revocation_is_immediate(
     auth_client, monkeypatch
 ):

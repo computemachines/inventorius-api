@@ -166,7 +166,11 @@ def _search_response(*, hits, starting_from, limit):
             "starting_from": starting_from,
             "limit": limit,
             "returned_num_results": len(paged_hits),
-            "results": paged_models,
+            "results": [
+                {**{key: value for key, value in model.__dict__.items() if key != "contents"}, "contents_loaded": False}
+                if isinstance(model, Bin) else model
+                for model in paged_models
+            ],
             "details": details,
         },
         "operations": [],
