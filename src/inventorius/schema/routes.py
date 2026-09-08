@@ -9,6 +9,13 @@ from flask import Blueprint, jsonify, request
 from ..db import db
 from ..auth import current_actor, public_unsafe, require_capability
 from ..mutation_receipts import record_mutation
+from ..edit_preconditions import (
+    advertise,
+    etag_for_state,
+    failed_response,
+    matches_if_supplied,
+    supplied_if_match,
+)
 from .trigger_engine import (
     Schema,
     TriggerEngine,
@@ -40,6 +47,11 @@ def _get_schema(name: str, revision: int | None = None) -> Schema | None:
     if definition is not None:
         return schema_from_dict(definition)
     return None
+
+
+def _schema_etag(name: str, definition: dict) -> str:
+    exposed = schema_to_dict(schema_from_dict(definition))
+    return etag_for_state(f"schema:{name}", exposed)
 
 
 def _save_schema(
@@ -118,7 +130,11 @@ def get_schema(name: str):
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
-    return jsonify(schema_to_dict(schema))
+    definition = schema_to_dict(schema)
+    response = jsonify(definition)
+    if name in {"sku", "batch"} and request.args.get("revision") is None:
+        return advertise(response, _schema_etag(name, definition))
+    return response
 
 
 @bp.route("/<name>/roots", methods=["GET"])
@@ -247,6 +263,13 @@ def create_or_update_schema(name: str):
     Request body: Full schema definition (root_mixins, mixins, intersections)
     """
     expected = _repository().head(name)
+    conditional = supplied_if_match() is not None
+    if conditional and (
+        name not in {"sku", "batch"}
+        or not expected.active
+        or not matches_if_supplied(_schema_etag(name, expected.definition))
+    ):
+        return failed_response()
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body required"}), 400
@@ -259,6 +282,8 @@ def create_or_update_schema(name: str):
     try:
         _save_schema(name, schema, expected=expected)
     except SchemaEditConflict:
+        if conditional:
+            return failed_response()
         return _edit_conflict_response(name)
     return jsonify({"message": f"Schema '{name}' saved", "schema": schema_to_dict(schema)}), 200
 
