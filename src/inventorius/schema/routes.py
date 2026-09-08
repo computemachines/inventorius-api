@@ -20,6 +20,7 @@ from .trigger_engine import (
     Schema,
     TriggerEngine,
     schema_to_dict,
+    schema_field_to_dict,
     schema_from_dict,
 )
 from .catalog import (
@@ -229,22 +230,7 @@ def evaluate_schema(name: str):
     engine = TriggerEngine(schema)
     state = engine.evaluate(active_mixins, field_values)
 
-    # Build response with full field info
-    fields = []
-    for f in state.available_fields:
-        field_info = {
-            "name": f.name,
-            "type": f.field_type,
-        }
-        if f.options:
-            field_info["options"] = f.options
-        if f.unit:
-            field_info["unit"] = f.unit
-        if f.required:
-            field_info["required"] = f.required
-        if f.multiline:
-            field_info["multiline"] = True
-        fields.append(field_info)
+    fields = [schema_field_to_dict(f) for f in state.available_fields]
 
     return jsonify({
         "active_mixins": state.active_mixins,

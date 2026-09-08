@@ -20,6 +20,7 @@ class SchemaField:
     unit: str | None = None  # For unit type (e.g., "Ω", "ppm/°C")
     required: bool = False
     multiline: bool = False
+    default: bool | None = None  # Initial bool form value; omitted retains legacy true.
 
 
 @dataclass
@@ -211,10 +212,14 @@ def schema_field_to_dict(f: SchemaField) -> dict:
         d["required"] = f.required
     if f.multiline:
         d["multiline"] = True
+    if f.field_type == "bool" and f.default is not None:
+        d["default"] = f.default
     return d
 
 
 def schema_field_from_dict(d: dict) -> SchemaField:
+    if "default" in d and (d["type"] != "bool" or type(d["default"]) is not bool):
+        raise ValueError("Only bool fields support a default, which must be true or false")
     return SchemaField(
         name=d["name"],
         field_type=d["type"],
@@ -222,6 +227,7 @@ def schema_field_from_dict(d: dict) -> SchemaField:
         unit=d.get("unit"),
         required=d.get("required", False),
         multiline=d.get("multiline", False),
+        default=d.get("default"),
     )
 
 

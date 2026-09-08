@@ -179,3 +179,30 @@ def test_multiline_text_is_preserved_by_schema_roundtrip():
     description = definition["mixins"]["Description"]["fields"][0]
     assert description == {"name": "description", "type": "text", "multiline": True}
     assert schema_to_dict(schema_from_dict(definition)) == definition
+
+
+@pytest.mark.parametrize("default", [True, False])
+def test_boolean_default_survives_schema_roundtrip(default):
+    from inventorius.schema.trigger_engine import schema_from_dict, schema_to_dict
+    field = {"name": "enabled", "type": "bool", "default": default}
+    definition = {"root_mixins": ["Root"], "mixins": {
+        "Root": {"name": "Root", "fields": [field]},
+    }, "intersections": [{"when": ["Root"], "adds": [field]}]}
+    saved = schema_to_dict(schema_from_dict(definition))
+    assert saved["mixins"]["Root"]["fields"] == [field]
+    assert saved["intersections"][0]["adds"] == [field]
+
+
+def test_legacy_boolean_default_remains_omitted():
+    from inventorius.schema.trigger_engine import schema_field_from_dict, schema_field_to_dict
+    field = {"name": "enabled", "type": "bool"}
+    assert schema_field_to_dict(schema_field_from_dict(field)) == field
+
+
+@pytest.mark.parametrize("field_type,default", [
+    ("bool", "false"), ("bool", 0), ("bool", None), ("text", False),
+])
+def test_field_default_requires_a_boolean_on_a_bool_field(field_type, default):
+    from inventorius.schema.trigger_engine import schema_field_from_dict
+    with pytest.raises(ValueError, match="must be true or false"):
+        schema_field_from_dict({"name": "enabled", "type": field_type, "default": default})
