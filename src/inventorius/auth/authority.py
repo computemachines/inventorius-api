@@ -41,6 +41,7 @@ class Actor:
     session_digest: str | None = None
     csrf_token: str | None = None
     recent_auth_at: datetime | None = None
+    authentication_method: str | None = None
 
     @property
     def is_authenticated(self) -> bool:
@@ -84,6 +85,13 @@ def token_digest(token: str) -> str:
 
 
 def _load_actor() -> Actor:
+    authorization = request.headers.get("Authorization", "")
+    if authorization:
+        scheme, separator, raw_token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not separator or not raw_token.strip():
+            return ANONYMOUS_ACTOR
+        return _load_access_token_actor(raw_token.strip())
+
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return ANONYMOUS_ACTOR
@@ -122,6 +130,40 @@ def _load_actor() -> Actor:
         session_digest=digest,
         csrf_token=session["csrf_token"],
         recent_auth_at=session.get("recent_auth_at"),
+        authentication_method="session",
+    )
+
+
+def _load_access_token_actor(raw_token: str) -> Actor:
+    try:
+        digest = token_digest(raw_token)
+    except (UnicodeEncodeError, AttributeError):
+        return ANONYMOUS_ACTOR
+    now = datetime.now(timezone.utc)
+    token = db.auth_access_tokens.find_one(
+        {
+            "_id": digest,
+            "expires_at": {"$gt": now},
+            "revoked_at": None,
+        }
+    )
+    if not token:
+        return ANONYMOUS_ACTOR
+    owner = db.auth_principals.find_one({"_id": token["principal_id"]})
+    if not owner:
+        return ANONYMOUS_ACTOR
+    db.auth_access_tokens.update_one(
+        {"_id": digest, "revoked_at": None},
+        {"$set": {"last_used_at": now}},
+    )
+    return Actor(
+        principal=Principal(
+            id=token["token_id"],
+            display_name=token["label"],
+            kind="application",
+        ),
+        capabilities=frozenset(token.get("capabilities", ())),
+        authentication_method="access-token",
     )
 
 
@@ -183,7 +225,7 @@ def require_recent_authentication(actor: Actor):
 
 
 def require_capability(capability: str):
-    """Require owner authority, an exact browser origin, and CSRF."""
+    """Require caller authority and the configured application origin."""
 
     def decorate(function: F) -> F:
         @functools.wraps(function)
@@ -203,7 +245,9 @@ def require_capability(capability: str):
                     "Capability required",
                     f"The current actor lacks {capability}.",
                 )
-            rejected = require_exact_origin() or require_csrf(actor)
+            rejected = require_exact_origin()
+            if not rejected and actor.authentication_method != "access-token":
+                rejected = require_csrf(actor)
             if rejected:
                 return rejected
             return function(*args, **kwargs)

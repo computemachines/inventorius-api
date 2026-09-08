@@ -31,6 +31,13 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 OWNER_ID = "owner"
 CHALLENGE_TTL = timedelta(minutes=5)
 RECOVERY_CODE_COUNT = 10
+ACCESS_TOKEN_CAPABILITIES = (
+    "inventory:read",
+    "catalog.mutate",
+    "schema.admin",
+)
+ACCESS_TOKEN_DEFAULT_DAYS = 30
+ACCESS_TOKEN_MAX_DAYS = 90
 
 
 def _now():
@@ -69,20 +76,23 @@ def _session_resource(actor=None):
             "principal": actor.principal.summary(),
             "csrf_token": actor.csrf_token,
         }
-        operations = [
-            _operation("sessions", "GET", "/api/auth/sessions"),
-            _operation(
-                "register-passkey-options",
-                "POST",
-                "/api/auth/bootstrap/registration/options",
-            ),
-            _operation("logout", "POST", "/api/auth/logout"),
-            _operation(
-                "recent-passkey-options",
-                "POST",
-                "/api/auth/passkeys/recent-authentication/options",
-            ),
-        ]
+        operations = []
+        if actor.authentication_method == "session":
+            operations = [
+                _operation("sessions", "GET", "/api/auth/sessions"),
+                _operation("access-tokens", "GET", "/api/auth/access-tokens"),
+                _operation(
+                    "register-passkey-options",
+                    "POST",
+                    "/api/auth/bootstrap/registration/options",
+                ),
+                _operation("logout", "POST", "/api/auth/logout"),
+                _operation(
+                    "recent-passkey-options",
+                    "POST",
+                    "/api/auth/passkeys/recent-authentication/options",
+                ),
+            ]
     elif owner:
         state = {"status": "anonymous", "principal": None}
         operations = [
@@ -193,6 +203,7 @@ def _issue_session(principal_id: str, authentication_method: str = "passkey"):
         session_digest=digest,
         csrf_token=csrf_token,
         recent_auth_at=now if authentication_method == "passkey" else None,
+        authentication_method="session",
     )
     response = make_response(jsonify(_session_resource(actor)))
     response.set_cookie(
@@ -240,7 +251,7 @@ def get_sessions():
     """Return owner-visible metadata for active browser sessions only."""
 
     actor = current_actor()
-    if not actor.is_authenticated:
+    if not actor.is_authenticated or actor.authentication_method != "session":
         return _problem(401, "authentication-required", "Authentication required", "Sign in to view active sessions.")
     now = _now()
     sessions = list(
@@ -284,6 +295,162 @@ def get_sessions():
     )
 
 
+def _isoformat(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _access_token_metadata(token: dict) -> dict:
+    return {
+        "id": token["token_id"],
+        "label": token["label"],
+        "capabilities": token["capabilities"],
+        "created_at": _isoformat(token["created_at"]),
+        "expires_at": _isoformat(token["expires_at"]),
+        "last_used_at": _isoformat(token.get("last_used_at")),
+        "revoked_at": _isoformat(token.get("revoked_at")),
+        "revoked": token.get("revoked_at") is not None,
+    }
+
+
+def _browser_account_actor():
+    actor = current_actor()
+    if not actor.is_authenticated or actor.authentication_method != "session":
+        return None, _problem(
+            401,
+            "authentication-required",
+            "Authentication required",
+            "Sign in with your passkey to manage application tokens.",
+        )
+    return actor, None
+
+
+@bp.get("/access-tokens")
+def get_access_tokens():
+    actor, rejected = _browser_account_actor()
+    if rejected:
+        return rejected
+    tokens = list(
+        db.auth_access_tokens.find({"principal_id": actor.id}).sort("created_at", -1)
+    )
+    return jsonify(
+        {
+            "kind": "auth-access-tokens",
+            "Id": "/api/auth/access-tokens",
+            "state": {"tokens": [_access_token_metadata(token) for token in tokens]},
+            "operations": [
+                _operation("create-access-token", "POST", "/api/auth/access-tokens")
+            ],
+        }
+    )
+
+
+@bp.post("/access-tokens")
+@public_unsafe
+def create_access_token():
+    actor, rejected = _browser_account_actor()
+    if rejected:
+        return rejected
+    rejected = (
+        require_exact_origin()
+        or require_csrf(actor)
+        or require_recent_authentication(actor)
+    )
+    if rejected:
+        return rejected
+    payload = _json_object()
+    if payload is None:
+        return _problem(400, "invalid-request", "Invalid request", "Expected a JSON object.")
+    label = str(payload.get("label", "Inventory Assistant")).strip()
+    if not label or len(label) > 100:
+        return _problem(
+            400,
+            "invalid-label",
+            "Invalid token name",
+            "Use a name between 1 and 100 characters.",
+        )
+    expires_in_days = payload.get("expires_in_days", ACCESS_TOKEN_DEFAULT_DAYS)
+    if (
+        isinstance(expires_in_days, bool)
+        or not isinstance(expires_in_days, int)
+        or not 1 <= expires_in_days <= ACCESS_TOKEN_MAX_DAYS
+    ):
+        return _problem(
+            400,
+            "invalid-expiration",
+            "Invalid token expiration",
+            f"Choose an expiration from 1 to {ACCESS_TOKEN_MAX_DAYS} days.",
+        )
+    raw_token = f"ivt_{secrets.token_urlsafe(32)}"
+    now = _now()
+    document = {
+        "_id": token_digest(raw_token),
+        "token_id": secrets.token_urlsafe(12),
+        "principal_id": actor.id,
+        "label": label,
+        "capabilities": list(ACCESS_TOKEN_CAPABILITIES),
+        "created_at": now,
+        "expires_at": now + timedelta(days=expires_in_days),
+        "last_used_at": None,
+        "revoked_at": None,
+    }
+    db.auth_access_tokens.insert_one(document)
+    document = db.auth_access_tokens.find_one({"_id": document["_id"]})
+    response = jsonify(
+        {
+            "kind": "auth-access-token-created",
+            "Id": f"/api/auth/access-tokens/{document['token_id']}",
+            "state": {
+                "token": _access_token_metadata(document),
+                "secret": raw_token,
+            },
+            "operations": [],
+        }
+    )
+    response.status_code = 201
+    return response
+
+
+@bp.delete("/access-tokens/<token_id>")
+@public_unsafe
+def revoke_access_token(token_id: str):
+    actor, rejected = _browser_account_actor()
+    if rejected:
+        return rejected
+    rejected = (
+        require_exact_origin()
+        or require_csrf(actor)
+        or require_recent_authentication(actor)
+    )
+    if rejected:
+        return rejected
+    token = db.auth_access_tokens.find_one_and_update(
+        {
+            "token_id": token_id,
+            "principal_id": actor.id,
+            "revoked_at": None,
+        },
+        {"$set": {"revoked_at": _now()}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not token:
+        return _problem(
+            404,
+            "access-token-not-found",
+            "Application token not found",
+            "The token does not exist or has already been revoked.",
+        )
+    return jsonify(
+        {
+            "kind": "auth-access-token",
+            "Id": f"/api/auth/access-tokens/{token_id}",
+            "state": {"token": _access_token_metadata(token)},
+            "operations": [],
+        }
+    )
 @bp.post("/bootstrap/registration/options")
 @public_unsafe
 def registration_options():
