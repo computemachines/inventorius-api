@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 from pymongo.collection import Collection
 
+from inventorius.edit_preconditions import exact_document_filter
 from inventorius.schema import routes as schema_routes
 from inventorius.schema.repository import SchemaRepository
 from tests.database import get_test_database
@@ -194,6 +195,39 @@ def test_sku_precondition_is_rechecked_atomically_with_update(
     assert injected
     assert response.status_code == 412
     assert database.sku.find_one({"_id": "SKU000001"})["name"] == "Winner"
+
+
+def test_exact_document_filter_distinguishes_observed_null_from_missing(
+    clean_edit_precondition_database,
+):
+    collection = clean_edit_precondition_database.sku
+    observed = {"_id": "SKU000001", "props": None}
+    collection.insert_one(deepcopy(observed))
+    collection.update_one({"_id": "SKU000001"}, {"$unset": {"props": ""}})
+
+    result = collection.update_one(
+        exact_document_filter("SKU000001", observed, ("_id", "props")),
+        {"$set": {"name": "must-not-apply"}},
+    )
+
+    assert result.matched_count == 0
+    assert "name" not in collection.find_one({"_id": "SKU000001"})
+
+
+def test_exact_document_filter_treats_operator_shaped_value_as_literal(
+    clean_edit_precondition_database,
+):
+    collection = clean_edit_precondition_database.sku
+    observed = {"_id": "SKU000001", "props": {"$ne": "query-operator"}}
+    collection.insert_one(deepcopy(observed))
+
+    result = collection.update_one(
+        exact_document_filter("SKU000001", observed, ("_id", "props")),
+        {"$set": {"name": "matched-literal"}},
+    )
+
+    assert result.matched_count == 1
+    assert collection.find_one({"_id": "SKU000001"})["name"] == "matched-literal"
 
 
 def test_batch_patch_applies_all_selected_changes_in_one_guarded_write(

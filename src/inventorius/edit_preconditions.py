@@ -56,7 +56,8 @@ def exact_document_filter(
         if field == "_id":
             continue
         if field in observed:
-            clauses.append({field: observed[field]})
+            clauses.append({field: {"$exists": True}})
+            clauses.append({field: {"$eq": observed[field]}})
         else:
             clauses.append({field: {"$exists": False}})
     return {"$and": clauses}
