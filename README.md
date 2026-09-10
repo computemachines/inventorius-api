@@ -139,3 +139,35 @@ release and dynamically tags each request with the same resolved product release
 | 404 | Not Found |
 | 409 | Conflict (duplicate ID, etc.) |
 | 500 | Internal Server Error |
+
+### Uploading photos into schema properties
+
+A photo is an ordinary mixin field with `type: "file"`. Its persisted value is
+one server file UUID, not a local path or inbox capture ID. SKU and batch fields
+use the same representation; no separate photo collection belongs on the item.
+
+1. Create an application token in Account Security with **Allow file uploads**,
+   or request `allow_file_uploads: true` when creating a token through the existing
+   recently authenticated browser flow. This adds `files.upload`; it does not add
+   file deletion. Previously issued tokens are unchanged.
+2. Send authenticated `POST /api/files` as multipart form data, with the binary
+   in the `file` part. Bearer requests also need the configured exact `Origin`.
+   Browser requests use their session and CSRF token. Do not set a multipart
+   Content-Type manually when the HTTP client builds the boundary.
+3. On HTTP 201, take `state.id` from the response. Save that UUID under the
+   applicable file field in the SKU or batch's `props`, using the normal catalog
+   update and preserving unrelated properties. Upload and attachment are separate
+   operations: retain the returned ID if attachment fails, so it can be retried
+   without uploading again. Local assistant attachment still follows its reviewed
+   proposal/application workflow.
+4. Read the item back, then retrieve `/api/files/<uuid>/meta` and
+   `/api/files/<uuid>`. Metadata includes `original_filename`, `content_type`,
+   `is_image`, and `has_thumbnail`; `/api/files/<uuid>/thumb` exists only when
+   `has_thumbnail` is true. The web property table displays images inline and
+   links to the full stored image. PDFs appear as document links.
+
+Uploads currently accept JPEG, PNG, GIF, WebP and PDF, up to 10 MiB by default.
+Images may be resized to 2000 pixels and auto-oriented; this is not archival
+storage of the original bytes. Files and their metadata are publicly readable,
+like the inventory. Removing a property detaches its reference; it does not
+remove the stored file. Do not delete uploads on a failed attachment automatically.

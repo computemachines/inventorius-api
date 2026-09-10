@@ -392,11 +392,19 @@ def create_access_token():
             "Invalid stock permission",
             "allow_inventory_changes must be true or false.",
         )
+    allow_file_uploads = payload.get("allow_file_uploads", False)
+    if not isinstance(allow_file_uploads, bool):
+        return _problem(
+            400, "invalid-file-uploads", "Invalid upload permission",
+            "allow_file_uploads must be true or false.",
+        )
     raw_token = f"ivt_{secrets.token_urlsafe(32)}"
     now = _now()
     capabilities = list(ACCESS_TOKEN_CAPABILITIES)
     if allow_inventory_changes:
         capabilities.append("inventory.mutate")
+    if allow_file_uploads:
+        capabilities.append("files.upload")
     document = {
         "_id": token_digest(raw_token),
         "token_id": secrets.token_urlsafe(12),
