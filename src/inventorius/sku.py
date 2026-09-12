@@ -3,6 +3,15 @@ from voluptuous.error import MultipleInvalid
 from voluptuous.schema_builder import Required
 from inventorius.data_models import Sku, Bin, Batch, DataModelJSONEncoder as Encoder
 from inventorius.db import db
+from inventorius.sku_properties import sku_display_name
+from inventorius.edit_preconditions import (
+    advertise,
+    etag_for_state,
+    exact_document_filter,
+    failed_response,
+    matches_if_supplied,
+    supplied_if_match,
+)
 from inventorius.auth import current_actor, require_capability
 from inventorius.mutation_receipts import record_mutation
 from inventorius.inventory_repository import (
@@ -53,6 +62,11 @@ def skus_post():
         return problem.invalid_params_response(e)
 
     try:
+        sku_display_name(command.get("props"), command.get("name"))
+    except ValueError as error:
+        return problem.invalid_params_response_simple("props.name", str(error))
+
+    try:
         stored = ResourceRepository(db).create(
             "SKU",
             command,
@@ -92,7 +106,8 @@ def sku_get(id):
     sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
     if sku is None:
         return problem.missing_bin_response(id)
-    return SkuEndpoint.from_sku(sku).get_response()
+    response = SkuEndpoint.from_sku(sku).get_response()
+    return advertise(response, etag_for_state("sku", sku.to_dict()))
 
 
 @ sku.route('/api/sku/<id>', methods=['PATCH'])
@@ -105,18 +120,46 @@ def sku_patch(id):
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    existing = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
+    existing_document = db.sku.find_one({"_id": id})
+    existing = Sku.from_mongodb_doc(existing_document)
     if not existing:
         return problem.invalid_params_response(problem.missing_resource_param_error("id"))
+    current_etag = etag_for_state("sku", existing.to_dict())
+    if not matches_if_supplied(current_etag):
+        return failed_response()
 
-    if "owned_codes" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"owned_codes": json["owned_codes"]}})
-    if "associated_codes" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"associated_codes": json["associated_codes"]}})
-    if "name" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"name": json["name"]}})
-    if "props" in json:
-        db.sku.update_one({"_id": id}, {"$set": {"props": json["props"]}})
+    updates = {key: json[key] for key in ("owned_codes", "associated_codes", "props") if key in json}
+    original_props = existing.props or {}
+    props = dict(json.get("props") or {}) if "props" in json else dict(original_props)
+    try:
+        if "name" in props:
+            # Old clients may still edit the top-level name. An explicitly
+            # supplied property wins when both representations are present.
+            if "name" in json and "props" not in json:
+                props["name"] = json["name"] or ""
+                updates["props"] = props
+            updates["name"] = sku_display_name(props)
+        elif "name" in json:
+            updates["name"] = json["name"]
+            if "name" in original_props:
+                props["name"] = json["name"] or ""
+                updates["props"] = props
+        elif "props" in json and "name" in original_props:
+            updates["name"] = ""
+    except ValueError as error:
+        return problem.invalid_params_response_simple("props.name", str(error))
+    if updates:
+        # Keep the property and its search/display projection in one write.
+        selector = {"_id": id}
+        if supplied_if_match() is not None:
+            selector = exact_document_filter(
+                id,
+                existing_document,
+                ("_id", "owned_codes", "associated_codes", "name", "props"),
+            )
+        result = db.sku.update_one(selector, {"$set": updates})
+        if result.matched_count != 1:
+            return failed_response()
 
     updated_sku = Sku.from_mongodb_doc(db.sku.find_one({"_id": id}))
     record_mutation(

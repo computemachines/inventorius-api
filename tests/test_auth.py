@@ -46,6 +46,7 @@ def auth_client(client):
         "auth_recovery_codes",
         "auth_sessions",
         "auth_local_login_tokens",
+        "auth_access_tokens",
     ):
         database[name].delete_many({})
     yield client
@@ -369,7 +370,13 @@ def test_authentication_is_discoverable_and_issues_new_session(
     assert {
         operation["rel"]
         for operation in authenticated_session.json["operations"]
-    } == {"register-passkey-options", "logout", "sessions", "recent-passkey-options"}
+    } == {
+        "access-tokens",
+        "register-passkey-options",
+        "logout",
+        "sessions",
+        "recent-passkey-options",
+    }
 
 
 def test_expired_or_idle_session_is_anonymous(auth_client):
@@ -784,6 +791,226 @@ def test_every_unsafe_api_route_has_an_explicit_authority_classification():
             unclassified.append((sorted(methods), rule.rule))
 
     assert unclassified == []
+
+
+def _create_access_token(auth_client, monkeypatch, **payload):
+    _, registered = _register_owner(auth_client, monkeypatch)
+    return auth_client.post(
+        "/api/auth/access-tokens",
+        json=payload,
+        headers={
+            "Origin": ORIGIN,
+            "X-CSRF-Token": registered.json["state"]["csrf_token"],
+        },
+    )
+
+
+def test_access_token_creation_requires_a_recent_browser_session(auth_client, monkeypatch):
+    anonymous = auth_client.post(
+        "/api/auth/access-tokens",
+        json={},
+        headers={"Origin": ORIGIN},
+    )
+    assert anonymous.status_code == 401
+    assert anonymous.json["type"] == "authentication-required"
+
+    _, registered = _register_owner(auth_client, monkeypatch)
+    database = get_test_database()
+    current = database.auth_sessions.find_one(
+        {"csrf_token": registered.json["state"]["csrf_token"]}
+    )
+    database.auth_sessions.update_one(
+        {"_id": current["_id"]},
+        {"$set": {"recent_auth_at": _past_recent_authentication()}},
+    )
+    stale = auth_client.post(
+        "/api/auth/access-tokens",
+        json={},
+        headers={
+            "Origin": ORIGIN,
+            "X-CSRF-Token": registered.json["state"]["csrf_token"],
+        },
+    )
+    assert stale.status_code == 401
+    assert stale.json["type"] == "recent-authentication-required"
+
+
+def test_access_token_secret_is_returned_once_and_only_its_digest_is_stored(
+    auth_client, monkeypatch
+):
+    created = _create_access_token(
+        auth_client,
+        monkeypatch,
+        label="Workshop reviewer",
+    )
+    assert created.status_code == 201
+    state = created.json["state"]
+    raw_token = state["secret"]
+    assert raw_token.startswith("ivt_")
+    assert state["token"]["label"] == "Workshop reviewer"
+    assert state["token"]["capabilities"] == [
+        "inventory:read",
+        "catalog.mutate",
+        "schema.admin",
+    ]
+    expires_at = datetime.fromisoformat(
+        state["token"]["expires_at"].replace("Z", "+00:00")
+    )
+    created_at = datetime.fromisoformat(
+        state["token"]["created_at"].replace("Z", "+00:00")
+    )
+    assert timedelta(days=29, hours=23) < expires_at - created_at <= timedelta(days=30)
+
+    stored = get_test_database().auth_access_tokens.find_one(
+        {"token_id": state["token"]["id"]}
+    )
+    assert stored["_id"] == token_digest(raw_token)
+    assert raw_token not in repr(stored)
+
+    listed = auth_client.get("/api/auth/access-tokens")
+    assert listed.status_code == 200
+    assert listed.json["state"]["tokens"] == [state["token"]]
+    assert "secret" not in repr(listed.json)
+    assert stored["_id"] not in repr(listed.json)
+
+
+def test_access_token_has_scoped_bearer_authority_without_account_security_access(
+    auth_client, monkeypatch
+):
+    created = _create_access_token(auth_client, monkeypatch)
+    raw_token = created.json["state"]["secret"]
+    bearer = {"Authorization": f"Bearer {raw_token}"}
+
+    session = auth_client.get("/api/auth/session", headers=bearer)
+    assert session.status_code == 200
+    assert session.json["state"] == {
+        "status": "authenticated",
+        "principal": {
+            "id": created.json["state"]["token"]["id"],
+            "display_name": "Inventory Assistant",
+            "kind": "application",
+        },
+        "csrf_token": None,
+    }
+    assert session.json["operations"] == []
+
+    root = auth_client.get("/api/", headers=bearer)
+    assert {operation["rel"] for operation in root.json["operations"]} == {
+        "create-bin",
+        "create-sku",
+        "create-batch",
+        "define-process",
+        "schema-admin",
+    }
+    catalog = auth_client.post(
+        "/api/bins",
+        headers={**bearer, "Origin": ORIGIN},
+    )
+    assert catalog.status_code == 400
+    assert catalog.json["type"] != "csrf-rejected"
+
+    stock = auth_client.post(
+        "/api/intake",
+        headers={**bearer, "Origin": ORIGIN},
+    )
+    assert stock.status_code == 403
+    assert stock.json["type"] == "capability-required"
+
+    account_inventory = auth_client.get("/api/auth/access-tokens", headers=bearer)
+    assert account_inventory.status_code == 401
+    sessions = auth_client.get("/api/auth/sessions", headers=bearer)
+    assert sessions.status_code == 401
+    create = auth_client.post(
+        "/api/auth/access-tokens",
+        json={},
+        headers={**bearer, "Origin": ORIGIN},
+    )
+    assert create.status_code == 401
+
+
+def test_access_token_can_opt_into_inventory_mutation_authority(
+    auth_client, monkeypatch
+):
+    created = _create_access_token(
+        auth_client, monkeypatch, allow_inventory_changes=True
+    )
+    raw_token = created.json["state"]["secret"]
+    bearer = {"Authorization": f"Bearer {raw_token}", "Origin": ORIGIN}
+
+    assert created.json["state"]["token"]["capabilities"] == [
+        "inventory:read",
+        "catalog.mutate",
+        "schema.admin",
+        "inventory.mutate",
+    ]
+
+    # An absent idempotency key reaches the command's request validation,
+    # proving this scoped bearer passed the inventory.mutate boundary.
+    receipt = auth_client.post("/api/inventory-operations", headers=bearer)
+    assert receipt.status_code == 400
+    assert receipt.json["invalid-params"] == [{
+        "name": "Idempotency-Key", "reason": "header is required",
+    }]
+
+
+@pytest.mark.parametrize("value", ["true", 1, None, []])
+def test_access_token_rejects_non_boolean_inventory_change_permission(
+    auth_client, monkeypatch, value
+):
+    created = _create_access_token(
+        auth_client, monkeypatch, allow_inventory_changes=value
+    )
+
+    assert created.status_code == 400
+    assert created.json["type"] == "invalid-inventory-changes"
+
+
+def test_access_token_requires_exact_origin_and_revocation_is_immediate(
+    auth_client, monkeypatch
+):
+    created = _create_access_token(auth_client, monkeypatch)
+    raw_token = created.json["state"]["secret"]
+    token_id = created.json["state"]["token"]["id"]
+    bearer = {"Authorization": f"Bearer {raw_token}"}
+
+    wrong_origin = auth_client.post(
+        "/api/bins",
+        headers={**bearer, "Origin": "https://evil.example"},
+    )
+    assert wrong_origin.status_code == 403
+    assert wrong_origin.json["type"] == "origin-mismatch"
+
+    csrf = auth_client.get("/api/auth/session").json["state"]["csrf_token"]
+    revoked = auth_client.delete(
+        f"/api/auth/access-tokens/{token_id}",
+        headers={"Origin": ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json["state"]["token"]["revoked"] is True
+    assert "secret" not in repr(revoked.json)
+
+    rejected = auth_client.post(
+        "/api/bins",
+        headers={**bearer, "Origin": ORIGIN},
+    )
+    assert rejected.status_code == 401
+    assert rejected.json["type"] == "authentication-required"
+
+
+def test_expired_access_token_is_rejected(auth_client, monkeypatch):
+    created = _create_access_token(auth_client, monkeypatch, expires_in_days=1)
+    raw_token = created.json["state"]["secret"]
+    get_test_database().auth_access_tokens.update_one(
+        {"_id": token_digest(raw_token)},
+        {"$set": {"expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}},
+    )
+
+    response = auth_client.get(
+        "/api/auth/session",
+        headers={"Authorization": f"Bearer {raw_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json["state"] == {"status": "anonymous", "principal": None}
 
 
 def test_unclassified_unsafe_api_route_fails_closed(monkeypatch):

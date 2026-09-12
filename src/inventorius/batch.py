@@ -3,6 +3,14 @@ from voluptuous.error import MultipleInvalid
 from inventorius.data_models import Batch, Bin, Sku, DataModelJSONEncoder as Encoder
 from inventorius.db import db
 from inventorius.auth import current_actor, require_capability
+from inventorius.edit_preconditions import (
+    advertise,
+    etag_for_state,
+    exact_document_filter,
+    failed_response,
+    matches_if_supplied,
+    supplied_if_match,
+)
 from inventorius.mutation_receipts import record_mutation
 from inventorius.inventory_repository import (
     InventoryRepository,
@@ -102,7 +110,11 @@ def batch_get(id):
             )
         return problem.missing_batch_response(id)
     else:
-        return BatchEndpoint.from_batch(existing).get_response()
+        response = BatchEndpoint.from_batch(existing).get_response()
+        return advertise(
+            response,
+            etag_for_state("batch", existing.to_dict(mask_default=False)),
+        )
 
 
 @batch.route("/api/batch/<id>", methods=["PATCH"])
@@ -118,9 +130,15 @@ def batch_patch(id):
     except MultipleInvalid as e:
         return problem.invalid_params_response(e)
 
-    existing_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
+    existing_document = db.batch.find_one({"_id": id})
+    existing_batch = Batch.from_mongodb_doc(existing_document)
     if not existing_batch:
         return problem.missing_batch_response(id)
+    current_etag = etag_for_state(
+        "batch", existing_batch.to_dict(mask_default=False)
+    )
+    if not matches_if_supplied(current_etag):
+        return failed_response()
 
     if json.get("sku_id"):
         existing_sku = db.sku.find_one({"_id": json['sku_id']})
@@ -135,21 +153,41 @@ def batch_patch(id):
 
     new_batch_doc = Batch.from_json({"_id": id, **json}).to_mongodb_doc()
 
-    if "props" in json.keys():
-        db.batch.update_one({"_id": id}, {"$set": {"props": new_batch_doc['props']}})
-    if "name" in json.keys():
-        db.batch.update_one({"_id": id}, {"$set": {"name": new_batch_doc['name']}})
-
-    if "sku_id" in json.keys():
-        if not json["sku_id"]:
-            db.batch.update_one({"_id": id}, {"$unset": {"sku_id": ""}})
+    set_fields = {
+        field: new_batch_doc[field]
+        for field in ("props", "name", "owned_codes", "associated_codes")
+        if field in json
+    }
+    unset_fields = {}
+    if "sku_id" in json:
+        if json["sku_id"]:
+            set_fields["sku_id"] = json["sku_id"]
         else:
-            db.batch.update_one({"_id": id}, {"$set": {"sku_id": json['sku_id']}})
+            unset_fields["sku_id"] = ""
 
-    if "owned_codes" in json.keys():
-        db.batch.update_one({"_id": id}, {"$set": {"owned_codes": json['owned_codes']}})
-    if "associated_codes" in json.keys():
-        db.batch.update_one({"_id": id}, {"$set": {"associated_codes": json['associated_codes']}})
+    update = {}
+    if set_fields:
+        update["$set"] = set_fields
+    if unset_fields:
+        update["$unset"] = unset_fields
+    if update:
+        selector = {"_id": id}
+        if supplied_if_match() is not None:
+            selector = exact_document_filter(
+                id,
+                existing_document,
+                (
+                    "_id",
+                    "sku_id",
+                    "name",
+                    "owned_codes",
+                    "associated_codes",
+                    "props",
+                ),
+            )
+        result = db.batch.update_one(selector, update)
+        if result.matched_count != 1:
+            return failed_response()
 
     updated_batch = Batch.from_mongodb_doc(db.batch.find_one({"_id": id}))
     record_mutation(

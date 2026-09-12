@@ -138,8 +138,10 @@ def get_sku_schema() -> Schema:
     ]
 
     return Schema(
-        root_mixins=["ItemTypeSelector"],
+        root_mixins=["Name", "Description", "ItemTypeSelector"],
         mixins={
+            "Name": Mixin(name="Name", fields=[SchemaField("name", "text")]),
+            "Description": Mixin(name="Description", fields=[SchemaField("description", "text", multiline=True)]),
             "ItemTypeSelector": item_type_selector,
             "Resistor": resistor,
             "Capacitor": capacitor,

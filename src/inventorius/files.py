@@ -160,7 +160,7 @@ def generate_thumbnail(input_path: str, output_path: str, size: int = THUMBNAIL_
 
 @files.route('/api/files', methods=['POST'])
 @no_cache
-@require_capability("files.mutate")
+@require_capability("files.upload")
 def files_post():
     """
     Upload a file.
@@ -168,7 +168,7 @@ def files_post():
     Expects multipart/form-data with 'file' field.
     Returns file metadata including ID for future reference.
 
-    TODO: Add @login_required for authentication
+    Requires files.upload authority. Uploaded attachments are publicly readable.
     """
     if 'file' not in request.files:
         return problem.invalid_params_response_simple("file", "No file provided")

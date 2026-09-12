@@ -1,6 +1,7 @@
 """API routes and operator commands for schema management."""
 
 from copy import deepcopy
+import re
 
 import click
 from flask import Blueprint, jsonify, request
@@ -8,10 +9,18 @@ from flask import Blueprint, jsonify, request
 from ..db import db
 from ..auth import current_actor, public_unsafe, require_capability
 from ..mutation_receipts import record_mutation
+from ..edit_preconditions import (
+    advertise,
+    etag_for_state,
+    failed_response,
+    matches_if_supplied,
+    supplied_if_match,
+)
 from .trigger_engine import (
     Schema,
     TriggerEngine,
     schema_to_dict,
+    schema_field_to_dict,
     schema_from_dict,
 )
 from .catalog import (
@@ -39,6 +48,11 @@ def _get_schema(name: str, revision: int | None = None) -> Schema | None:
     if definition is not None:
         return schema_from_dict(definition)
     return None
+
+
+def _schema_etag(name: str, definition: dict) -> str:
+    exposed = schema_to_dict(schema_from_dict(definition))
+    return etag_for_state(f"schema:{name}", exposed)
 
 
 def _save_schema(
@@ -117,7 +131,32 @@ def get_schema(name: str):
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
-    return jsonify(schema_to_dict(schema))
+    definition = schema_to_dict(schema)
+    response = jsonify(definition)
+    response.headers["Inventory-Schema-Defaults"] = "bool-v1"
+    if name in {"sku", "batch"} and request.args.get("revision") is None:
+        return advertise(response, _schema_etag(name, definition))
+    return response
+
+
+@bp.route("/<name>/mixins", methods=["GET"])
+def discover_schema_mixins(name):
+    from .discovery import discover_mixins
+    names = request.args.getlist("name")
+    query = request.args.get("q", "").strip()
+    try:
+        limit = int(request.args.get("limit", "10"))
+        offset = int(request.args.get("offset", "0"))
+        if not 1 <= limit <= 20 or offset < 0 or len(names) > 20 or len(query) > 500:
+            raise ValueError()
+    except ValueError:
+        return jsonify({"error": "Use limit 1-20, nonnegative offset, at most 20 names, and a query up to 500 characters"}), 400
+    schema, error_response = _schema_for_read(name)
+    if error_response is not None:
+        return error_response
+    if schema is None:
+        return jsonify({"error": f"Schema '{name}' not found"}), 404
+    return jsonify({"schema": name, **discover_mixins(schema_to_dict(schema), query=query, names=names, limit=limit, offset=offset)})
 
 
 @bp.route("/<name>/roots", methods=["GET"])
@@ -151,6 +190,11 @@ def evaluate_schema(name: str):
     """
     Evaluate the schema with given active mixins and field values.
 
+    Resource forms pass use_schema_roots=true instead of hard-coding roots.
+    Existing SKU/batch editors also pass resource_id. Its exact canonical ID
+    activates the same-named mixin, if present, without changing shared roots.
+    Omitting both options preserves explicit mixin selection for admin previews.
+
     Request body:
     {
         "active_mixins": ["Resistor"],
@@ -169,33 +213,50 @@ def evaluate_schema(name: str):
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found"}), 404
 
-    data = request.get_json()
-    if not data:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data:
         return jsonify({"error": "Request body required"}), 400
 
     active_mixins = data.get("active_mixins", [])
     field_values = data.get("field_values", {})
+    use_schema_roots = data.get("use_schema_roots", False)
+    resource_id = data.get("resource_id")
+    if (
+        not isinstance(active_mixins, list)
+        or any(not isinstance(mixin, str) for mixin in active_mixins)
+        or not isinstance(field_values, dict)
+        or not isinstance(use_schema_roots, bool)
+    ):
+        return jsonify({"error": "Expected a mixin list, field-value object, and boolean use_schema_roots"}), 400
+
+    # Resource identity is evaluation context, never an editable property or a
+    # predicted next ID. Keep this convention separate from shared root storage.
+    implicit_roots = []
+    if resource_id is not None:
+        prefix = {"sku": "SKU", "batch": "BAT"}.get(name)
+        if (
+            prefix is None
+            or not isinstance(resource_id, str)
+            or re.fullmatch(prefix + r"[0-9]{6}", resource_id) is None
+        ):
+            return jsonify({"error": "resource_id must be a canonical ID for this SKU or batch schema"}), 400
+        if db[name].find_one({"_id": resource_id}, {"_id": 1}) is None:
+            return jsonify({"error": "Resource not found"}), 404
+        if resource_id in schema.mixins:
+            implicit_roots.append(resource_id)
+
+    roots = schema.root_mixins if use_schema_roots or resource_id is not None else []
+    active_mixins = list(dict.fromkeys([*roots, *active_mixins, *implicit_roots]))
 
     engine = TriggerEngine(schema)
     state = engine.evaluate(active_mixins, field_values)
 
-    # Build response with full field info
-    fields = []
-    for f in state.available_fields:
-        field_info = {
-            "name": f.name,
-            "type": f.field_type,
-        }
-        if f.options:
-            field_info["options"] = f.options
-        if f.unit:
-            field_info["unit"] = f.unit
-        if f.required:
-            field_info["required"] = f.required
-        fields.append(field_info)
+    fields = [schema_field_to_dict(f) for f in state.available_fields]
 
     return jsonify({
         "active_mixins": state.active_mixins,
+        "root_mixins": schema.root_mixins,
+        "implicit_root_mixins": implicit_roots,
         "available_fields": fields,
     })
 
@@ -209,6 +270,13 @@ def create_or_update_schema(name: str):
     Request body: Full schema definition (root_mixins, mixins, intersections)
     """
     expected = _repository().head(name)
+    conditional = supplied_if_match() is not None
+    if conditional and (
+        name not in {"sku", "batch"}
+        or not expected.active
+        or not matches_if_supplied(_schema_etag(name, expected.definition))
+    ):
+        return failed_response()
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body required"}), 400
@@ -221,6 +289,8 @@ def create_or_update_schema(name: str):
     try:
         _save_schema(name, schema, expected=expected)
     except SchemaEditConflict:
+        if conditional:
+            return failed_response()
         return _edit_conflict_response(name)
     return jsonify({"message": f"Schema '{name}' saved", "schema": schema_to_dict(schema)}), 200
 
