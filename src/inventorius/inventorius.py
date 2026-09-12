@@ -147,6 +147,29 @@ def _search_locations(models):
     return locations_by_resource
 
 
+@inventorius.route('/api/<kind>/<id>/holdings', methods=['GET'])
+@no_cache
+def resource_holdings_get(kind, id):
+    """Canonical, paginated holdings using the same projection as search.
+
+    Identity lookup must not go through search: an external code can shadow an
+    internal label. Preserve unit, packaging and physical-uncertainty views.
+    """
+    types = {"sku": ("SKU", Sku), "batch": ("BAT", Batch)}
+    if kind not in types or not re.fullmatch(types[kind][0] + r"[0-9]{6}", id):
+        return problem.missing_resource_response("inventory resource", id)
+    document = db[kind].find_one({"_id": id})
+    if document is None:
+        return problem.missing_resource_response("inventory resource", id)
+    model = types[kind][1].from_mongodb_doc(document)
+    holdings = _search_locations([model])[id]
+    offset = max(0, getIntArgs(request.args, "startingFrom", 0))
+    limit = max(1, min(getIntArgs(request.args, "limit", 20), 100))
+    return {"state": {"id": id, "holdings": holdings[offset:offset + limit],
+                      "total_num_results": len(holdings), "starting_from": offset,
+                      "limit": limit}, "operations": []}
+
+
 def _search_response(*, hits, starting_from, limit):
     """Serialize historic rows plus additive, page-local search details."""
     paged_hits = hits[starting_from:(starting_from + limit)]

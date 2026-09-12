@@ -53,7 +53,7 @@ tests/
 | `POST /api/sku` | Create new SKU |
 | `GET /api/batch/<id>` | Get Batch by ID |
 | `POST /api/batch` | Create new Batch |
-| `GET /api/search?q=` | Full-text search |
+| `GET /api/search?query=` | Full-text search |
 | `POST /api/schema/<name>/evaluate` | Evaluate schema for dynamic forms |
 
 ## Schema System
@@ -171,3 +171,25 @@ Images may be resized to 2000 pixels and auto-oriented; this is not archival
 storage of the original bytes. Files and their metadata are publicly readable,
 like the inventory. Removing a property detaches its reference; it does not
 remove the stored file. Do not delete uploads on a failed attachment automatically.
+
+### Read-only remote MCP
+
+`python -m inventorius_mcp` runs the separate MCP adapter on port 8002 using
+`INVENTORIUS_MCP_API_URL`, `INVENTORIUS_MCP_PUBLIC_URL`, and
+`INVENTORIUS_DEPLOYMENT_ENVIRONMENT`. It never imports the Flask application or
+accesses MongoDB. The two tools use anonymous, allowlisted REST GET requests.
+The same immutable API image supplies both the Flask and MCP containers.
+
+`GET /api/sku/<id>/holdings` and `GET /api/batch/<id>/holdings` expose the existing
+search holding projection by canonical identity, without external-code search
+precedence. Query parameters are `limit` (1–100) and `startingFrom`; `state`
+contains `holdings`, `total_num_results`, `starting_from`, and `limit`. Exact and
+feasible-physical rows retain their existing semantics and must not be summed.
+
+Focused standalone tests (without MongoDB):
+`PYTHONPATH=src .venv/bin/python -m pytest mcp_tests --confcutdir=mcp_tests`.
+Full `pytest` also covers the new REST projection against disposable MongoDB.
+For a read-only remote protocol check, run
+`PYTHONPATH=src .venv/bin/python -m inventorius_mcp.verify URL ENVIRONMENT API_SHA`.
+ChatGPT setup and limitations are documented in the docs repository's
+`source/guides/chatgpt-mcp.rst`.
