@@ -39,6 +39,15 @@ def get_mongo_client():
             [("principal_id", ASCENDING)],
             name="recovery_codes_by_principal",
         )
+        _mongo_client.inventoriusdb.auth_access_tokens.create_index(
+            [("token_id", ASCENDING)],
+            unique=True,
+            name="access_token_id",
+        )
+        _mongo_client.inventoriusdb.auth_access_tokens.create_index(
+            [("principal_id", ASCENDING), ("created_at", ASCENDING)],
+            name="access_tokens_by_principal",
+        )
         # Source-aware inventory resolution has a different access path from
         # the batch-first holding identity index used by ledger projection.
         _mongo_client.inventoriusdb.inventory_holdings.create_index(

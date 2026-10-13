@@ -622,3 +622,48 @@ def test_batch_create_and_sku_delete_never_commit_a_dangling_reference(
     else:
         assert isinstance(create_result, MissingResourceReference)
         assert delete_result == "deleted"
+
+
+def test_sku_property_name_drives_display_search_and_legacy_edits(client, clean_resource_database):
+    payload = {"name": "old duplicate", "props": {"name": "VEVOR K11-100", "item_type": "Lathe Chuck", "Description": "Long\nnotes"}}
+    response = post_sku(client, "schema-name", payload)
+    assert response.status_code == 201
+    assert response.json["state"]["name"] == "VEVOR K11-100"
+    assert post_sku(client, "schema-name", payload).json == response.json
+    identifier = response.json["state"]["id"]
+    assert clean_resource_database.sku.find_one({"$text": {"$search": "VEVOR"}})["_id"] == identifier
+    props = {**payload["props"], "name": "Replacement title"}
+    updated = client.patch(f"/api/sku/{identifier}", json={"id": identifier, "props": props})
+    assert updated.status_code == 200
+    assert clean_resource_database.sku.find_one({"_id": identifier})["name"] == "Replacement title"
+    legacy = client.patch(f"/api/sku/{identifier}", json={"id": identifier, "name": "Legacy edit"})
+    assert legacy.status_code == 200
+    saved = clean_resource_database.sku.find_one({"_id": identifier})
+    assert saved["name"] == saved["props"]["name"] == "Legacy edit"
+    assert saved["props"]["Description"] == "Long\nnotes"
+    props.pop("name")
+    assert client.patch(f"/api/sku/{identifier}", json={"id": identifier, "props": props}).status_code == 200
+    saved = clean_resource_database.sku.find_one({"_id": identifier})
+    assert saved["name"] == ""
+    assert saved["props"] == props
+
+
+def test_sku_name_validation_precedes_writes_and_never_uses_item_type(client, clean_resource_database):
+    invalid = post_sku(client, "invalid-name", {"props": {"name": 3}})
+    assert invalid.status_code == 400
+    assert clean_resource_database.sku.count_documents({}) == 0
+    created = post_sku(client, "unlabelled", {"props": {"item_type": "Lathe Chuck"}})
+    assert created.status_code == 201
+    assert created.json["state"]["name"] is None
+    identifier = created.json["state"]["id"]
+    before = clean_resource_database.sku.find_one({"_id": identifier})
+    invalid = client.patch(f"/api/sku/{identifier}", json={"id": identifier, "owned_codes": ["unexpected"], "props": {"name": []}})
+    assert invalid.status_code == 400
+    assert clean_resource_database.sku.find_one({"_id": identifier}) == before
+
+
+def test_legacy_sku_property_edit_preserves_existing_name(client, clean_resource_database):
+    created = post_sku(client, "legacy-name", {"name": "Legacy chuck"})
+    identifier = created.json["state"]["id"]
+    assert client.patch(f"/api/sku/{identifier}", json={"id": identifier, "props": {"notes": "retained"}}).status_code == 200
+    assert clean_resource_database.sku.find_one({"_id": identifier})["name"] == "Legacy chuck"

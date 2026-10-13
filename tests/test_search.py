@@ -174,3 +174,20 @@ def test_search_locations_keep_positive_ledger_holding_shapes_separate(
             "packaging_configuration_id": None,
         },
     ]
+
+
+def test_canonical_holdings_are_paginated_and_not_shadowed_by_external_codes(client, search_database):
+    insert_sku(search_database, "SKU000001", name="Driver")
+    insert_sku(search_database, "SKU000002", owned=["SKU000001"])
+    insert_batch(search_database, "BAT000001", sku_id="SKU000001")
+    insert_holding(search_database, "BAT000001", "BIN000001", "2.5", unit="m", packaging_configuration_id="spool")
+    insert_holding(search_database, "BAT000001", "BIN000002", 4)
+    response = client.get('/api/sku/SKU000001/holdings?limit=1&startingFrom=0')
+    assert response.status_code == 200
+    state = response.json['state']
+    assert state['total_num_results'] == 2
+    assert state['holdings'] == [{"location_id":"BIN000001", "batch_id":"BAT000001", "quantity":"2.5", "unit":"m", "packaging_configuration_id":"spool"}]
+    second = client.get('/api/batch/BAT000001/holdings?limit=1&startingFrom=1').json['state']
+    assert second['holdings'][0]['quantity'] == 4
+    assert client.get('/api/sku/SKU999999/holdings').status_code == 404
+    assert client.get('/api/bin/BIN000001/holdings').status_code == 404

@@ -34,7 +34,7 @@ def test_install_schemas_reports_installed_and_preserved_documents(
     head = collection.find_one({"_id": "sku"})
     assert head["head_revision"] == 1
     assert head["active_revision"] == 1
-    assert head["definition"]["root_mixins"] == ["ItemTypeSelector"]
+    assert head["definition"]["root_mixins"] == ["Name", "Description", "ItemTypeSelector"]
 
 
 def test_force_install_publishes_changed_content_instead_of_replacing_history(
@@ -68,6 +68,8 @@ def test_force_install_publishes_changed_content_instead_of_replacing_history(
     )
     assert [revision["revision"] for revision in revisions] == [1, 2]
     assert revisions[0]["definition"]["root_mixins"] == [
+        "Name",
+        "Description",
         "ItemTypeSelector"
     ]
     assert revisions[1]["parent_revision"] == 1
